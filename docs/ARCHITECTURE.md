@@ -9,64 +9,92 @@
 ## Single Bar Flow
 
 ```mermaid
-flowchart TD
+flowchart LR
     DS[(Dataset\nOHLCV / Tick)]
     RE[Replay Engine]
     EB{{Event Bus}}
+    EL[(Event Log)]
     ST[Strategy Sandbox]
     EM[Execution Model]
     PM[Portfolio Manager]
     ML[Metrics Layer]
     VL[Visualization Layer]
-    EL[(Event Log)]
 
-    %% --- Data enters the system ---
     DS -->|next bar| RE
     RE -->|BarReceivedEvent| EB
 
-    %% --- Event Bus fans out ---
     EB -->|BarReceivedEvent| ST
-    EB -->|BarReceivedEvent| VL
     EB -->|every event| EL
+    EB -->|every event| VL
+    EB -->|every event| ML
 
-    %% --- Strategy reacts ---
+    PM -.->|read-only portfolio state| ST
+
     ST -->|IndicatorUpdatedEvent| EB
-    ST -->|no signal: nothing| EB
-
-    %% --- If strategy sees a signal ---
     ST -->|SignalEmittedEvent| EB
+
     EB -->|SignalEmittedEvent| RE
-
-    %% --- Order lifecycle ---
     RE -->|OrderIntentCreatedEvent| EB
+
     EB -->|OrderIntentCreatedEvent| EM
-
     EM -->|OrderSubmittedEvent| EB
-    EM -->|OrderRejectedEvent| EB
-
-    EB -->|OrderSubmittedEvent| EM
-
-    %% --- Execution Model applies realism ---
-    EM -->|applies spread, slippage,\ncommission, latency| EM
     EM -->|OrderFilledEvent| EB
+    EM -->|OrderRejectedEvent| EB
     EM -->|OrderCancelledEvent| EB
 
-    %% --- Portfolio reacts to fills ---
     EB -->|OrderFilledEvent| PM
     PM -->|PositionOpenedEvent| EB
     PM -->|PositionClosedEvent| EB
     PM -->|PortfolioSnapshotEvent| EB
 
-    %% --- Derived consumers ---
-    EB -->|all events| ML
-    EB -->|all events| VL
+    classDef data        fill:#1a1a2e,stroke:#4a90d9,color:#fff
+    classDef engine      fill:#16213e,stroke:#e94560,color:#fff
+    classDef processing  fill:#0f3460,stroke:#53d8fb,color:#fff
+    classDef output      fill:#1a1a2e,stroke:#a8e063,color:#fff
+    classDef bus         fill:#e94560,stroke:#fff,color:#fff
 
-    %% --- Visual output ---
-    VL -->|renders candle| VL
-    VL -->|renders fill marker| VL
-    VL -->|renders indicators| VL
-    VL -->|renders equity curve| VL
+    class DS,EL data
+    class RE engine
+    class EB bus
+    class ST,EM,PM processing
+    class ML,VL output
 ```
+
+---
+
+## Key Design Decision — Portfolio Visibility
+
+The Strategy is allowed to *read* the current portfolio state — open
+positions, direction, entry price — so it can make exit decisions.
+
+It receives this as a **read-only snapshot** each bar, passed alongside
+the market data. It can never mutate portfolio state directly.
+
+```
+Each bar, the Strategy receives:
+  ├── Current Bar (OHLCV)
+  ├── Its own private indicator state
+  └── Read-only Portfolio snapshot
+         ├── Open positions
+         ├── Position direction (long / short)
+         ├── Entry price
+         └── Unrealised PnL
+```
+
+The exit flow works like this:
+
+```
+Strategy reads open position
+  → emits ExitSignalEvent
+  → Replay Engine creates OrderIntentCreatedEvent (close)
+  → Execution Model processes it
+  → OrderFilledEvent emitted
+  → Portfolio Manager closes position
+  → PositionClosedEvent emitted
+  → Visualization renders exit marker
+```
+
+The Strategy **decides**. The Portfolio Manager **executes the result**.
 
 ---
 
@@ -75,20 +103,18 @@ flowchart TD
 | Component | Role | Emits | Receives |
 |---|---|---|---|
 | **Dataset** | Serves raw bar or tick data | — | — |
-| **Replay Engine** | Controls time, drives the loop, creates order intents | `BarReceivedEvent` `OrderIntentCreatedEvent` | `SignalEmittedEvent` |
+| **Replay Engine** | Controls time, drives the loop, converts signals to order intents | `BarReceivedEvent` `OrderIntentCreatedEvent` | `SignalEmittedEvent` |
 | **Event Bus** | Routes all events to subscribers | — | Everything |
-| **Strategy Sandbox** | Runs user logic, emits signals and indicators | `SignalEmittedEvent` `IndicatorUpdatedEvent` | `BarReceivedEvent` |
-| **Execution Model** | Applies realism between intent and fill | `OrderSubmittedEvent` `OrderFilledEvent` `OrderRejectedEvent` `OrderCancelledEvent` | `OrderIntentCreatedEvent` |
-| **Portfolio Manager** | Tracks capital, positions, and PnL | `PositionOpenedEvent` `PositionClosedEvent` `PortfolioSnapshotEvent` | `OrderFilledEvent` |
-| **Metrics Layer** | Derives statistics from events | — | All events |
-| **Visualization Layer** | Renders chart, markers, indicators | — | All events |
+| **Strategy Sandbox** | Runs user logic, reads portfolio state, emits signals | `SignalEmittedEvent` `IndicatorUpdatedEvent` | `BarReceivedEvent` + read-only portfolio |
+| **Execution Model** | Applies spread, slippage, commission, fill logic | `OrderSubmittedEvent` `OrderFilledEvent` `OrderRejectedEvent` `OrderCancelledEvent` | `OrderIntentCreatedEvent` |
+| **Portfolio Manager** | Tracks capital, positions, PnL. Provides read-only view to Strategy | `PositionOpenedEvent` `PositionClosedEvent` `PortfolioSnapshotEvent` | `OrderFilledEvent` |
+| **Metrics Layer** | Derives statistics from the event stream | — | All events |
+| **Visualization Layer** | Renders chart, markers, indicators, equity curve | — | All events |
 | **Event Log** | Persists every event immutably | — | All events |
 
 ---
 
 ## The Four Hard Rules
-
-These rules cannot be broken without breaking the architecture.
 
 1. **The Strategy never places orders directly.**
    It emits signals. The Replay Engine creates intents.
@@ -106,4 +132,3 @@ These rules cannot be broken without breaking the architecture.
 
 *This diagram reflects the MVP architecture. Components are designed
 to be extended without modifying each other.*
-```
