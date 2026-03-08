@@ -1,0 +1,13 @@
+[package]
+name    = "observa-engine"
+version.workspace = true
+edition.workspace = true
+
+# Replay engine and event bus.
+# Depends on: observa-core, observa-data
+
+[dependencies]
+observa-core = { path = "../observa-core" }
+observa-data = { path = "../observa-data" }
+chrono.workspace    = true
+thiserror.workspace = true

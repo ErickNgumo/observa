@@ -1,0 +1,14 @@
+[package]
+name    = "observa-data"
+version.workspace = true
+edition.workspace = true
+
+# CSV reading, validation, and dataset management.
+# Depends on: observa-core
+
+[dependencies]
+observa-core = { path = "../observa-core" }
+chrono.workspace    = true
+serde.workspace     = true
+thiserror.workspace = true
+csv.workspace       = true

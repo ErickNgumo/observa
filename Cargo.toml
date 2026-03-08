@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "crates/observa-core",
+    "crates/observa-data",
+    "crates/observa-engine",
+    "crates/observa-execution",
+    "crates/observa-portfolio",
+    "crates/observa-python",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors   = ["Observa"]
+license   = "MIT"
+
+[workspace.dependencies]
+chrono     = { version = "0.4", features = ["serde"] }
+serde      = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid       = { version = "1.0", features = ["v4", "serde"] }
+thiserror  = "1.0"
+csv        = "1.3"

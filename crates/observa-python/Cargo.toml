@@ -1,0 +1,21 @@
+[package]
+name    = "observa-python"
+version.workspace = true
+edition.workspace = true
+
+# Python bindings via PyO3.
+# The outermost layer — wraps the engine for Python strategies.
+# Depends on: everything
+
+[dependencies]
+observa-core      = { path = "../observa-core" }
+observa-data      = { path = "../observa-data" }
+observa-engine    = { path = "../observa-engine" }
+observa-execution = { path = "../observa-execution" }
+observa-portfolio = { path = "../observa-portfolio" }
+chrono.workspace  = true
+pyo3 = { version = "0.21", features = ["extension-module"] }
+
+[lib]
+name       = "observa"
+crate-type = ["cdylib"]
