@@ -6,7 +6,3 @@
 pub mod bar;
 pub mod events;
 pub mod types;
-
-pub use bar::{Bar, BarError};
-pub use events::Event;
-pub use types::{Direction, LotSize, Price, Volume};

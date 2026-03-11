@@ -1,14 +1,9 @@
 [package]
-name    = "observa-core"
-version.workspace = true
-edition.workspace = true
-
-# Domain types and events shared across all crates.
-# No dependencies on other Observa crates.
+name = "observa-core"
+version = "0.1.0"
+edition = "2021"
 
 [dependencies]
-chrono.workspace     = true
-serde.workspace      = true
-serde_json.workspace = true
-uuid.workspace       = true
-thiserror.workspace  = true
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
