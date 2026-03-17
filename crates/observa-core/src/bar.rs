@@ -1,6 +1,29 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+// ────────────────────────────────────────────────
+// Error type
+// ────────────────────────────────────────────────
+
+/// Describes exactly why a Bar failed validation.
+/// Each variant is a specific rule violation.
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BarValidationError {
+    /// high must be >= open, close, and low
+    HighBelowOtherPrices { high: f64, offender: f64 },
+
+    /// low must be <= open, close, and high
+    LowAboveOtherPrices { low: f64, offender: f64 },
+
+    /// No price field can be zero or negative
+    NonPositivePrice { field: String, value: f64 },
+
+    /// Volume cannot be negative if present
+    NegativeVolume { volume: f64 },
+}
+
+
 /// A single OHLCV candle representing price activity
 /// over a fixed time period.
 ///
