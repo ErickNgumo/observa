@@ -23,6 +23,26 @@ pub enum BarValidationError {
     NegativeVolume { volume: f64 },
 }
 
+// This lets us print the error as a human readable message
+impl std::fmt::Display for BarValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BarValidationError::HighBelowOtherPrices { high, offender } => {
+                write!(f, "High ({high}) is below another price ({offender})")
+            }
+            BarValidationError::LowAboveOtherPrices { low, offender } => {
+                write!(f, "Low ({low}) is above another price ({offender})")
+            }
+            BarValidationError::NonPositivePrice { field, value } => {
+                write!(f, "Price field '{field}' must be positive, got {value}")
+            }
+            BarValidationError::NegativeVolume { volume } => {
+                write!(f, "Volume cannot be negative, got {volume}")
+            }
+        }
+    }
+}
+
 
 /// A single OHLCV candle representing price activity
 /// over a fixed time period.
