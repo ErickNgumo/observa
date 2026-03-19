@@ -96,5 +96,78 @@ impl Bar {
             volume,
         }
     }
-    
+    /// Validates that this Bar obeys all invariants
+    /// defined in the event schemas.
+    ///
+    /// Returns Ok(()) if valid, or a Vec of every
+    /// violation found — not just the first one.
+    pub fn validate(&self) -> Result<(), Vec<BarValidationError>> {
+        let mut errors = Vec::new();
+
+        // Rule 1 — all prices must be positive
+        for (field, value) in [
+            ("open",  self.open),
+            ("high",  self.high),
+            ("low",   self.low),
+            ("close", self.close),
+        ] {
+            if value <= 0.0 {
+                errors.push(BarValidationError::NonPositivePrice {
+                    field: field.to_string(),
+                    value,
+                });
+            }
+        }
+
+        // Rule 2 — high must be >= open, low, close
+        for offender in [self.open, self.low, self.close] {
+            if self.high < offender {
+                errors.push(BarValidationError::HighBelowOtherPrices {
+                    high: self.high,
+                    offender,
+                });
+            }
+        }
+
+        // Rule 3 — low must be <= open, high, close
+        for offender in [self.open, self.high, self.close] {
+            if self.low > offender {
+                errors.push(BarValidationError::LowAboveOtherPrices {
+                    low: self.low,
+                    offender,
+                });
+            }
+        }
+
+        // Rule 4 — volume cannot be negative if present
+        if let Some(vol) = self.volume {
+            if vol < 0.0 {
+                errors.push(BarValidationError::NegativeVolume { volume: vol });
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Returns the candle's price range (high - low)
+    pub fn range(&self) -> f64 {
+        self.high - self.low
+    }
+
+    /// Returns true if this is a bullish candle
+    /// (close above open)
+    pub fn is_bullish(&self) -> bool {
+        self.close > self.open
+    }
+
+    /// Returns true if this is a bearish candle
+    /// (close below open)
+    pub fn is_bearish(&self) -> bool {
+        self.close < self.open
+    }
+
 }
