@@ -71,3 +71,30 @@ pub struct Bar {
     /// datasets include volume (especially forex)
     pub volume: Option<f64>,
 }
+
+// ────────────────────────────────────────────────
+// Bar methods
+// ────────────────────────────────────────────────
+
+impl Bar {
+    /// Creates a new Bar.
+    /// This is the only way to construct a Bar.
+    pub fn new(
+        timestamp: DateTime<Utc>,
+        open: f64,
+        high: f64,
+        low: f64,
+        close: f64,
+        volume: Option<f64>,
+    ) -> Self {
+        Self {
+            timestamp,
+            open,
+            high,
+            low,
+            close,
+            volume,
+        }
+    }
+    
+}
