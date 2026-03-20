@@ -171,3 +171,127 @@ impl Bar {
     }
 
 }
+
+// ────────────────────────────────────────────────
+// Tests
+// ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    /// Helper — builds a known-good EURUSD bar
+    /// matching the first row of our sample CSV
+    fn sample_bar() -> Bar {
+        Bar::new(
+            Utc.with_ymd_and_hms(2021, 12, 31, 21, 0, 0).unwrap(),
+            1.1376,   // open
+            1.13787,  // high
+            1.1376,   // low
+            1.13786,  // close
+            Some(278.19), // volume
+        )
+    }
+
+    #[test]
+    fn valid_bar_passes_validation() {
+        let bar = sample_bar();
+        assert!(bar.validate().is_ok());
+    }
+
+    #[test]
+    fn high_below_close_fails_validation() {
+        let bar = Bar::new(
+            Utc.with_ymd_and_hms(2021, 12, 31, 21, 0, 0).unwrap(),
+            1.1376,   // open
+            1.1370,   // high — WRONG: below close
+            1.1360,   // low
+            1.1375,   // close
+            None,
+        );
+        let result = bar.validate();
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            BarValidationError::HighBelowOtherPrices { .. }
+        )));
+    }
+
+    #[test]
+    fn negative_price_fails_validation() {
+        let bar = Bar::new(
+            Utc.with_ymd_and_hms(2021, 12, 31, 21, 0, 0).unwrap(),
+            -1.1376,  // open — WRONG: negative
+            1.13787,
+            1.1376,
+            1.13786,
+            None,
+        );
+        let result = bar.validate();
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            BarValidationError::NonPositivePrice { .. }
+        )));
+    }
+
+    #[test]
+    fn negative_volume_fails_validation() {
+        let bar = Bar::new(
+            Utc.with_ymd_and_hms(2021, 12, 31, 21, 0, 0).unwrap(),
+            1.1376,
+            1.13787,
+            1.1376,
+            1.13786,
+            Some(-10.0), // WRONG: negative volume
+        );
+        let result = bar.validate();
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            BarValidationError::NegativeVolume { .. }
+        )));
+    }
+
+    #[test]
+    fn missing_volume_is_valid() {
+        let bar = Bar::new(
+            Utc.with_ymd_and_hms(2021, 12, 31, 21, 0, 0).unwrap(),
+            1.1376,
+            1.13787,
+            1.1376,
+            1.13786,
+            None, // volume absent — should still be valid
+        );
+        assert!(bar.validate().is_ok());
+    }
+
+    #[test]
+    fn bullish_and_bearish_detection() {
+        let bullish = Bar::new(
+            Utc.with_ymd_and_hms(2021, 12, 31, 21, 0, 0).unwrap(),
+            1.1370,  // open
+            1.1380,
+            1.1365,
+            1.1378,  // close > open — bullish
+            None,
+        );
+        assert!(bullish.is_bullish());
+        assert!(!bullish.is_bearish());
+
+        let bearish = Bar::new(
+            Utc.with_ymd_and_hms(2021, 12, 31, 21, 0, 0).unwrap(),
+            1.1378,  // open
+            1.1380,
+            1.1365,
+            1.1370,  // close < open — bearish
+            None,
+        );
+        assert!(bearish.is_bearish());
+        assert!(!bearish.is_bullish());
+    }
+}
