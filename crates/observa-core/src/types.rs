@@ -31,3 +31,27 @@ impl std::fmt::Display for Direction {
         }
     }
 }
+// ────────────────────────────────────────────────
+// ExitReason
+// ────────────────────────────────────────────────
+
+/// Why a position was closed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExitReason {
+    /// Take profit level was hit
+    TakeProfit,
+    /// Stop loss level was hit
+    StopLoss,
+    /// Strategy explicitly called self.close()
+    Signal,
+}
+
+impl std::fmt::Display for ExitReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExitReason::TakeProfit => write!(f, "Take Profit"),
+            ExitReason::StopLoss  => write!(f, "Stop Loss"),
+            ExitReason::Signal    => write!(f, "Signal"),
+        }
+    }
+}
