@@ -129,3 +129,28 @@ impl std::fmt::Display for RejectionReason {
         }
     }
 }
+
+// ────────────────────────────────────────────────
+// CancellationReason
+// ────────────────────────────────────────────────
+
+/// Why an active order was cancelled.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CancellationReason {
+    /// Balance dropped below required margin
+    InsufficientFunds,
+    /// Strategy explicitly cancelled the order
+    CancelledByStrategy,
+    /// Order reached its expiry time unfilled
+    Expired,
+}
+
+impl std::fmt::Display for CancellationReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CancellationReason::InsufficientFunds    => write!(f, "Insufficient Funds"),
+            CancellationReason::CancelledByStrategy  => write!(f, "Cancelled by Strategy"),
+            CancellationReason::Expired              => write!(f, "Expired"),
+        }
+    }
+}
