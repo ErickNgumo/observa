@@ -55,3 +55,77 @@ impl std::fmt::Display for ExitReason {
         }
     }
 }
+
+// ────────────────────────────────────────────────
+// RejectionReason
+// ────────────────────────────────────────────────
+
+/// Why an order was rejected by the execution model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum RejectionReason {
+    /// Stop loss is too close to entry price
+    InvalidStop {
+        entry_price: f64,
+        sl_price: f64,
+        min_distance: f64,
+    },
+    /// Take profit is too close to entry price
+    InvalidTakeProfit {
+        entry_price: f64,
+        tp_price: f64,
+        min_distance: f64,
+    },
+    /// Lot size is outside allowed range
+    InvalidSize {
+        requested: f64,
+        min_size: f64,
+        max_size: f64,
+    },
+    /// Account balance too low to open position
+    InsufficientCapital {
+        required: f64,
+        available: f64,
+    },
+    /// Requested price is unreachable from current market
+    PriceOutOfRange {
+        requested: f64,
+        current: f64,
+    },
+}
+
+impl std::fmt::Display for RejectionReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RejectionReason::InvalidStop { entry_price, sl_price, min_distance } => {
+                write!(f,
+                    "Stop loss ({sl_price}) is too close to entry ({entry_price}). \
+                     Minimum distance: {min_distance}"
+                )
+            }
+            RejectionReason::InvalidTakeProfit { entry_price, tp_price, min_distance } => {
+                write!(f,
+                    "Take profit ({tp_price}) is too close to entry ({entry_price}). \
+                     Minimum distance: {min_distance}"
+                )
+            }
+            RejectionReason::InvalidSize { requested, min_size, max_size } => {
+                write!(f,
+                    "Lot size ({requested}) is outside allowed range \
+                     [{min_size}, {max_size}]"
+                )
+            }
+            RejectionReason::InsufficientCapital { required, available } => {
+                write!(f,
+                    "Insufficient capital. Required: {required}, \
+                     Available: {available}"
+                )
+            }
+            RejectionReason::PriceOutOfRange { requested, current } => {
+                write!(f,
+                    "Requested price ({requested}) is too far from \
+                     current market price ({current})"
+                )
+            }
+        }
+    }
+}
