@@ -179,3 +179,32 @@ impl std::fmt::Display for UpdateType {
         }
     }
 }
+
+// ────────────────────────────────────────────────
+// ErrorType
+// ────────────────────────────────────────────────
+
+/// Why a run was interrupted by an error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ErrorType {
+    /// User strategy code threw an exception
+    StrategyException,
+    /// Dataset contained invalid or malformed data
+    DataCorruption,
+    /// Internal engine error
+    EngineFault,
+    /// Strategy exceeded time or memory limits
+    ResourceLimitExceeded,
+}
+
+impl std::fmt::Display for ErrorType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorType::StrategyException     => write!(f, "Strategy Exception"),
+            ErrorType::DataCorruption        => write!(f, "Data Corruption"),
+            ErrorType::EngineFault           => write!(f, "Engine Fault"),
+            ErrorType::ResourceLimitExceeded => write!(f, "Resource Limit Exceeded"),
+        }
+    }
+}
+
