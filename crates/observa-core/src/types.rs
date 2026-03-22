@@ -154,3 +154,28 @@ impl std::fmt::Display for CancellationReason {
         }
     }
 }
+
+// ────────────────────────────────────────────────
+// UpdateType
+// ────────────────────────────────────────────────
+
+/// What kind of update was applied to a position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UpdateType {
+    /// Stop loss was adjusted
+    SlAdjusted,
+    /// Take profit was adjusted
+    TpAdjusted,
+    /// Part of the position was closed
+    PartialClose,
+}
+
+impl std::fmt::Display for UpdateType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UpdateType::SlAdjusted   => write!(f, "SL Adjusted"),
+            UpdateType::TpAdjusted   => write!(f, "TP Adjusted"),
+            UpdateType::PartialClose => write!(f, "Partial Close"),
+        }
+    }
+}
