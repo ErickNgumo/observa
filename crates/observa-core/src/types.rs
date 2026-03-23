@@ -208,3 +208,15 @@ impl std::fmt::Display for ErrorType {
     }
 }
 
+// ────────────────────────────────────────────────
+// AnnotationSource
+// ────────────────────────────────────────────────
+
+/// Where a journal annotation came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AnnotationSource {
+    /// Annotation was added by strategy code
+    Strategy,
+    /// Annotation was added through the UI
+    Ui,
+}
