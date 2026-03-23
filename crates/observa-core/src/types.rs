@@ -220,3 +220,42 @@ pub enum AnnotationSource {
     /// Annotation was added through the UI
     Ui,
 }
+
+// ────────────────────────────────────────────────
+// Tests
+// ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direction_multiplier_is_correct() {
+        assert_eq!(Direction::Buy.multiplier(),   1.0);
+        assert_eq!(Direction::Sell.multiplier(), -1.0);
+    }
+
+    #[test]
+    fn direction_displays_correctly() {
+        assert_eq!(Direction::Buy.to_string(),  "Buy");
+        assert_eq!(Direction::Sell.to_string(), "Sell");
+    }
+
+    #[test]
+    fn exit_reason_displays_correctly() {
+        assert_eq!(ExitReason::TakeProfit.to_string(), "Take Profit");
+        assert_eq!(ExitReason::StopLoss.to_string(),   "Stop Loss");
+        assert_eq!(ExitReason::Signal.to_string(),     "Signal");
+    }
+
+    #[test]
+    fn rejection_reason_carries_context() {
+        let reason = RejectionReason::InsufficientCapital {
+            required:  1000.0,
+            available: 500.0,
+        };
+        let message = reason.to_string();
+        assert!(message.contains("1000"));
+        assert!(message.contains("500"));
+    }
+}
