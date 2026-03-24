@@ -36,3 +36,315 @@ impl EventMetadata {
         }
     }
 }
+
+// ────────────────────────────────────────────────
+// Market Events
+// ────────────────────────────────────────────────
+
+/// A new bar arrived from the dataset.
+/// This is the heartbeat of the system — everything
+/// starts here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BarReceivedEVent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    ///The full  bar data
+    pub bar: Bar,
+}
+
+// ────────────────────────────────────────────────
+// Strategy Events
+// ────────────────────────────────────────────────
+
+/// The strategy detected a condition and declared
+/// trading intent. Not an order — an expression
+/// of intent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignalEmittedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Unique ID for this signal
+    pub signal_id: Uuid,
+
+    /// Buy or Sell
+    pub direction: Direction,
+
+    /// Requested lot size
+    pub size: f64,
+
+    /// Price the strategy wants to fill at
+    pub intended_price: f64,
+
+    /// Stop loss price — optional
+    pub sl: Option<f64>,
+
+    /// Take profit price — optional
+    pub tp: Option<f64>,
+
+    /// Why the strategy signalled — shown on chart tooltip
+    pub reason: String,
+}
+
+//// An indicator value was recalculated for this bar.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorUpdatedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Name given to this indicator at registration
+    pub indicator_name: String,
+
+    /// Type of indicator e.g. "EMA", "RSI"
+    pub indicator_type: String,
+
+    /// Whether indicator has enough history to be valid
+    pub is_ready: bool,
+
+    /// Current value — None if not ready
+    pub value: Option<f64>,
+}
+
+
+// ────────────────────────────────────────────────
+// Order Events
+// ────────────────────────────────────────────────
+
+/// The Replay Engine converted a signal into a
+/// structured order request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderIntentCreatedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Unique ID for this order
+    pub order_id: Uuid,
+
+    /// Links back to the signal that caused this
+    pub signal_id: Uuid,
+
+    /// Buy or Sell
+    pub direction: Direction,
+
+    /// Lot size
+    pub size: f64,
+
+    /// Requested fill price
+    pub intended_price: f64,
+
+    /// Stop loss — optional
+    pub sl: Option<f64>,
+
+    /// Take profit — optional
+    pub tp: Option<f64>,
+
+    /// Carried forward from the signal
+    pub reason: String,
+}
+
+/// The Execution Model accepted the order —
+/// it is now active.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderSubmittedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Which order was submitted
+    pub order_id: Uuid,
+
+    /// Which signal caused this order
+    pub signal_id: Uuid,
+}
+
+/// An order was executed. Capital moved.
+/// This is the moment of truth.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderFilledEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Which order was filled
+    pub order_id: Uuid,
+
+    /// Which signal caused this order
+    pub signal_id: Uuid,
+
+    /// Price the strategy requested
+    pub intended_price: f64,
+
+    /// Price actually filled at after slippage
+    pub executed_price: f64,
+
+    /// Difference between intended and executed
+    pub slippage: f64,
+
+    /// Cost of spread applied at fill
+    pub spread_cost: f64,
+
+    /// Broker commission charged
+    pub commission: f64,
+
+    /// Lot size filled
+    pub size: f64,
+
+    /// Buy or Sell
+    pub direction: Direction,
+
+    /// Carried forward from the signal
+    pub reason: String,
+}
+
+/// The Execution Model refused the order.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderRejectedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Which order was rejected
+    pub order_id: Uuid,
+
+    /// Which signal caused this order
+    pub signal_id: Uuid,
+
+    /// Structured rejection code
+    pub rejection_reason: RejectionReason,
+
+    /// Human readable explanation for chart tooltip
+    pub rejection_detail: String,
+}
+
+/// An active order was cancelled before it filled.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelledEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Which order was cancelled
+    pub order_id: Uuid,
+
+    /// Which signal caused this order
+    pub signal_id: Uuid,
+
+    /// Why it was cancelled
+    pub cancellation_reason: CancellationReason,
+
+    /// Human readable explanation
+    pub cancellation_detail: String,
+}
+
+// ────────────────────────────────────────────────
+// Position Events
+// ────────────────────────────────────────────────
+
+/// A new position was opened following an order fill.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PositionOpenedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Unique ID for this position
+    pub position_id: Uuid,
+
+    /// Which fill opened this position
+    pub order_id: Uuid,
+
+    /// Buy or Sell
+    pub direction: Direction,
+
+    /// Lot size
+    pub size: f64,
+
+    /// Price at which position opened
+    pub entry_price: f64,
+
+    /// Initial stop loss
+    pub sl: Option<f64>,
+
+    /// Initial take profit
+    pub tp: Option<f64>,
+
+    /// Always 0.0 at open — included for consistency
+    pub pnl: f64,
+
+    /// Position size as % of total equity
+    pub pct_equity: f64,
+
+    /// Position size as % of total balance
+    pub pct_balance: f64,
+}
+
+/// An open position was modified.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PositionUpdatedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Which position was updated
+    pub position_id: Uuid,
+
+    /// What kind of update occurred
+    pub update_type: UpdateType,
+
+    /// Stop loss before update
+    pub previous_sl: Option<f64>,
+
+    /// Stop loss after update
+    pub new_sl: Option<f64>,
+
+    /// Take profit before update
+    pub previous_tp: Option<f64>,
+
+    /// Take profit after update
+    pub new_tp: Option<f64>,
+
+    /// Current size after update
+    pub size: f64,
+
+    /// Unrealised PnL at time of update
+    pub pnl: f64,
+
+    /// Position size as % of equity
+    pub pct_equity: f64,
+
+    /// Position size as % of balance
+    pub pct_balance: f64,
+}
+
+/// A position was fully closed. PnL is now realised.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PositionClosedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Which position closed
+    pub position_id: Uuid,
+
+    /// Which fill closed this position
+    pub order_id: Uuid,
+
+    /// Buy or Sell
+    pub direction: Direction,
+
+    /// Lot size closed
+    pub size: f64,
+
+    /// Where position was opened
+    pub entry_price: f64,
+
+    /// Where position was closed
+    pub exit_price: f64,
+
+    /// How the position closed
+    pub exit_reason: ExitReason,
+
+    /// Realised PnL for this trade
+    pub pnl: f64,
+
+    /// As % of equity at close time
+    pub pct_equity: f64,
+
+    /// As % of balance at close time
+    pub pct_balance: f64,
+}
+
