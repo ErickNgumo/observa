@@ -348,3 +348,158 @@ pub struct PositionClosedEvent {
     pub pct_balance: f64,
 }
 
+// ────────────────────────────────────────────────
+// Portfolio Events
+// ────────────────────────────────────────────────
+
+/// Complete snapshot of account financial state.
+/// Emitted after every fill and at end of every bar.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PortfolioSnapshotEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Total account balance
+    pub balance: f64,
+
+    /// Balance plus unrealised PnL
+    pub equity: f64,
+
+    /// Margin currently in use
+    pub margin: f64,
+
+    /// Equity minus margin
+    pub free_margin: f64,
+
+    /// Total floating PnL across all open positions
+    pub unrealised_pnl: f64,
+
+    /// Total closed PnL so far in this run
+    pub realised_pnl: f64,
+
+    /// Number of positions currently open
+    pub open_positions: u32,
+}
+
+// ────────────────────────────────────────────────
+// Run Events
+// ────────────────────────────────────────────────
+
+/// A run began. Everything needed to reproduce
+/// this run exactly is captured here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunStartedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Name of the strategy class
+    pub strategy_name: String,
+
+    /// Hash of the strategy file — ensures reproducibility
+    pub strategy_version: String,
+
+    /// Name of the CSV file
+    pub dataset_name: String,
+
+    /// Hash of the data file — ensures reproducibility
+    pub dataset_hash: String,
+
+    /// First bar timestamp in dataset
+    pub data_start: DateTime<Utc>,
+
+    /// Last bar timestamp in dataset
+    pub data_end: DateTime<Utc>,
+
+    /// Starting capital
+    pub initial_balance: f64,
+
+    /// Full config snapshot serialised as JSON string
+    pub configuration: String,
+}
+
+// ────────────────────────────────────────────────
+// Run Events
+// ────────────────────────────────────────────────
+
+/// A run began. Everything needed to reproduce
+/// this run exactly is captured here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunStartedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Name of the strategy class
+    pub strategy_name: String,
+
+    /// Hash of the strategy file — ensures reproducibility
+    pub strategy_version: String,
+
+    /// Name of the CSV file
+    pub dataset_name: String,
+
+    /// Hash of the data file — ensures reproducibility
+    pub dataset_hash: String,
+
+    /// First bar timestamp in dataset
+    pub data_start: DateTime<Utc>,
+
+    /// Last bar timestamp in dataset
+    pub data_end: DateTime<Utc>,
+
+    /// Starting capital
+    pub initial_balance: f64,
+
+    /// Full config snapshot serialised as JSON string
+    pub configuration: String,
+}
+
+/// The run was interrupted by an error.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunErrorEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Structured error code
+    pub error_type: ErrorType,
+
+    /// Human readable description
+    pub error_message: String,
+
+    /// Full technical error detail
+    pub stack_trace: String,
+
+    /// The bar being processed when error occurred
+    pub last_bar: Bar,
+}
+
+
+// ────────────────────────────────────────────────
+// Annotation Events
+// ────────────────────────────────────────────────
+
+/// A user attached a journal note to an event
+/// or time range. Never influences execution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JournalEntryAddedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// Unique ID for this annotation
+    pub annotation_id: Uuid,
+
+    /// The event this note is attached to — optional
+    pub target_event_id: Option<Uuid>,
+
+    /// Start of time range — optional
+    pub target_time_start: Option<DateTime<Utc>>,
+
+    /// End of time range — optional
+    pub target_time_end: Option<DateTime<Utc>>,
+
+    /// The note content
+    pub text: String,
+
+    /// Where this annotation came from
+    pub source: AnnotationSource,
+}
+
