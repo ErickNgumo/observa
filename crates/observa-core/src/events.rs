@@ -45,11 +45,11 @@ impl EventMetadata {
 /// This is the heartbeat of the system — everything
 /// starts here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BarReceivedEVent {
+pub struct BarReceivedEvent {
     #[serde(flatten)]
     pub metadata: EventMetadata,
 
-    ///The full  bar data
+    /// The full bar data
     pub bar: Bar,
 }
 
@@ -87,7 +87,7 @@ pub struct SignalEmittedEvent {
     pub reason: String,
 }
 
-//// An indicator value was recalculated for this bar.
+/// An indicator value was recalculated for this bar.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndicatorUpdatedEvent {
     #[serde(flatten)]
@@ -105,7 +105,6 @@ pub struct IndicatorUpdatedEvent {
     /// Current value — None if not ready
     pub value: Option<f64>,
 }
-
 
 // ────────────────────────────────────────────────
 // Order Events
@@ -417,40 +416,32 @@ pub struct RunStartedEvent {
     pub configuration: String,
 }
 
-// ────────────────────────────────────────────────
-// Run Events
-// ────────────────────────────────────────────────
-
-/// A run began. Everything needed to reproduce
-/// this run exactly is captured here.
+/// The run finished successfully.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunStartedEvent {
+pub struct RunCompletedEvent {
     #[serde(flatten)]
     pub metadata: EventMetadata,
 
-    /// Name of the strategy class
-    pub strategy_name: String,
+    /// When the run began
+    pub start_time: DateTime<Utc>,
 
-    /// Hash of the strategy file — ensures reproducibility
-    pub strategy_version: String,
+    /// When the run ended
+    pub end_time: DateTime<Utc>,
 
-    /// Name of the CSV file
-    pub dataset_name: String,
+    /// Total bars processed
+    pub total_bars: u64,
 
-    /// Hash of the data file — ensures reproducibility
-    pub dataset_hash: String,
+    /// Total trades completed
+    pub total_trades: u64,
 
-    /// First bar timestamp in dataset
-    pub data_start: DateTime<Utc>,
+    /// Ending account balance
+    pub final_balance: f64,
 
-    /// Last bar timestamp in dataset
-    pub data_end: DateTime<Utc>,
+    /// Ending equity
+    pub final_equity: f64,
 
-    /// Starting capital
-    pub initial_balance: f64,
-
-    /// Full config snapshot serialised as JSON string
-    pub configuration: String,
+    /// Total PnL for the entire run
+    pub realised_pnl: f64,
 }
 
 /// The run was interrupted by an error.
@@ -471,7 +462,6 @@ pub struct RunErrorEvent {
     /// The bar being processed when error occurred
     pub last_bar: Bar,
 }
-
 
 // ────────────────────────────────────────────────
 // Annotation Events
@@ -501,5 +491,74 @@ pub struct JournalEntryAddedEvent {
 
     /// Where this annotation came from
     pub source: AnnotationSource,
+}
+
+// ────────────────────────────────────────────────
+// Master Event enum
+// ────────────────────────────────────────────────
+
+/// Every possible event in Observa wrapped in one type.
+/// This is what the Event Bus passes around.
+/// Components pattern match on this to handle
+/// only the events they care about.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "event_type")]
+pub enum Event {
+    BarReceived(BarReceivedEvent),
+    SignalEmitted(SignalEmittedEvent),
+    IndicatorUpdated(IndicatorUpdatedEvent),
+    OrderIntentCreated(OrderIntentCreatedEvent),
+    OrderSubmitted(OrderSubmittedEvent),
+    OrderFilled(OrderFilledEvent),
+    OrderRejected(OrderRejectedEvent),
+    OrderCancelled(OrderCancelledEvent),
+    PositionOpened(PositionOpenedEvent),
+    PositionUpdated(PositionUpdatedEvent),
+    PositionClosed(PositionClosedEvent),
+    PortfolioSnapshot(PortfolioSnapshotEvent),
+    RunStarted(RunStartedEvent),
+    RunCompleted(RunCompletedEvent),
+    RunError(RunErrorEvent),
+    JournalEntryAdded(JournalEntryAddedEvent),
+}
+
+impl Event {
+    /// Returns the metadata from any event variant
+    /// without needing to know the specific type
+    pub fn metadata(&self) -> &EventMetadata {
+        match self {
+            Event::BarReceived(e)        => &e.metadata,
+            Event::SignalEmitted(e)      => &e.metadata,
+            Event::IndicatorUpdated(e)   => &e.metadata,
+            Event::OrderIntentCreated(e) => &e.metadata,
+            Event::OrderSubmitted(e)     => &e.metadata,
+            Event::OrderFilled(e)        => &e.metadata,
+            Event::OrderRejected(e)      => &e.metadata,
+            Event::OrderCancelled(e)     => &e.metadata,
+            Event::PositionOpened(e)     => &e.metadata,
+            Event::PositionUpdated(e)    => &e.metadata,
+            Event::PositionClosed(e)     => &e.metadata,
+            Event::PortfolioSnapshot(e)  => &e.metadata,
+            Event::RunStarted(e)         => &e.metadata,
+            Event::RunCompleted(e)       => &e.metadata,
+            Event::RunError(e)           => &e.metadata,
+            Event::JournalEntryAdded(e)  => &e.metadata,
+        }
+    }
+
+    /// Convenience — get event_id from any event
+    pub fn event_id(&self) -> Uuid {
+        self.metadata().event_id
+    }
+
+    /// Convenience — get run_id from any event
+    pub fn run_id(&self) -> Uuid {
+        self.metadata().run_id
+    }
+
+    /// Convenience — get timestamp from any event
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        self.metadata().timestamp
+    }
 }
 
