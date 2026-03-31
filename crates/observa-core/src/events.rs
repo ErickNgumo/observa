@@ -562,3 +562,89 @@ impl Event {
     }
 }
 
+// ────────────────────────────────────────────────
+// Tests
+// ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn test_run_id() -> Uuid {
+        Uuid::new_v4()
+    }
+
+    fn test_timestamp() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2021, 12, 31, 21, 0, 0).unwrap()
+    }
+
+    fn test_bar() -> Bar {
+        Bar::new(
+            test_timestamp(),
+            1.1376,
+            1.13787,
+            1.1376,
+            1.13786,
+            Some(278.19),
+        )
+    }
+
+    #[test]
+    fn event_metadata_gets_unique_ids() {
+        let run_id = test_run_id();
+        let meta1 = EventMetadata::new(run_id, test_timestamp());
+        let meta2 = EventMetadata::new(run_id, test_timestamp());
+
+        // Same run_id — both belong to the same run
+        assert_eq!(meta1.run_id, meta2.run_id);
+
+        // Different event_ids — each event is unique
+        assert_ne!(meta1.event_id, meta2.event_id);
+    }
+
+    #[test]
+    fn bar_received_event_metadata_accessible() {
+        let run_id = test_run_id();
+        let event = BarReceivedEvent {
+            metadata: EventMetadata::new(run_id, test_timestamp()),
+            bar: test_bar(),
+        };
+
+        assert_eq!(event.metadata.run_id, run_id);
+        assert_eq!(event.bar.close, 1.13786);
+    }
+
+    #[test]
+    fn master_event_enum_exposes_metadata() {
+        let run_id = test_run_id();
+        let inner = BarReceivedEvent {
+            metadata: EventMetadata::new(run_id, test_timestamp()),
+            bar: test_bar(),
+        };
+        let event = Event::BarReceived(inner);
+
+        // Can access metadata without knowing specific type
+        assert_eq!(event.run_id(), run_id);
+        assert_eq!(event.timestamp(), test_timestamp());
+    }
+
+    #[test]
+    fn event_serializes_to_json() {
+        let run_id = test_run_id();
+        let inner = BarReceivedEvent {
+            metadata: EventMetadata::new(run_id, test_timestamp()),
+            bar: test_bar(),
+        };
+        let event = Event::BarReceived(inner);
+
+        let json = serde_json::to_string(&event);
+        assert!(json.is_ok());
+
+        let json_str = json.unwrap();
+        // Metadata fields should be flat — not nested under "metadata"
+        assert!(json_str.contains("event_id"));
+        assert!(json_str.contains("run_id"));
+        assert!(json_str.contains("timestamp"));
+    }
+}
