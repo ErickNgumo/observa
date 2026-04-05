@@ -158,3 +158,110 @@ impl CsvReader {
         Ok(bars)
     }
 }
+
+// ────────────────────────────────────────────────
+// Tests
+// ────────────────────────────────────────────────
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    /// Creates a temporary CSV file with the given content
+    fn write_temp_csv(content: &str) -> NamedTempFile {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        file
+    }
+
+    #[test]
+    fn loads_valid_csv_correctly() {
+        let csv = "\
+timestamp,open,high,low,close,volume
+2021-12-31 21:00:00+00:00,1.1376,1.13787,1.1376,1.13786,278.19
+2021-12-31 21:15:00+00:00,1.13785,1.13793,1.1376,1.13786,271.72
+";
+        let file = write_temp_csv(csv);
+        let bars = CsvReader::load(file.path()).unwrap();
+
+        assert_eq!(bars.len(), 2);
+        assert_eq!(bars[0].open,  1.1376);
+        assert_eq!(bars[0].close, 1.13786);
+        assert_eq!(bars[0].volume, Some(278.19));
+        assert_eq!(bars[1].open,  1.13785);
+    }
+    #[test]
+    fn accepts_missing_volume() {
+        let csv = "\
+timestamp,open,high,low,close,volume
+2021-12-31 21:00:00+00:00,1.1376,1.13787,1.1376,1.13786,
+";
+        let file = write_temp_csv(csv);
+        let bars = CsvReader::load(file.path()).unwrap();
+
+        assert_eq!(bars.len(), 1);
+        assert_eq!(bars[0].volume, None);
+    }
+    
+    #[test]
+    fn rejects_non_monotonic_timestamps() {
+        let csv = "\
+timestamp,open,high,low,close,volume
+2021-12-31 21:15:00+00:00,1.13785,1.13793,1.1376,1.13786,271.72
+2021-12-31 21:00:00+00:00,1.1376,1.13787,1.1376,1.13786,278.19
+";
+        let file = write_temp_csv(csv);
+        let result = CsvReader::load(file.path());
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            DataError::NonMonotonicTimestamp { .. }
+        ));
+    }
+
+    #[test]
+    fn rejects_empty_file() {
+        let csv = "timestamp,open,high,low,close,volume\n";
+        let file = write_temp_csv(csv);
+        let result = CsvReader::load(file.path());
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), DataError::EmptyDataset));
+    }
+
+    #[test]
+    fn rejects_invalid_price() {
+        let csv = "\
+timestamp,open,high,low,close,volume
+2021-12-31 21:00:00+00:00,NOT_A_NUMBER,1.13787,1.1376,1.13786,278.19
+";
+        let file = write_temp_csv(csv);
+        let result = CsvReader::load(file.path());
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            DataError::InvalidPrice { .. }
+        ));
+    }
+
+    #[test]
+    fn rejects_invalid_bar() {
+        let csv = "\
+timestamp,open,high,low,close,volume
+2021-12-31 21:00:00+00:00,1.1376,1.1370,1.1376,1.13786,278.19
+";
+        // high (1.1370) < open (1.1376) — invalid bar
+        let file = write_temp_csv(csv);
+        let result = CsvReader::load(file.path());
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            DataError::InvalidBar { .. }
+        ));
+    }
+
+}
