@@ -1,13 +1,12 @@
 [package]
-name    = "observa-engine"
-version.workspace = true
-edition.workspace = true
-
-# Replay engine and event bus.
-# Depends on: observa-core, observa-data
+name = "observa-engine"
+version = "0.1.0"
+edition = "2021"
 
 [dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+serde_json = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
 observa-core = { path = "../observa-core" }
 observa-data = { path = "../observa-data" }
-chrono.workspace    = true
-thiserror.workspace = true
