@@ -130,3 +130,151 @@ impl Default for EventBus {
         Self::new()
     }
 }
+
+// ────────────────────────────────────────────────
+// Tests
+// ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use observa_core::bar::Bar;
+    use observa_core::events::{BarReceivedEvent, EventMetadata};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use uuid::Uuid;
+
+    /// Builds a minimal BarReceivedEvent for testing
+    fn test_bar_event() -> Event {
+        let bar = Bar::new(
+            Utc::now(),
+            1.1376,
+            1.13787,
+            1.1376,
+            1.13786,
+            Some(278.19),
+        );
+        Event::BarReceived(BarReceivedEvent {
+            metadata: EventMetadata::new(Uuid::new_v4(), Utc::now()),
+            bar,
+        })
+    }
+
+    #[test]
+    fn subscriber_receives_published_event() {
+        // Rc<RefCell<>> lets us mutate a counter
+        // from inside a closure — we need this because
+        // the closure captures the counter by reference
+        let received = Rc::new(RefCell::new(0u32));
+        let received_clone = received.clone();
+
+        let mut bus = EventBus::new();
+        bus.subscribe("test_subscriber", move |_event| {
+            *received_clone.borrow_mut() += 1;
+        });
+
+        let event = test_bar_event();
+        bus.publish(&event).unwrap();
+
+        assert_eq!(*received.borrow(), 1);
+    }
+
+    #[test]
+    fn multiple_subscribers_all_receive_event() {
+        let count1 = Rc::new(RefCell::new(0u32));
+        let count2 = Rc::new(RefCell::new(0u32));
+
+        let count1_clone = count1.clone();
+        let count2_clone = count2.clone();
+
+        let mut bus = EventBus::new();
+        bus.subscribe("subscriber_1", move |_| {
+            *count1_clone.borrow_mut() += 1;
+        });
+        bus.subscribe("subscriber_2", move |_| {
+            *count2_clone.borrow_mut() += 1;
+        });
+
+        let event = test_bar_event();
+        bus.publish(&event).unwrap();
+
+        assert_eq!(*count1.borrow(), 1);
+        assert_eq!(*count2.borrow(), 1);
+    }
+
+    #[test]
+    fn event_count_increments_correctly() {
+        let mut bus = EventBus::new();
+
+        assert_eq!(bus.event_count(), 0);
+
+        bus.publish(&test_bar_event()).unwrap();
+        bus.publish(&test_bar_event()).unwrap();
+        bus.publish(&test_bar_event()).unwrap();
+
+        assert_eq!(bus.event_count(), 3);
+    }
+
+    #[test]
+    fn event_log_writes_json_lines() {
+        use std::io::Read;
+        use tempfile::NamedTempFile;
+
+        let log_file = NamedTempFile::new().unwrap();
+        let log_path = log_file.path().to_path_buf();
+
+        let mut bus = EventBus::new()
+            .with_log(&log_path)
+            .unwrap();
+
+        bus.publish(&test_bar_event()).unwrap();
+        bus.publish(&test_bar_event()).unwrap();
+
+        // Read the log file back
+        let mut contents = String::new();
+        std::fs::File::open(&log_path)
+            .unwrap()
+            .read_to_string(&mut contents)
+            .unwrap();
+
+        // Should have two lines — one per event
+        let lines: Vec<&str> = contents
+            .lines()
+            .filter(|l| !l.is_empty())
+            .collect();
+
+        assert_eq!(lines.len(), 2);
+
+        // Each line should be valid JSON
+        for line in lines {
+            let parsed: serde_json::Value =
+                serde_json::from_str(line).unwrap();
+            assert!(parsed.get("event_id").is_some());
+            assert!(parsed.get("run_id").is_some());
+        }
+    }
+
+    #[test]
+    fn subscriber_only_handles_events_it_cares_about() {
+        let bar_count = Rc::new(RefCell::new(0u32));
+        let bar_count_clone = bar_count.clone();
+
+        let mut bus = EventBus::new();
+
+        // This subscriber only cares about BarReceived
+        bus.subscribe("visualization", move |event| {
+            match event {
+                Event::BarReceived(_) => {
+                    *bar_count_clone.borrow_mut() += 1;
+                }
+                _ => {} // ignore everything else
+            }
+        });
+
+        // Publish a bar event — should be counted
+        bus.publish(&test_bar_event()).unwrap();
+
+        assert_eq!(*bar_count.borrow(), 1);
+    }
+}
