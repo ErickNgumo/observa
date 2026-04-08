@@ -111,3 +111,176 @@ pub trait Strategy {
     /// Use this for cleanup or final logging.
     fn teardown(&mut self);
 }
+
+// ────────────────────────────────────────────────
+// Tests
+// ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use observa_core::types::Direction;
+
+    /// A minimal test strategy that buys on
+    /// every single bar — used to verify the
+    /// trait interface works correctly
+    struct AlwaysBuyStrategy {
+        initialized: bool,
+        torn_down: bool,
+        bars_seen: u32,
+    }
+
+    impl AlwaysBuyStrategy {
+        fn new() -> Self {
+            Self {
+                initialized: false,
+                torn_down: false,
+                bars_seen: 0,
+            }
+        }
+    }
+
+    impl Strategy for AlwaysBuyStrategy {
+        fn initialize (&mut self) {
+            self.initialized = true;            
+        }
+
+        fn on_bar(
+            &mut self,
+            bar: &Bar,
+            _portfolio: &PortfolioView,
+            _history: &[Bar],
+        ) -> Vec<StrategySignal> {
+            self.bars_seen += 1;
+            vec! [StrategySignal {
+                direction: Direction::Buy,
+                size: 1.0,
+                intended_price: bar.close,
+                sl: Some(bar.close - 0.0020),
+                tp: Some(bar.close + 0.0040),
+                reason: "Always buy".to_string(),
+            }]
+        }
+
+        fn teardown (&mut self) {
+            self.torn_down = true;
+        }
+    }
+
+    fn test_bar() -> Bar {
+        Bar::new(
+            Utc::now(),
+            1.1376,
+            1.13787,
+            1.1376,
+            1.13786,
+            Some(278.19),
+        )
+    }
+
+    fn test_portfolio() -> PortfolioView {
+        PortfolioView::empty(10_000.0)
+    }
+
+    fn strategy_lifecycle_works_correctly () {
+        let mut strategy = AlwaysBuyStrategy::new();
+
+        //Before initialize
+        assert!(!strategy.initialized);
+
+        //Initialize
+        strategy.initialize();
+        assert!(strategy.initialized);
+
+        //on_bar returns a signal
+        let bar = test_bar();
+        let portfolio = test_portfolio();
+        let signals = strategy.on_bar(&bar, &portfolio, &[]);
+
+        assert_eq!(signals.len(), 1);
+        assert_eq!(signals[0].direction, Direction::Buy);
+        assert_eq!(signals[0].intended_price, bar.close);
+        assert_eq!(strategy.bars_seen, 1);
+
+        // Teardown
+        strategy.teardown();
+        assert!(strategy.torn_down);
+        
+    }
+    #[test]
+    fn portfolio_view_empty_has_correct_defaults() {
+        let portfolio = PortfolioView::empty(10_000.0);
+
+        assert_eq!(portfolio.balance, 10_000.0);
+        assert_eq!(portfolio.equity, 10_000.0);
+        assert!(!portfolio.has_open_position);
+        assert!(portfolio.position_direction.is_none());
+        assert_eq!(portfolio.unrealised_pnl, 0.0);
+    }
+
+     #[test]
+    fn strategy_receives_bar_history() {
+        struct HistoryCheckStrategy {
+            history_length_seen: usize,
+        }
+
+        impl Strategy for HistoryCheckStrategy {
+            fn initialize(&mut self) {}
+
+            fn on_bar(
+                &mut self,
+                _bar: &Bar,
+                _portfolio: &PortfolioView,
+                history: &[Bar],
+            ) -> Vec<StrategySignal> {
+                self.history_length_seen = history.len();
+                vec![]
+            }
+
+            fn teardown(&mut self) {}
+        }
+
+        let mut strategy = HistoryCheckStrategy {
+            history_length_seen: 0,
+        };
+
+        let bar = test_bar();
+        let portfolio = test_portfolio();
+
+        // Simulate 3 bars of history
+        let history = vec![test_bar(), test_bar(), test_bar()];
+        strategy.on_bar(&bar, &portfolio, &history);
+
+        assert_eq!(strategy.history_length_seen, 3);
+    }
+
+    #[test]
+    fn strategy_can_return_no_signals() {
+        struct DoNothingStrategy;
+
+        impl Strategy for DoNothingStrategy {
+            fn initialize(&mut self) {}
+
+            fn on_bar(
+                &mut self,
+                _bar: &Bar,
+                _portfolio: &PortfolioView,
+                _history: &[Bar],
+            ) -> Vec<StrategySignal> {
+                vec![] // no signals this bar
+            }
+
+            fn teardown(&mut self) {}
+        }
+
+        let mut strategy = DoNothingStrategy;
+        let signals = strategy.on_bar(
+            &test_bar(),
+            &PortfolioView::empty(10_000.0),
+            &[],
+        );
+
+        assert!(signals.is_empty());
+    }
+}
