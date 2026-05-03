@@ -252,3 +252,226 @@ impl Engine {
         // via event subscriptions
     }
 }
+
+// ────────────────────────────────────────────────
+// Tests
+// ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::strategy::{PortfolioView, StrategySignal};
+    use chrono::TimeZone;
+    use observa_core::bar::Bar;
+    use observa_core::events::Event;
+    use observa_core::types::Direction;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    /// Builds a sequence of valid test bars
+    fn test_bars(count: usize) -> Vec<Bar> {
+        (0..count)
+            .map(|i| {
+                Bar::new(
+                    Utc.with_ymd_and_hms(
+                        2021, 12, 31,
+                        21, i as u32, 0,
+                    )
+                    .unwrap(),
+                    1.1376,
+                    1.13787,
+                    1.1376,
+                    1.13786,
+                    Some(278.19),
+                )
+            })
+            .collect()
+    }
+
+    /// Builds a default test config
+    fn test_config() -> EngineConfig {
+        EngineConfig::new(
+            10_000.0,
+            0.0002,
+            0.0001,
+            7.0,
+            "TestStrategy",
+            "EURUSD_M15",
+        )
+    }
+
+    /// Strategy that does nothing — used to test
+    /// the engine loop runs correctly
+    struct DoNothingStrategy;
+    impl Strategy for DoNothingStrategy {
+        fn initialize(&mut self) {}
+        fn on_bar(
+            &mut self,
+            _bar: &Bar,
+            _portfolio: &PortfolioView,
+            _history: &[Bar],
+        ) -> Vec<StrategySignal> {
+            vec![]
+        }
+        fn teardown(&mut self) {}
+    }
+
+    /// Strategy that buys on every bar
+    struct AlwaysBuyStrategy;
+    impl Strategy for AlwaysBuyStrategy {
+        fn initialize(&mut self) {}
+        fn on_bar(
+            &mut self,
+            bar: &Bar,
+            _portfolio: &PortfolioView,
+            _history: &[Bar],
+        ) -> Vec<StrategySignal> {
+            vec![StrategySignal {
+                direction:      Direction::Buy,
+                size:           1.0,
+                intended_price: bar.close,
+                sl:             Some(bar.close - 0.0020),
+                tp:             Some(bar.close + 0.0040),
+                reason:         "Test buy".to_string(),
+            }]
+        }
+        fn teardown(&mut self) {}
+    }
+
+    #[test]
+    fn engine_emits_run_started_and_completed() {
+        let event_types = Rc::new(RefCell::new(Vec::new()));
+        let event_types_clone = event_types.clone();
+
+        let mut bus = EventBus::new();
+        bus.subscribe("tracker", move |event| {
+            let label = match event {
+                Event::RunStarted(_)  => "RunStarted",
+                Event::RunCompleted(_) => "RunCompleted",
+                Event::BarReceived(_) => "BarReceived",
+                _                     => "Other",
+            };
+            event_types_clone.borrow_mut()
+                .push(label.to_string());
+        });
+
+        let mut engine = Engine::new(test_config(), bus);
+        let mut strategy = DoNothingStrategy;
+        engine.run(&mut strategy, test_bars(3)).unwrap();
+
+        let events = event_types.borrow();
+
+        // First event must be RunStarted
+        assert_eq!(events[0], "RunStarted");
+
+        // Last event must be RunCompleted
+        assert_eq!(events[events.len() - 1], "RunCompleted");
+    }
+
+    #[test]
+    fn engine_emits_bar_event_for_each_bar() {
+        let bar_count = Rc::new(RefCell::new(0u32));
+        let bar_count_clone = bar_count.clone();
+
+        let mut bus = EventBus::new();
+        bus.subscribe("bar_counter", move |event| {
+            if matches!(event, Event::BarReceived(_)) {
+                *bar_count_clone.borrow_mut() += 1;
+            }
+        });
+
+        let mut engine = Engine::new(test_config(), bus);
+        let mut strategy = DoNothingStrategy;
+        engine.run(&mut strategy, test_bars(5)).unwrap();
+
+        assert_eq!(*bar_count.borrow(), 5);
+    }
+
+    #[test]
+    fn engine_emits_signal_and_intent_for_each_signal() {
+        let signal_count = Rc::new(RefCell::new(0u32));
+        let intent_count = Rc::new(RefCell::new(0u32));
+        let signal_clone = signal_count.clone();
+        let intent_clone = intent_count.clone();
+
+        let mut bus = EventBus::new();
+        bus.subscribe("signal_tracker", move |event| {
+            match event {
+                Event::SignalEmitted(_) => {
+                    *signal_clone.borrow_mut() += 1;
+                }
+                Event::OrderIntentCreated(_) => {
+                    *intent_clone.borrow_mut() += 1;
+                }
+                _ => {}
+            }
+        });
+
+        let mut engine = Engine::new(test_config(), bus);
+        let mut strategy = AlwaysBuyStrategy;
+
+        // 3 bars, strategy buys every bar
+        // = 3 signals, 3 intents
+        engine.run(&mut strategy, test_bars(3)).unwrap();
+
+        assert_eq!(*signal_count.borrow(), 3);
+        assert_eq!(*intent_count.borrow(), 3);
+    }
+
+    #[test]
+    fn engine_passes_growing_history_to_strategy() {
+        let history_lengths = Rc::new(RefCell::new(Vec::new()));
+        let history_clone = history_lengths.clone();
+
+        struct HistoryTracker {
+            lengths: Rc<RefCell<Vec<usize>>>,
+        }
+
+        impl Strategy for HistoryTracker {
+            fn initialize(&mut self) {}
+            fn on_bar(
+                &mut self,
+                _bar: &Bar,
+                _portfolio: &PortfolioView,
+                history: &[Bar],
+            ) -> Vec<StrategySignal> {
+                self.lengths.borrow_mut().push(history.len());
+                vec![]
+            }
+            fn teardown(&mut self) {}
+        }
+
+        let mut bus = EventBus::new();
+        bus.subscribe("noop", |_| {});
+
+        let mut engine = Engine::new(test_config(), bus);
+        let mut strategy = HistoryTracker {
+            lengths: history_clone,
+        };
+
+        engine.run(&mut strategy, test_bars(4)).unwrap();
+
+        // History grows by one each bar
+        // First bar sees 0 history, second sees 1, etc.
+        assert_eq!(
+            *history_lengths.borrow(),
+            vec![0, 1, 2, 3]
+        );
+    }
+
+    #[test]
+    fn engine_returns_error_for_empty_bars() {
+        let mut bus = EventBus::new();
+        bus.subscribe("noop", |_| {});
+
+        let mut engine = Engine::new(test_config(), bus);
+        let mut strategy = DoNothingStrategy;
+
+        let result = engine.run(&mut strategy, vec![]);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EngineError::NoDataLoaded
+        ));
+    }
+}
