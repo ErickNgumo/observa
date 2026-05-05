@@ -474,4 +474,38 @@ mod tests {
             EngineError::NoDataLoaded
         ));
     }
+
+    #[test]
+    fn runs_agnaist_real_csv_data() {
+        use observa_data::csv_reader::CsvReader;
+
+        let bars = CsvReader::load("../../data/USTECz_D1_data.csv");
+
+        if bars.is_err() {
+            // Skip test if file is not found
+            // CI environments won't have the file
+            return;
+        }
+
+        let bars = bars.unwrap();
+        let bar_count = bars.len();
+
+        let received = Rc::new(RefCell::new(0u32));
+        let received_clone = received.clone();
+
+        let mut bus = EventBus::new();
+        bus.subscribe("bar_count", move |event| {
+            if matches!(event, Event::BarReceived(_)) {
+                *received_clone.borrow_mut() += 1;
+            }
+        });
+
+        let mut engine = Engine::new(test_config(), bus);
+        let mut strategy = DoNothingStrategy;
+        engine.run(&mut strategy, bars).unwrap();
+
+        // Every bar in the CSV should produce
+        // execute one BarReceivedEvent
+        assert_eq!(*received.borrow(), bar_count as u32);
+    }
 }
