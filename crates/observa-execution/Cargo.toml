@@ -1,12 +1,14 @@
 [package]
 name    = "observa-execution"
-version.workspace = true
-edition.workspace = true
+version = "0.1.0"
+edition = "2021"
 
 # Execution model — applies spread, slippage, commission.
 # Depends on: observa-core
 
 [dependencies]
+chrono = { version = "0.4", features = ["serde"]}
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"]}
 observa-core = { path = "../observa-core" }
-chrono.workspace    = true
-thiserror.workspace = true
+
