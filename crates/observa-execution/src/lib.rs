@@ -2,3 +2,4 @@
 //! Implementation: Phase 5
 
 pub mod execution;
+pub mod error;
