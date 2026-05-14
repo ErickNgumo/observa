@@ -260,3 +260,211 @@ impl ExecutionModel {
         None // all rules passed
     }
 }
+
+// ────────────────────────────────────────────────
+// Tests
+// ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use observa_core::events::EventMetadata;
+    use observa_core::types::Direction;
+    use uuid::Uuid;
+
+    fn test_config() -> ExecutionConfig {
+        ExecutionConfig::default_eurusd()
+    }
+
+    fn test_intent (
+        direction: Direction,
+        size: f64,
+        sl: Option<f64>,
+        tp: Option<f64>,
+    ) -> OrderIntentCreatedEvent {
+        OrderIntentCreatedEvent{
+            metadata: EventMetadata::new(
+                            Uuid::new_v4(),
+                            Utc::now(),
+                ),
+            order_id: Uuid::new_v4(),
+            signal_id: Uuid::new_v4(),
+            direction,
+            size,
+            intended_price: 1.13786,
+            sl,
+            tp,
+            reason: "test".to_string()
+        }
+    }
+
+    fn test_bar () -> Bar {
+        Bar::new(
+            Utc::now(),
+            1.1379,
+            1.13820,
+            1.13667,
+            1.13722,
+            Some(155.54),
+        )
+    }
+
+    #[test]
+    fn buy_order_fills_at_ask_plus_slippage() {
+        let model = ExecutionModel::new(test_config());
+        let intent = test_intent(
+            Direction::Buy,
+            1.0,
+            Some(1.1350), //29 pip stop -valid
+            Some(1.1420), //41 pip stop -valid
+        );
+        let bar = test_bar();
+
+        let result = model.process(&intent, &bar, 10_000.0)
+            .unwrap();
+
+        match result {
+            FillResult::Filled(fill) => {
+                let expected = bar.open
+                    + test_config().spread
+                    + test_config().slippage;
+                assert!((fill.executed_price - expected).abs() < 0.000001);
+                assert_eq!(fill.direction, Direction::Buy);
+                assert_eq!(fill.commission, 7.0);
+            }
+            FillResult::Rejected(r) => {
+                panic!("Expected fill, got rejection: {}", r.rejection_detail);
+            }
+        }
+    }
+
+    #[test]
+    fn sell_order_fills_at_bid_minus_slippage () {
+        let model = ExecutionModel::new(test_config());
+        let intent =test_intent(
+            Direction::Sell,
+            1.0,
+            Some(1.1420), //stop above - valid sell
+            Some(1.1350), //tp below - valid for sell
+        );
+
+        let bar = test_bar();
+
+        let result = model.process(&intent, &bar, 10_000.0)
+            .unwrap();
+
+        match result {
+            FillResult::Filled(fill) => {
+                //Sell fills at bid = open-spread-slippage
+                let expected = bar.open
+                    -test_config().spread
+                    -test_config().slippage;
+                assert!((fill.executed_price - expected).abs() < 0.000001);
+                assert_eq!(fill.direction, Direction::Sell);
+            }
+            FillResult::Rejected(r) => {
+                panic!("Exepected fill, got rejection: {}", r.rejection_detail);
+            }
+        }
+    }
+
+    #[test]
+    fn order_rejected_when_stop_too_close() {
+        let model = ExecutionModel::new(test_config());
+        let intent = test_intent(
+            Direction::Buy,
+            1.0,
+            Some(1.13785), //only 0.5 pip away - too close
+            Some(1.1420)
+        );
+
+        let result = model.process(&intent, &test_bar(), 10_000.0)
+            .unwrap();
+
+        assert!(matches!(result, FillResult::Rejected(_)));
+        if let FillResult::Rejected(r) = result {
+            assert!(matches!(
+                r.rejection_reason,
+                RejectionReason::InvalidStop { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn order_rejected_when_size_too_small() {
+        let model = ExecutionModel::new(test_config());
+        let intent = test_intent(
+            Direction::Buy,
+            0.001, //below min_lot_size of 0.01
+            Some(1.1350),
+            Some(1.1420),
+        );
+
+        let result = model.process(&intent, &test_bar(), 10_000.0)
+            .unwrap();
+
+        assert!(matches!(result, FillResult::Rejected(_)));
+        if let FillResult::Rejected(r) = result {
+            assert!(matches!(
+                r.rejection_reason,
+                RejectionReason::InvalidSize { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn order_rejected_when_insufficient_capital() {
+        let model = ExecutionModel::new(test_config());
+        let intent = test_intent(
+            Direction::Buy,
+            100.0,  //100 lots - needs huge margin
+            Some(1.1350),
+            Some(1.1420),
+        );
+
+        // Only $10 in account - nowhere near enough
+        let result = model.process(&intent, &test_bar(), 1.0)
+            .unwrap();
+
+        assert!(matches!(result, FillResult::Rejected(_)));
+        if let FillResult::Rejected(r) = result {
+            assert!(matches!(
+                r.rejection_reason,
+                RejectionReason::InsufficientCapital { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn slippage_always_work_agnaist_trader() {
+        let model = ExecutionModel::new(test_config());
+        let bar = test_bar();
+
+        //Buy - slippage pushes price higher (worse for buyer)
+        let buy_intent = test_intent(
+            Direction::Buy,
+            1.0,
+            Some(1.1350),
+            Some(1.1420),
+        );
+        if let FillResult::Filled(fill) = model
+            .process(&buy_intent, &bar, 10_000.0).unwrap()
+        {
+            assert!(fill.executed_price > bar.open);
+        }
+
+        // Sell - slippage pushes price lower (worse for seller)
+        let sell_intent = test_intent(
+            Direction::Sell,
+            1.0,
+            Some(1.1420),
+            Some(1.1350),
+        );
+        if let FillResult::Filled(fill) = model
+            .process(&sell_intent, &bar, 10_000.0).unwrap()
+        {
+            assert!(fill.executed_price < bar.open);
+        }
+    }
+}
