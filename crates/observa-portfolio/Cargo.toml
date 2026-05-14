@@ -1,13 +1,13 @@
 [package]
 name    = "observa-portfolio"
-version.workspace = true
-edition.workspace = true
+version = "0.1.0"
+edition.workspace = "2021"
 
 # Portfolio manager — capital, positions, PnL tracking.
-# Depends on: observa-core
+
 
 [dependencies]
 observa-core = { path = "../observa-core" }
-chrono.workspace    = true
-thiserror.workspace = true
-uuid.workspace      = true
+chrono = {version = "0.4", features = ["serde"]}
+thiserror.workspace = "1.0"
+uuid = {version = "1.0", features = ["v4", "serde"]}
