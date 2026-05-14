@@ -1,6 +1,5 @@
 //! Execution model — applies spread, slippage, commission.
 use chrono::Utc;
-use uuid::Uuid;
 
 
 use observa_core::bar::Bar;
@@ -133,6 +132,9 @@ impl ExecutionModel {
 
             //Selling - fill at bid (base - spread)
             Direction::Sell => fill_bar.open - self.config.spread,
+
+            //Close exits at mid price - no spread cost
+            Direction::Close => fill_bar.open,
         };
 
         //Step 3 - apply slippage
@@ -140,6 +142,8 @@ impl ExecutionModel {
             // Slippage always works against the trader
             Direction::Buy  =>  self.config.slippage,
             Direction::Sell => -self.config.slippage,
+            //Close has minimal slippage -existing is easier
+            Direction::Close => 0.0,
         };
 
         let executed_price = base_price + slippage;
@@ -176,6 +180,12 @@ impl ExecutionModel {
     ) -> Option<OrderRejectedEvent> {
         let run_id = intent.metadata.run_id;
         let now = Utc::now();
+
+        // Close orders bypass all validation —
+    // they just exit the existing position
+        if intent.direction == Direction::Close {
+            return None;
+        }
 
         // Rule 1 — lot size must be within bounds
         if intent.size < self.config.min_lot_size

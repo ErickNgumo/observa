@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub enum Direction {
     Buy,
     Sell,
+    Close,
 }
 
 impl Direction {
@@ -19,6 +20,7 @@ impl Direction {
         match self {
             Direction::Buy  =>  1.0,
             Direction::Sell => -1.0,
+            Direction::Close => 0.0,
         }
     }
 }
@@ -28,6 +30,7 @@ impl std::fmt::Display for Direction {
         match self {
             Direction::Buy  => write!(f, "Buy"),
             Direction::Sell => write!(f, "Sell"),
+            Direction::Close => write!(f, "Close"),
         }
     }
 }
