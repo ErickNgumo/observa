@@ -47,6 +47,7 @@ pub struct PortfolioManager {
 
 /// Events produced by the portfolio manager
 /// after processing a fill or checking a bar.
+#[derive(Debug)]
 pub struct PortfolioEvents {
     pub position_opened: Option<PositionOpenedEvent>,
     pub position_closed: Option<PositionClosedEvent>,
@@ -328,5 +329,200 @@ impl PortfolioManager {
             realised_pnl: self.realised_pnl,
             open_positions: open_count,
         }
+    }
+}
+
+// ────────────────────────────────────────────────
+// Tests
+// ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+    use observa_core::events::EventMetadata;
+    use observa_core::types::Direction;
+    use uuid::Uuid;
+
+    fn test_run_id() -> Uuid { Uuid::new_v4() }
+
+    fn test_portfolio() -> PortfolioManager {
+        PortfolioManager::new(test_run_id(), 10_000.0, 7.0)
+    }
+
+    fn buy_fill(price: f64) -> OrderFilledEvent {
+        OrderFilledEvent {
+            metadata:        EventMetadata::new(
+                                 Uuid::new_v4(),
+                                 Utc::now(),
+                             ),
+            order_id:        Uuid::new_v4(),
+            signal_id:       Uuid::new_v4(),
+            intended_price:  price,
+            executed_price:  price,
+            slippage:        0.0,
+            spread_cost:     0.0002,
+            commission:      7.0,
+            size:            1.0,
+            direction:       Direction::Buy,
+            reason:          "test".to_string(),
+        }
+    }
+
+    fn close_fill(price: f64) -> OrderFilledEvent {
+        OrderFilledEvent {
+            metadata:        EventMetadata::new(
+                                 Uuid::new_v4(),
+                                 Utc::now(),
+                             ),
+            order_id:        Uuid::new_v4(),
+            signal_id:       Uuid::new_v4(),
+            intended_price:  price,
+            executed_price:  price,
+            slippage:        0.0,
+            spread_cost:     0.0,
+            commission:      7.0,
+            size:            1.0,
+            direction:       Direction::Close,
+            reason:          "test close".to_string(),
+        }
+    }
+
+    fn test_bar(low: f64, high: f64) -> Bar {
+        Bar::new(
+            Utc::now(),
+            1.1376,
+            high,
+            low,
+            1.1376,
+            None,
+        )
+    }
+
+    #[test]
+    fn opening_position_increases_open_count() {
+        let mut pm = test_portfolio();
+        let fill = buy_fill(1.13786);
+
+        pm.process_fill(
+            &fill,
+            Some(1.1350),
+            Some(1.1420),
+        ).unwrap();
+
+        assert!(pm.open_position().is_some());
+    }
+
+    #[test]
+    fn closing_position_via_signal_updates_balance() {
+        let mut pm = test_portfolio();
+
+        // Open at 1.13786
+        pm.process_fill(
+            &buy_fill(1.13786),
+            Some(1.1350),
+            Some(1.1420),
+        ).unwrap();
+
+        // Close at 1.14186 — 40 pip profit
+        pm.process_fill(
+            &close_fill(1.14186),
+            None,
+            None,
+        ).unwrap();
+
+        assert!(pm.open_position().is_none());
+        assert!(pm.balance() > 10_000.0);
+        assert_eq!(pm.total_trades(), 1);
+    }
+
+    #[test]
+    fn sl_hit_closes_position_at_loss() {
+        let mut pm = test_portfolio();
+
+        // Open long at 1.13786, SL at 1.1350
+        pm.process_fill(
+            &buy_fill(1.13786),
+            Some(1.1350),
+            Some(1.1420),
+        ).unwrap();
+
+        // Bar low goes below SL
+        let bar = test_bar(1.1340, 1.1390);
+        let events = pm.check_sl_tp(&bar);
+
+        assert!(events.is_some());
+        assert!(pm.open_position().is_none());
+        assert!(pm.balance() < 10_000.0); // took a loss
+    }
+
+    #[test]
+    fn tp_hit_closes_position_at_profit() {
+        let mut pm = test_portfolio();
+
+        // Open long at 1.13786, TP at 1.1420
+        pm.process_fill(
+            &buy_fill(1.13786),
+            Some(1.1350),
+            Some(1.1420),
+        ).unwrap();
+
+        // Bar high reaches TP
+        let bar = test_bar(1.1370, 1.1430);
+        let events = pm.check_sl_tp(&bar);
+
+        assert!(events.is_some());
+        assert!(pm.open_position().is_none());
+        assert!(pm.balance() > 10_000.0); // made profit
+    }
+
+    #[test]
+    fn no_sl_tp_hit_returns_none() {
+        let mut pm = test_portfolio();
+
+        pm.process_fill(
+            &buy_fill(1.13786),
+            Some(1.1350),
+            Some(1.1420),
+        ).unwrap();
+
+        // Bar stays within SL/TP range
+        let bar = test_bar(1.1360, 1.1410);
+        let events = pm.check_sl_tp(&bar);
+
+        assert!(events.is_none());
+        assert!(pm.open_position().is_some()); // still open
+    }
+
+    #[test]
+    fn closing_when_no_position_returns_error() {
+        let mut pm = test_portfolio();
+        let fill = close_fill(1.13786);
+
+        let result = pm.process_fill(&fill, None, None);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            PortfolioError::NoOpenPosition
+        ));
+    }
+
+    #[test]
+    fn equity_reflects_unrealised_pnl() {
+        let mut pm = test_portfolio();
+
+        pm.process_fill(
+            &buy_fill(1.13786),
+            Some(1.1350),
+            Some(1.1420),
+        ).unwrap();
+
+        // Price moved up — equity should be higher
+        let equity_up = pm.equity(1.14000);
+        assert!(equity_up > 10_000.0);
+
+        // Price moved down — equity should be lower
+        let equity_down = pm.equity(1.13500);
+        assert!(equity_down < 10_000.0);
     }
 }
