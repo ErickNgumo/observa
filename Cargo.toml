@@ -6,6 +6,7 @@ members = [
     "crates/observa-execution",
     "crates/observa-portfolio",
     "crates/observa-python",
+    "crates/observa-runner",
 ]
 resolver = "2"
 
