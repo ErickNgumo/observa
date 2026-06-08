@@ -163,6 +163,8 @@ impl ExecutionModel {
             commission:      self.config.commission,
             size:            intent.size,
             direction:       intent.direction,
+            sl:              intent.sl,
+            tp:              intent.tp,
             reason:          intent.reason.clone(),
         };
         

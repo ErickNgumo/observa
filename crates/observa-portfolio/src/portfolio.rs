@@ -109,13 +109,11 @@ impl PortfolioManager {
     /// if direction is Close - closes the position
     pub fn process_fill(
         &mut self,
-        fill: &OrderFilledEvent,
-        sl: Option<f64>,
-        tp: Option<f64>,
+        fill: &OrderFilledEvent,        
     ) -> Result<PortfolioEvents, PortfolioError> {
         match fill.direction {
             Direction::Buy | Direction::Sell => {
-                self.open_position_from_fill(fill, sl, tp)
+                self.open_position_from_fill(fill)
             }
             Direction::Close => {
                 self.close_position_from_fill(
@@ -168,9 +166,7 @@ impl PortfolioManager {
     /// Opens a new position from an entry fill
     fn open_position_from_fill(
         &mut self,
-        fill: &OrderFilledEvent,
-        sl: Option<f64>,
-        tp: Option<f64>,
+        fill: &OrderFilledEvent,        
     ) -> Result<PortfolioEvents, PortfolioError> {
         let position = Position::new(
             Uuid::new_v4(),
@@ -178,8 +174,8 @@ impl PortfolioManager {
             fill.direction,
             fill.size,
             fill.executed_price,
-            sl,
-            tp,
+            fill.sl,
+            fill.tp,
             fill.metadata.timestamp
         );
 
@@ -206,8 +202,8 @@ impl PortfolioManager {
             direction: fill.direction,
             size: fill.size,
             entry_price: fill.executed_price,
-            sl,
-            tp,
+            sl: fill.sl,
+            tp: fill.tp,
             pnl: 0.0,
             pct_equity,
             pct_balance,
@@ -365,6 +361,8 @@ mod tests {
             commission:      7.0,
             size:            1.0,
             direction:       Direction::Buy,
+            sl:             Some(1.1350),  
+            tp:             Some(1.1420),
             reason:          "test".to_string(),
         }
     }
@@ -384,6 +382,8 @@ mod tests {
             commission:      7.0,
             size:            1.0,
             direction:       Direction::Close,
+            sl:              None,  
+            tp:              None,
             reason:          "test close".to_string(),
         }
     }
@@ -406,8 +406,6 @@ mod tests {
 
         pm.process_fill(
             &fill,
-            Some(1.1350),
-            Some(1.1420),
         ).unwrap();
 
         assert!(pm.open_position().is_some());
@@ -419,16 +417,12 @@ mod tests {
 
         // Open at 1.13786
         pm.process_fill(
-            &buy_fill(1.13786),
-            Some(1.1350),
-            Some(1.1420),
+            &buy_fill(1.13786)
         ).unwrap();
 
         // Close at 1.14186 — 40 pip profit
         pm.process_fill(
-            &close_fill(1.14186),
-            None,
-            None,
+            &close_fill(1.14186)
         ).unwrap();
 
         assert!(pm.open_position().is_none());
@@ -442,9 +436,7 @@ mod tests {
 
         // Open long at 1.13786, SL at 1.1350
         pm.process_fill(
-            &buy_fill(1.13786),
-            Some(1.1350),
-            Some(1.1420),
+            &buy_fill(1.13786)
         ).unwrap();
 
         // Bar low goes below SL
@@ -462,9 +454,7 @@ mod tests {
 
         // Open long at 1.13786, TP at 1.1420
         pm.process_fill(
-            &buy_fill(1.13786),
-            Some(1.1350),
-            Some(1.1420),
+            &buy_fill(1.13786)
         ).unwrap();
 
         // Bar high reaches TP
@@ -481,9 +471,7 @@ mod tests {
         let mut pm = test_portfolio();
 
         pm.process_fill(
-            &buy_fill(1.13786),
-            Some(1.1350),
-            Some(1.1420),
+            &buy_fill(1.13786)
         ).unwrap();
 
         // Bar stays within SL/TP range
@@ -499,7 +487,7 @@ mod tests {
         let mut pm = test_portfolio();
         let fill = close_fill(1.13786);
 
-        let result = pm.process_fill(&fill, None, None);
+        let result = pm.process_fill(&fill);
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -512,9 +500,7 @@ mod tests {
         let mut pm = test_portfolio();
 
         pm.process_fill(
-            &buy_fill(1.13786),
-            Some(1.1350),
-            Some(1.1420),
+            &buy_fill(1.13786)
         ).unwrap();
 
         // Price moved up — equity should be higher

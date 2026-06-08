@@ -189,9 +189,15 @@ pub struct OrderFilledEvent {
 
     /// Buy or Sell
     pub direction: Direction,
+    
+    /// stoploss
+    pub sl: Option<f64>,
+
+    /// take profit
+    pub tp: Option<f64>,
 
     /// Carried forward from the signal
-    pub reason: String,
+    pub reason: String,    
 }
 
 /// The Execution Model refused the order.

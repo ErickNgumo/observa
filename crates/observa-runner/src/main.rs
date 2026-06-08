@@ -2,8 +2,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use observa_core::bar::Bar;
-use observa_core::events::Event;
-use observa_core::types::{Direction, ExitReason};
+use observa_core::events::{
+    Event, EventMetadata, OrderFilledEvent,
+    PositionClosedEvent, PositionOpenedEvent,
+};
+use observa_core::types::Direction;
 use observa_data::csv_reader::CsvReader;
 use observa_engine::engine::{Engine, EngineConfig};
 use observa_engine::event_bus::EventBus;
@@ -17,7 +20,7 @@ use observa_portfolio::portfolio::PortfolioManager;
 use uuid::Uuid;
 
 // ────────────────────────────────────────────────
-// A simple EMA crossover strategy for testing
+// EMA Crossover Strategy
 // ────────────────────────────────────────────────
 
 struct EmaCrossover {
@@ -41,15 +44,13 @@ impl EmaCrossover {
         }
     }
 
-    /// Calculates EMA incrementally.
-    /// First value uses the price itself as seed.
     fn update_ema(
         current_ema: Option<f64>,
         price: f64,
         period: usize,
     ) -> f64 {
         match current_ema {
-            None => price, // seed with first price
+            None      => price,
             Some(ema) => {
                 let k = 2.0 / (period as f64 + 1.0);
                 price * k + ema * (1.0 - k)
@@ -60,11 +61,10 @@ impl EmaCrossover {
 
 impl Strategy for EmaCrossover {
     fn initialize(&mut self) {
-        println!("EMA Crossover strategy initialized");
         println!(
-            "Fast EMA: {} | Slow EMA: {}",
+            "Strategy: EMA{}/EMA{} Crossover",
             self.fast_period,
-            self.slow_period
+            self.slow_period,
         );
     }
 
@@ -74,62 +74,42 @@ impl Strategy for EmaCrossover {
         portfolio: &PortfolioView,
         history: &[Bar],
     ) -> Vec<StrategySignal> {
-        // Need enough history for slow EMA to warm up
+        // Warmup period
         if history.len() < self.slow_period {
-            // Update EMAs silently during warmup
             self.prev_fast = self.fast_ema;
             self.prev_slow = self.slow_ema;
             self.fast_ema = Some(Self::update_ema(
-                self.fast_ema,
-                bar.close,
-                self.fast_period,
+                self.fast_ema, bar.close, self.fast_period,
             ));
             self.slow_ema = Some(Self::update_ema(
-                self.slow_ema,
-                bar.close,
-                self.slow_period,
+                self.slow_ema, bar.close, self.slow_period,
             ));
             return vec![];
         }
 
         let prev_fast = match self.prev_fast {
-            Some(v) => v,
-            None    => return vec![],
+            Some(v) => v, None => return vec![],
         };
         let prev_slow = match self.prev_slow {
-            Some(v) => v,
-            None    => return vec![],
+            Some(v) => v, None => return vec![],
         };
 
-        // Update EMAs
         self.prev_fast = self.fast_ema;
         self.prev_slow = self.slow_ema;
-        self.fast_ema = Some(Self::update_ema(
-            self.fast_ema,
-            bar.close,
-            self.fast_period,
+        self.fast_ema  = Some(Self::update_ema(
+            self.fast_ema, bar.close, self.fast_period,
         ));
-        self.slow_ema = Some(Self::update_ema(
-            self.slow_ema,
-            bar.close,
-            self.slow_period,
+        self.slow_ema  = Some(Self::update_ema(
+            self.slow_ema, bar.close, self.slow_period,
         ));
 
         let fast = self.fast_ema.unwrap();
         let slow = self.slow_ema.unwrap();
 
-        // Detect crossover
         let crossed_up   = prev_fast <= prev_slow && fast > slow;
         let crossed_down = prev_fast >= prev_slow && fast < slow;
 
-        // Entry — buy on bullish crossover
         if crossed_up && !portfolio.has_open_position {
-            println!(
-                "[{}] BUY signal — EMA{} crossed above EMA{}",
-                bar.timestamp,
-                self.fast_period,
-                self.slow_period,
-            );
             return vec![StrategySignal {
                 direction:      Direction::Buy,
                 size:           1.0,
@@ -138,20 +118,12 @@ impl Strategy for EmaCrossover {
                 tp:             Some(bar.close + 0.0060),
                 reason:         format!(
                     "EMA{} crossed above EMA{}",
-                    self.fast_period,
-                    self.slow_period,
+                    self.fast_period, self.slow_period,
                 ),
             }];
         }
 
-        // Exit — close on bearish crossover
         if crossed_down && portfolio.has_open_position {
-            println!(
-                "[{}] CLOSE signal — EMA{} crossed below EMA{}",
-                bar.timestamp,
-                self.fast_period,
-                self.slow_period,
-            );
             return vec![StrategySignal {
                 direction:      Direction::Close,
                 size:           1.0,
@@ -160,8 +132,7 @@ impl Strategy for EmaCrossover {
                 tp:             None,
                 reason:         format!(
                     "EMA{} crossed below EMA{}",
-                    self.fast_period,
-                    self.slow_period,
+                    self.fast_period, self.slow_period,
                 ),
             }];
         }
@@ -170,12 +141,243 @@ impl Strategy for EmaCrossover {
     }
 
     fn teardown(&mut self) {
-        println!("Strategy teardown complete");
+        println!("Strategy teardown complete.");
     }
 }
 
 // ────────────────────────────────────────────────
-// Main — wires everything together
+// Observa Runner
+// Wires engine, execution, and portfolio together
+// ────────────────────────────────────────────────
+
+struct ObservaRunner {
+    execution:  ExecutionModel,
+    portfolio:  PortfolioManager,
+    event_bus:  Rc<RefCell<EventBus>>,
+    run_id:     Uuid,
+}
+
+impl ObservaRunner {
+    fn new(
+        initial_balance: f64,
+        execution_config: ExecutionConfig,
+        run_id: Uuid,
+        event_bus: Rc<RefCell<EventBus>>,
+    ) -> Self {
+        Self {
+            execution: ExecutionModel::new(execution_config),
+            portfolio: PortfolioManager::new(
+                run_id,
+                initial_balance,
+                7.0,
+            ),
+            event_bus,
+            run_id,
+        }
+    }
+
+    /// Processes an order intent through execution
+    /// and portfolio in sequence.
+    /// Publishes resulting events to the bus.
+    fn process_intent(
+        &mut self,
+        intent_event: &observa_core::events::OrderIntentCreatedEvent,
+        current_bar: &Bar,
+    ) {
+        let balance = self.portfolio.balance();
+
+        match self.execution.process(
+            intent_event,
+            current_bar,
+            balance,
+        ) {
+            Ok(FillResult::Filled(fill)) => {
+                println!(
+                    "  ✓ {} @ {:.5} (slip: {:+.5}, comm: {:.2})",
+                    fill.direction,
+                    fill.executed_price,
+                    fill.slippage,
+                    fill.commission,
+                );
+
+                // Publish fill event to bus
+                let fill_event = Event::OrderFilled(fill.clone());
+                self.event_bus
+                    .borrow_mut()
+                    .publish(&fill_event)
+                    .ok();
+
+                // Process through portfolio
+                match self.portfolio.process_fill(&fill) {
+                    Ok(events) => {
+                        self.publish_position_events(events);
+                    }
+                    Err(e) => {
+                        println!("  ! Portfolio error: {}", e);
+                    }
+                }
+            }
+            Ok(FillResult::Rejected(rejection)) => {
+                println!(
+                    "  ✗ Rejected: {}",
+                    rejection.rejection_detail,
+                );
+                let event = Event::OrderRejected(rejection);
+                self.event_bus
+                    .borrow_mut()
+                    .publish(&event)
+                    .ok();
+            }
+            Err(e) => println!("  ! Execution error: {}", e),
+        }
+    }
+
+    /// Checks SL/TP on open positions for the current bar
+    fn check_sl_tp(&mut self, bar: &Bar) {
+        if let Some(events) = self.portfolio.check_sl_tp(bar) {
+            self.publish_position_events(events);
+        }
+    }
+
+    /// Publishes position opened/closed events to bus
+    fn publish_position_events(
+        &mut self,
+        events: observa_portfolio::portfolio::PortfolioEvents,
+    ) {
+        if let Some(opened) = events.position_opened {
+            println!(
+                "  → Opened {} @ {:.5} | SL: {:?} | TP: {:?}",
+                opened.direction,
+                opened.entry_price,
+                opened.sl,
+                opened.tp,
+            );
+            self.event_bus
+                .borrow_mut()
+                .publish(&Event::PositionOpened(opened))
+                .ok();
+        }
+
+        if let Some(closed) = events.position_closed {
+            println!(
+                "  → Closed @ {:.5} | PnL: {:+.2} | \
+                 Reason: {} | Balance: {:.2}",
+                closed.exit_price,
+                closed.pnl,
+                closed.exit_reason,
+                self.portfolio.balance(),
+            );
+            self.event_bus
+                .borrow_mut()
+                .publish(&Event::PositionClosed(closed))
+                .ok();
+        }
+
+        // Always publish portfolio snapshot
+        self.event_bus
+            .borrow_mut()
+            .publish(&Event::PortfolioSnapshot(events.snapshot))
+            .ok();
+    }
+
+    /// Returns a PortfolioView for the strategy
+    fn portfolio_view(&self) -> PortfolioView {
+        let position = self.portfolio.open_position();
+        PortfolioView {
+            balance: self.portfolio.balance(),
+            equity:  self.portfolio.balance(),
+            has_open_position:     position.is_some(),
+            position_direction:    position.map(|p| p.direction),
+            position_entry_price:  position.map(|p| p.entry_price),
+            unrealised_pnl:        0.0,
+        }
+    }
+}
+
+// ────────────────────────────────────────────────
+// Custom Engine Loop
+// We drive the loop manually so the runner can
+// process intents synchronously after each bar
+// ────────────────────────────────────────────────
+
+fn run_backtest(
+    bars: Vec<Bar>,
+    strategy: &mut dyn Strategy,
+    runner: &mut ObservaRunner,
+) {
+    strategy.initialize();
+
+    let mut history: Vec<Bar> = Vec::new();
+
+    for bar in &bars {
+        // Check SL/TP on open positions first
+        runner.check_sl_tp(bar);
+
+        // Publish BarReceivedEvent
+        let bar_event = Event::BarReceived(
+            observa_core::events::BarReceivedEvent {
+                metadata: EventMetadata::new(
+                    runner.run_id,
+                    bar.timestamp,
+                ),
+                bar: bar.clone(),
+            },
+        );
+        runner.event_bus
+            .borrow_mut()
+            .publish(&bar_event)
+            .ok();
+
+        // Get portfolio view for strategy
+        let portfolio_view = runner.portfolio_view();
+
+        // Call strategy
+        let signals = strategy.on_bar(
+            bar,
+            &portfolio_view,
+            &history,
+        );
+
+        // Process each signal through execution + portfolio
+        for signal in signals {
+            // Build OrderIntentCreatedEvent
+            let signal_id = Uuid::new_v4();
+            let intent = observa_core::events::OrderIntentCreatedEvent {
+                metadata:        EventMetadata::new(
+                                     runner.run_id,
+                                     bar.timestamp,
+                                 ),
+                order_id:        Uuid::new_v4(),
+                signal_id,
+                direction:       signal.direction,
+                size:            signal.size,
+                intended_price:  signal.intended_price,
+                sl:              signal.sl,
+                tp:              signal.tp,
+                reason:          signal.reason.clone(),
+            };
+
+            // Publish intent event
+            let intent_event = Event::OrderIntentCreated(
+                intent.clone()
+            );
+            runner.event_bus
+                .borrow_mut()
+                .publish(&intent_event)
+                .ok();
+
+            // Process intent synchronously
+            runner.process_intent(&intent, bar);
+        }
+
+        history.push(bar.clone());
+    }
+
+    strategy.teardown();
+}
+
+// ────────────────────────────────────────────────
+// Main
 // ────────────────────────────────────────────────
 
 fn main() {
@@ -184,185 +386,61 @@ fn main() {
     println!("╚══════════════════════════════════════╝");
     println!();
 
-    // ── Step 1: Load data ─────────────────────────
+    // Load data
     println!("Loading EURUSD data...");
     let bars = CsvReader::load("data/EURUSD_M15.csv")
         .expect("Failed to load CSV");
-    println!("Loaded {} bars", bars.len());
-    println!();
+    println!("Loaded {} bars\n", bars.len());
 
-    // ── Step 2: Set up shared state ───────────────
+    // Build shared event bus
+    let event_bus = Rc::new(RefCell::new(EventBus::new()));
 
-    // Current bar — shared between engine and subscribers
-    let current_bar: Rc<RefCell<Option<Bar>>> =
-        Rc::new(RefCell::new(None));
-
-    // Pending order info — SL/TP needed by portfolio
-    // when a fill arrives
-    let pending_sl: Rc<RefCell<Option<f64>>> =
-        Rc::new(RefCell::new(None));
-    let pending_tp: Rc<RefCell<Option<f64>>> =
-        Rc::new(RefCell::new(None));
-
-    // Portfolio manager — shared across subscribers
-    let run_id = Uuid::new_v4();
-    let portfolio = Rc::new(RefCell::new(
-        PortfolioManager::new(run_id, 10_000.0, 7.0)
-    ));
-
-    // Execution model
-    let execution = ExecutionModel::new(
-        ExecutionConfig::default_eurusd()
-    );
-
-    // ── Step 3: Build event bus with subscribers ──
-    let mut event_bus = EventBus::new();
-
-    // Clone Rc handles for each subscriber
-    let bar_for_execution  = current_bar.clone();
-    let bar_for_portfolio  = current_bar.clone();
-    let bar_for_engine     = current_bar.clone();
-    let portfolio_for_fill = portfolio.clone();
-    let portfolio_for_bar  = portfolio.clone();
-    let sl_for_intent      = pending_sl.clone();
-    let tp_for_intent      = pending_tp.clone();
-    let sl_for_fill        = pending_sl.clone();
-    let tp_for_fill        = pending_tp.clone();
-
-    // Subscriber 1 — track current bar
-    event_bus.subscribe("bar_tracker", move |event| {
-        if let Event::BarReceived(e) = event {
-            *bar_for_engine.borrow_mut() = Some(e.bar.clone());
-        }
-    });
-
-    // Subscriber 2 — execution model
-    // Receives OrderIntentCreated, produces fills
-    event_bus.subscribe("execution_model", move |event| {
-        if let Event::OrderIntentCreated(intent) = event {
-            // Store SL/TP for portfolio manager
-            *sl_for_intent.borrow_mut() = intent.sl;
-            *tp_for_intent.borrow_mut() = intent.tp;
-
-            let bar_ref = bar_for_execution.borrow();
-            if let Some(bar) = bar_ref.as_ref() {
-                let balance = 10_000.0; // simplified
-                match execution.process(intent, bar, balance) {
-                    Ok(FillResult::Filled(fill)) => {
-                        println!(
-                            "  ✓ Fill: {} {:.5} (slippage: {:.5})",
-                            fill.direction,
-                            fill.executed_price,
-                            fill.slippage,
-                        );
-                    }
-                    Ok(FillResult::Rejected(rejection)) => {
-                        println!(
-                            "  ✗ Rejected: {}",
-                            rejection.rejection_detail,
-                        );
-                    }
-                    Err(e) => {
-                        println!("  ! Execution error: {}", e);
-                    }
-                }
-            }
-        }
-    });
-
-    // Subscriber 3 — portfolio manager
-    // Receives fills, manages positions
-    event_bus.subscribe("portfolio_manager", move |event| {
-        if let Event::OrderFilled(fill) = event {
-            let sl = *sl_for_fill.borrow();
-            let tp = *tp_for_fill.borrow();
-            let mut pm = portfolio_for_fill.borrow_mut();
-
-            match pm.process_fill(fill, sl, tp) {
-                Ok(events) => {
-                    if events.position_opened.is_some() {
-                        println!(
-                            "  → Position opened | Balance: {:.2}",
-                            pm.balance(),
-                        );
-                    }
-                    if let Some(closed) = events.position_closed {
-                        println!(
-                            "  → Position closed | PnL: {:.2} | \
-                             Reason: {}",
-                            closed.pnl,
-                            closed.exit_reason,
-                        );
-                    }
-                }
-                Err(e) => println!("  ! Portfolio error: {}", e),
-            }
-        }
-    });
-
-    // Subscriber 4 — SL/TP checker
-    // Checks open positions against each new bar
-    event_bus.subscribe("sl_tp_checker", move |event| {
-        if let Event::BarReceived(e) = event {
-            let mut pm = portfolio_for_bar.borrow_mut();
-            if let Some(events) = pm.check_sl_tp(&e.bar) {
-                if let Some(closed) = events.position_closed {
+    // Subscribe run logger
+    let bus_for_logger = event_bus.clone();
+    event_bus.borrow_mut().subscribe(
+        "run_logger",
+        move |event| {
+            match event {
+                Event::RunCompleted(e) => {
                     println!(
-                        "  → SL/TP hit | PnL: {:.2} | Reason: {}",
-                        closed.pnl,
-                        closed.exit_reason,
+                        "\nRun completed — {} bars processed",
+                        e.total_bars,
                     );
                 }
+                _ => {}
             }
-        }
-    });
-
-    // Subscriber 5 — run summary logger
-    let portfolio_for_summary = portfolio.clone();
-    event_bus.subscribe("run_logger", move |event| {
-        match event {
-            Event::RunStarted(e) => {
-                println!("Run started: {}", e.metadata.run_id);
-                println!("Dataset: {}", e.dataset_name);
-                println!(
-                    "Period: {} → {}",
-                    e.data_start,
-                    e.data_end,
-                );
-                println!();
-            }
-            Event::RunCompleted(e) => {
-                let pm = portfolio_for_summary.borrow();
-                println!();
-                println!("╔══════════════════════════════════════╗");
-                println!("║           RUN COMPLETE               ║");
-                println!("╠══════════════════════════════════════╣");
-                println!("║ Bars processed: {:>20} ║", e.total_bars);
-                println!("║ Total trades:   {:>20} ║", pm.total_trades());
-                println!("║ Final balance:  {:>20.2} ║", pm.balance());
-                println!(
-                    "║ Realised PnL:   {:>20.2} ║",
-                    pm.realised_pnl(),
-                );
-                println!("╚══════════════════════════════════════╝");
-            }
-            _ => {}
-        }
-    });
-
-    // ── Step 4: Run the engine ────────────────────
-    let config = EngineConfig::new(
-        10_000.0,
-        0.0002,
-        0.0001,
-        7.0,
-        "EMA Crossover (5/20)",
-        "EURUSD_M15",
+        },
     );
 
-    let mut engine = Engine::new(config, event_bus);
-    let mut strategy = EmaCrossover::new(5, 20);
+    // Build runner
+    let run_id = Uuid::new_v4();
+    let mut runner = ObservaRunner::new(
+        10_000.0,
+        ExecutionConfig::default_eurusd(),
+        run_id,
+        event_bus.clone(),
+    );
 
-    engine.run(&mut strategy, bars)
-        .expect("Engine run failed");
+    // Run backtest
+    let mut strategy = EmaCrossover::new(5, 20);
+    run_backtest(bars, &mut strategy, &mut runner);
+
+    // Print summary
+    println!();
+    println!("╔══════════════════════════════════════╗");
+    println!("║           RUN COMPLETE               ║");
+    println!("╠══════════════════════════════════════╣");
+    println!(
+        "║ Total trades:   {:>20} ║",
+        runner.portfolio.total_trades(),
+    );
+    println!(
+        "║ Final balance:  {:>20.2} ║",
+        runner.portfolio.balance(),
+    );
+    println!(
+        "║ Realised PnL:   {:>20.2} ║",
+        runner.portfolio.realised_pnl(),
+    );
+    println!("╚══════════════════════════════════════╝");
 }
