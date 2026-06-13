@@ -1,7 +1,5 @@
-use std::io::Write;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 
 use serde_json;
 use tiny_http::{Header, Response, Server};
@@ -10,7 +8,6 @@ use observa_core::bar::Bar;
 use observa_core::events::{Event, EventMetadata, OrderIntentCreatedEvent};
 use observa_core::types::Direction;
 use observa_data::csv_reader::CsvReader;
-use observa_engine::event_bus::EventBus;
 use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
 use observa_execution::execution::{ExecutionConfig, ExecutionModel, FillResult};
 use observa_portfolio::portfolio::PortfolioManager;
@@ -18,7 +15,6 @@ use uuid::Uuid;
 
 // ────────────────────────────────────────────────
 // EMA Crossover Strategy
-// Same as observa-runner but lives here too for now
 // ────────────────────────────────────────────────
 
 struct EmaCrossover {
@@ -65,8 +61,12 @@ impl Strategy for EmaCrossover {
         if history.len() < self.slow_period {
             self.prev_fast = self.fast_ema;
             self.prev_slow = self.slow_ema;
-            self.fast_ema = Some(Self::update_ema(self.fast_ema, bar.close, self.fast_period));
-            self.slow_ema = Some(Self::update_ema(self.slow_ema, bar.close, self.slow_period));
+            self.fast_ema = Some(Self::update_ema(
+                self.fast_ema, bar.close, self.fast_period,
+            ));
+            self.slow_ema = Some(Self::update_ema(
+                self.slow_ema, bar.close, self.slow_period,
+            ));
             return vec![];
         }
 
@@ -75,8 +75,12 @@ impl Strategy for EmaCrossover {
 
         self.prev_fast = self.fast_ema;
         self.prev_slow = self.slow_ema;
-        self.fast_ema = Some(Self::update_ema(self.fast_ema, bar.close, self.fast_period));
-        self.slow_ema = Some(Self::update_ema(self.slow_ema, bar.close, self.slow_period));
+        self.fast_ema = Some(Self::update_ema(
+            self.fast_ema, bar.close, self.fast_period,
+        ));
+        self.slow_ema = Some(Self::update_ema(
+            self.slow_ema, bar.close, self.slow_period,
+        ));
 
         let fast = self.fast_ema.unwrap();
         let slow = self.slow_ema.unwrap();
@@ -119,57 +123,43 @@ impl Strategy for EmaCrossover {
 }
 
 // ────────────────────────────────────────────────
-// EventCollector
-// Runs the backtest and collects all events
+// collect_events
+// Runs the backtest and returns JSON strings
 // ────────────────────────────────────────────────
 
-/// Runs a complete backtest and returns all events
-/// in chronological order as serialized JSON strings.
 fn collect_events(bars: Vec<Bar>) -> Vec<String> {
-    let events: Arc<Mutex<Vec<String>>> =
-        Arc::new(Mutex::new(Vec::new()));
+    // Plain Vec — no Arc, no Mutex, no threads here
+    let mut events: Vec<String> = Vec::new();
 
-    let events_clone = events.clone();
-
-    // Build portfolio and execution
-    let run_id = Uuid::new_v4();
-    let mut portfolio = PortfolioManager::new(
-        run_id, 10_000.0, 7.0
-    );
-    let execution = ExecutionModel::new(
-        ExecutionConfig::default_eurusd()
-    );
+    let run_id    = Uuid::new_v4();
+    let mut portfolio = PortfolioManager::new(run_id, 10_000.0, 7.0);
+    let execution = ExecutionModel::new(ExecutionConfig::default_eurusd());
 
     let mut strategy = EmaCrossover::new(5, 20);
     strategy.initialize();
 
     let mut history: Vec<Bar> = Vec::new();
 
-    // Helper closure to record an event
-    let record = |event: &Event, store: &Arc<Mutex<Vec<String>>>| {
+    // Simple helper — push a serialized event onto the vec
+    let push = |event: &Event, store: &mut Vec<String>| {
         if let Ok(json) = serde_json::to_string(event) {
-            store.lock().unwrap().push(json);
+            store.push(json);
         }
     };
 
     for bar in &bars {
-        // Check SL/TP first
+        // ── Check SL/TP on open positions ─────────
         if let Some(portfolio_events) = portfolio.check_sl_tp(bar) {
             if let Some(closed) = portfolio_events.position_closed {
-                let e = Event::PositionClosed(closed);
-                record(&e, &events_clone);
+                push(&Event::PositionClosed(closed), &mut events);
             }
-            let snap = Event::PortfolioSnapshot(
-                portfolio_events.snapshot
+            push(
+                &Event::PortfolioSnapshot(portfolio_events.snapshot),
+                &mut events,
             );
-            record(&snap, &events_clone);
         }
 
-        // Emit bar event with EMA values
-        let fast_ema = strategy.fast_ema;
-        let slow_ema = strategy.slow_ema;
-
-        // Build enriched bar event
+        // ── Emit enriched bar event with EMA values ─
         let bar_json = serde_json::json!({
             "event_type": "BarReceived",
             "timestamp":  bar.timestamp,
@@ -178,27 +168,26 @@ fn collect_events(bars: Vec<Bar>) -> Vec<String> {
             "low":        bar.low,
             "close":      bar.close,
             "volume":     bar.volume,
-            "ema_fast":   fast_ema,
-            "ema_slow":   slow_ema,
+            "ema_fast":   strategy.fast_ema,
+            "ema_slow":   strategy.slow_ema,
         });
-        events_clone.lock().unwrap()
-            .push(bar_json.to_string());
+        events.push(bar_json.to_string());
 
-        // Get portfolio view for strategy
-        let open_pos = portfolio.open_position();
+        // ── Build portfolio view for strategy ──────
+        let open_pos      = portfolio.open_position();
         let portfolio_view = PortfolioView {
-            balance:               portfolio.balance(),
-            equity:                portfolio.balance(),
-            has_open_position:     open_pos.is_some(),
-            position_direction:    open_pos.map(|p| p.direction),
-            position_entry_price:  open_pos.map(|p| p.entry_price),
-            unrealised_pnl:        0.0,
+            balance:              portfolio.balance(),
+            equity:               portfolio.balance(),
+            has_open_position:    open_pos.is_some(),
+            position_direction:   open_pos.map(|p| p.direction),
+            position_entry_price: open_pos.map(|p| p.entry_price),
+            unrealised_pnl:       0.0,
         };
 
-        // Call strategy
+        // ── Call strategy ──────────────────────────
         let signals = strategy.on_bar(bar, &portfolio_view, &history);
 
-        // Process signals
+        // ── Process each signal ────────────────────
         for signal in signals {
             let intent = OrderIntentCreatedEvent {
                 metadata:       EventMetadata::new(run_id, bar.timestamp),
@@ -214,30 +203,32 @@ fn collect_events(bars: Vec<Bar>) -> Vec<String> {
 
             match execution.process(&intent, bar, portfolio.balance()) {
                 Ok(FillResult::Filled(fill)) => {
-                    let fill_event = Event::OrderFilled(fill.clone());
-                    record(&fill_event, &events_clone);
+                    push(&Event::OrderFilled(fill.clone()), &mut events);
 
                     match portfolio.process_fill(&fill) {
-                        Ok(portfolio_events) => {
-                            if let Some(opened) = portfolio_events.position_opened {
-                                let e = Event::PositionOpened(opened);
-                                record(&e, &events_clone);
+                        Ok(pe) => {
+                            if let Some(opened) = pe.position_opened {
+                                push(
+                                    &Event::PositionOpened(opened),
+                                    &mut events,
+                                );
                             }
-                            if let Some(closed) = portfolio_events.position_closed {
-                                let e = Event::PositionClosed(closed);
-                                record(&e, &events_clone);
+                            if let Some(closed) = pe.position_closed {
+                                push(
+                                    &Event::PositionClosed(closed),
+                                    &mut events,
+                                );
                             }
-                            let snap = Event::PortfolioSnapshot(
-                                portfolio_events.snapshot
+                            push(
+                                &Event::PortfolioSnapshot(pe.snapshot),
+                                &mut events,
                             );
-                            record(&snap, &events_clone);
                         }
                         Err(e) => eprintln!("Portfolio error: {}", e),
                     }
                 }
                 Ok(FillResult::Rejected(r)) => {
-                    let e = Event::OrderRejected(r);
-                    record(&e, &events_clone);
+                    push(&Event::OrderRejected(r), &mut events);
                 }
                 Err(e) => eprintln!("Execution error: {}", e),
             }
@@ -247,11 +238,7 @@ fn collect_events(bars: Vec<Bar>) -> Vec<String> {
     }
 
     strategy.teardown();
-
-    Arc::try_unwrap(events)
-        .unwrap()
-        .into_inner()
-        .unwrap()
+    events
 }
 
 // ────────────────────────────────────────────────
@@ -259,68 +246,73 @@ fn collect_events(bars: Vec<Bar>) -> Vec<String> {
 // ────────────────────────────────────────────────
 
 fn main() {
-    // Load data and run backtest
     println!("Loading data and running backtest...");
     let bars = CsvReader::load("data/EURUSD_M15.csv")
         .expect("Failed to load CSV");
 
     let events = collect_events(bars);
-    println!("Backtest complete. {} events collected.", events.len());
+    println!(
+        "Backtest complete. {} events collected.",
+        events.len()
+    );
+
+    // Build the JSON array ONCE on the main thread
+    // before any requests arrive — no locking needed
+    let events_json = Arc::new(format!("[{}]", events.join(",")));
+
     println!("Open http://localhost:7878 in your browser");
 
-    // Wrap events in Arc so they can be shared
-    // across request handler threads
-    let events = Arc::new(events);
-
-    // Start HTTP server
     let server = Server::http("0.0.0.0:7878").unwrap();
 
     for request in server.incoming_requests() {
-        let url = request.url().to_string();
-        let events = events.clone();
+        let url         = request.url().to_string();
+        let events_json = events_json.clone();
 
         thread::spawn(move || {
             match url.as_str() {
 
-                // Serve the main HTML page
+                // ── Serve the frontend HTML ────────
                 "/" => {
-                    let html = include_str!("../../../frontend/index.html");
+                    let html = include_str!(
+                        "../../../frontend/index.html"
+                    );
                     let response = Response::from_string(html)
                         .with_header(
                             Header::from_bytes(
                                 "Content-Type",
                                 "text/html; charset=utf-8",
-                            ).unwrap()
+                            )
+                            .unwrap(),
                         );
                     request.respond(response).ok();
                 }
 
-                // Serve all events as JSON array
+                // ── Serve all events as JSON array ─
                 "/api/events" => {
-                    let json = format!(
-                        "[{}]",
-                        events.join(",")
-                    );
-                    let response = Response::from_string(json)
-                        .with_header(
-                            Header::from_bytes(
-                                "Content-Type",
-                                "application/json",
-                            ).unwrap()
-                        )
-                        .with_header(
-                            Header::from_bytes(
-                                "Access-Control-Allow-Origin",
-                                "*",
-                            ).unwrap()
-                        );
+                    let response =
+                        Response::from_string((*events_json).clone())
+                            .with_header(
+                                Header::from_bytes(
+                                    "Content-Type",
+                                    "application/json",
+                                )
+                                .unwrap(),
+                            )
+                            .with_header(
+                                Header::from_bytes(
+                                    "Access-Control-Allow-Origin",
+                                    "*",
+                                )
+                                .unwrap(),
+                            );
                     request.respond(response).ok();
                 }
 
-                // 404 for everything else
+                // ── 404 for everything else ────────
                 _ => {
-                    let response = Response::from_string("Not found")
-                        .with_status_code(404);
+                    let response =
+                        Response::from_string("Not found")
+                            .with_status_code(404);
                     request.respond(response).ok();
                 }
             }
