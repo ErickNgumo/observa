@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Observa</title>
+
+  <!-- TradingView Lightweight Charts from CDN -->
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
+  <style>
+    /* ── Reset & Base ─────────────────────────── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont,
+                   'Segoe UI', sans-serif;
+      font-size: 13px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Toolbar ──────────────────────────────── */
+    #toolbar {
+      height: 44px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    #toolbar .logo {
+      font-size: 15px;
+      font-weight: 700;
+      color: #58a6ff;
+      margin-right: 16px;
+      letter-spacing: 1px;
+    }
+
+    .toolbar-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.15s;
+    }
+
+    .toolbar-btn:hover { background: #30363d; }
+
+    .toolbar-btn.active {
+      background: #1f6feb;
+      border-color: #1f6feb;
+    }
+
+    .toolbar-separator {
+      width: 1px;
+      height: 20px;
+      background: #30363d;
+      margin: 0 4px;
+    }
+
+    #speed-select {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    #status-bar {
+      margin-left: auto;
+      display: flex;
+      gap: 16px;
+      color: #8b949e;
+      font-size: 12px;
+    }
+
+    #status-bar span { color: #e6edf3; }
+
+    /* ── Chart Area ───────────────────────────── */
+    #chart-container {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    #chart {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Bottom Panel ─────────────────────────── */
+    #bottom-panel {
+      height: 200px;
+      background: #161b22;
+      border-top: 1px solid #30363d;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: height 0.2s;
+    }
+
+    #bottom-panel.collapsed { height: 32px; }
+
+    #panel-tabs {
+      display: flex;
+      align-items: center;
+      height: 32px;
+      border-bottom: 1px solid #30363d;
+      padding: 0 8px;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .panel-tab {
+      background: none;
+      border: none;
+      color: #8b949e;
+      padding: 4px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .panel-tab:hover { color: #e6edf3; }
+    .panel-tab.active { color: #58a6ff; }
+
+    #panel-toggle {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px 8px;
+    }
+
+    #panel-content {
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    #bottom-panel.collapsed #panel-content {
+      display: none;
+    }
+
+    /* ── Equity Curve Panel ───────────────────── */
+    #equity-panel {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Trade Log Panel ──────────────────────── */
+    #trade-log {
+      display: none;
+      height: 100%;
+      overflow-y: auto;
+    }
+
+    #trade-log table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    #trade-log th {
+      background: #0d1117;
+      padding: 6px 12px;
+      text-align: left;
+      color: #8b949e;
+      font-weight: 500;
+      position: sticky;
+      top: 0;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #trade-log td {
+      padding: 6px 12px;
+      border-bottom: 1px solid #21262d;
+      color: #e6edf3;
+    }
+
+    #trade-log tr:hover td { background: #161b22; }
+
+    .pnl-positive { color: #3fb950; }
+    .pnl-negative { color: #f85149; }
+
+    /* ── Progress Bar ─────────────────────────── */
+    #progress-bar {
+      height: 2px;
+      background: #21262d;
+      flex-shrink: 0;
+    }
+
+    #progress-fill {
+      height: 100%;
+      background: #1f6feb;
+      width: 0%;
+      transition: width 0.1s;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ── Toolbar ─────────────────────────────── -->
+  <div id="toolbar">
+    <div class="logo">OBSERVA</div>
+
+    <div class="toolbar-separator"></div>
+
+    <button class="toolbar-btn active" id="btn-play"
+            onclick="togglePlay()">▶ Play</button>
+    <button class="toolbar-btn" id="btn-step"
+            onclick="stepOnce()">▶| Step</button>
+    <button class="toolbar-btn" id="btn-reset"
+            onclick="resetReplay()">↺ Reset</button>
+
+    <div class="toolbar-separator"></div>
+
+    <label style="color:#8b949e; font-size:12px;">Speed</label>
+    <select id="speed-select" onchange="updateSpeed()">
+      <option value="500">0.5x</option>
+      <option value="200" selected>1x</option>
+      <option value="100">2x</option>
+      <option value="50">5x</option>
+      <option value="10">10x</option>
+      <option value="1">Max</option>
+    </select>
+
+    <div class="toolbar-separator"></div>
+
+    <button class="toolbar-btn active" id="btn-lines"
+            onclick="toggleLines()">⊞ Lines</button>
+
+    <div class="toolbar-separator"></div>
+
+    <div id="status-bar">
+      <span id="stat-pair">EURUSD M15</span>
+      <span>Balance: $<span id="stat-balance">10,000.00</span></span>
+      <span>PnL: $<span id="stat-pnl">0.00</span></span>
+      <span>Trades: <span id="stat-trades">0</span></span>
+      <span id="stat-progress">Bar 0 / 0</span>
+    </div>
+  </div>
+
+  <!-- ── Progress Bar ────────────────────────── -->
+  <div id="progress-bar">
+    <div id="progress-fill"></div>
+  </div>
+
+  <!-- ── Chart ───────────────────────────────── -->
+  <div id="chart-container">
+    <div id="chart"></div>
+  </div>
+
+  <!-- ── Bottom Panel ────────────────────────── -->
+  <div id="bottom-panel">
+    <div id="panel-tabs">
+      <button class="panel-tab active"
+              onclick="showPanel('equity')">Equity Curve</button>
+      <button class="panel-tab"
+              onclick="showPanel('trades')">Trade Log</button>
+      <button id="panel-toggle"
+              onclick="togglePanel()">▼</button>
+    </div>
+    <div id="panel-content">
+      <div id="equity-panel"></div>
+      <div id="trade-log">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Direction</th>
+              <th>Entry Time</th>
+              <th>Entry Price</th>
+              <th>Exit Price</th>
+              <th>SL</th>
+              <th>TP</th>
+              <th>Reason</th>
+              <th>PnL</th>
+            </tr>
+          </thead>
+          <tbody id="trade-log-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+
+let allEvents      = [];   // all events from server
+let currentIndex   = 0;    // current replay position
+let isPlaying      = false;
+let playTimer      = null;
+let playSpeed      = 200;  // ms between bars
+let showLines      = true; // toggle entry-exit lines
+let tradeCount     = 0;
+let balance        = 10000;
+let openTrade      = null; // currently open trade
+
+// Chart objects
+let chart, candleSeries, fastEmaSeries, slowEmaSeries, equityChart, equitySeries;
+
+// Data buffers
+let candleData    = [];
+let fastEmaData   = [];
+let slowEmaData   = [];
+let equityData    = [];
+let tradeLines    = []; // { entry line series, exit line series }
+let tradeMarkers  = []; // accumulated markers
+
+// ══════════════════════════════════════════════
+// INITIALISE CHARTS
+// ══════════════════════════════════════════════
+
+function initCharts() {
+  // ── Main candlestick chart ──────────────────
+  chart = LightweightCharts.createChart(
+    document.getElementById('chart'), {
+      layout: {
+        background: { color: '#0d1117' },
+        textColor:  '#8b949e',
+      },
+      grid: {
+        vertLines: { color: '#21262d' },
+        horzLines: { color: '#21262d' },
+      },
+      crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+      },
+      rightPriceScale: {
+        borderColor: '#30363d',
+      },
+      timeScale: {
+        borderColor:     '#30363d',
+        timeVisible:     true,
+        secondsVisible:  false,
+      },
+      width:  document.getElementById('chart').clientWidth,
+      height: document.getElementById('chart').clientHeight,
+    }
+  );
+
+  // Candlestick series
+  candleSeries = chart.addCandlestickSeries({
+    upColor:        '#3fb950',
+    downColor:      '#f85149',
+    borderUpColor:  '#3fb950',
+    borderDownColor:'#f85149',
+    wickUpColor:    '#3fb950',
+    wickDownColor:  '#f85149',
+  });
+
+  // Fast EMA line
+  fastEmaSeries = chart.addLineSeries({
+    color:       '#58a6ff',
+    lineWidth:   1,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
+
+  // Slow EMA line
+  slowEmaSeries = chart.addLineSeries({
+    color:       '#f78166',
+    lineWidth:   1,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
+
+  // ── Equity curve chart ──────────────────────
+  equityChart = LightweightCharts.createChart(
+    document.getElementById('equity-panel'), {
+      layout: {
+        background: { color: '#161b22' },
+        textColor:  '#8b949e',
+      },
+      grid: {
+        vertLines: { color: '#21262d' },
+        horzLines: { color: '#21262d' },
+      },
+      rightPriceScale: { borderColor: '#30363d' },
+      timeScale: {
+        borderColor:    '#30363d',
+        timeVisible:    true,
+        secondsVisible: false,
+      },
+      width:  document.getElementById('equity-panel').clientWidth,
+      height: document.getElementById('equity-panel').clientHeight,
+    }
+  );
+
+  equitySeries = equityChart.addLineSeries({
+    color:     '#3fb950',
+    lineWidth: 2,
+    priceLineVisible: false,
+  });
+
+  // Resize charts when window resizes
+  window.addEventListener('resize', () => {
+    chart.resize(
+      document.getElementById('chart').clientWidth,
+      document.getElementById('chart').clientHeight,
+    );
+    equityChart.resize(
+      document.getElementById('equity-panel').clientWidth,
+      document.getElementById('equity-panel').clientHeight,
+    );
+  });
+}
+
+// ══════════════════════════════════════════════
+// LOAD EVENTS FROM SERVER
+// ══════════════════════════════════════════════
+
+async function loadEvents() {
+  try {
+    const response = await fetch('/api/events');
+    allEvents = await response.json();
+
+    // Count total bars for progress display
+    const totalBars = allEvents.filter(
+      e => e.event_type === 'BarReceived'
+    ).length;
+
+    document.getElementById('stat-progress').textContent =
+      `Bar 0 / ${totalBars}`;
+
+    console.log(`Loaded ${allEvents.length} events`);
+  } catch (err) {
+    console.error('Failed to load events:', err);
+  }
+}
+
+// ══════════════════════════════════════════════
+// REPLAY ENGINE
+// ══════════════════════════════════════════════
+
+// Converts ISO timestamp to Unix seconds
+// TradingView needs Unix timestamps
+function toUnixTime(isoString) {
+  return Math.floor(new Date(isoString).getTime() / 1000);
+}
+
+// Processes a single event and updates the chart
+function processEvent(event) {
+  switch (event.event_type) {
+
+    case 'BarReceived':
+      handleBar(event);
+      break;
+
+    case 'PositionOpened':
+      handlePositionOpened(event);
+      break;
+
+    case 'PositionClosed':
+      handlePositionClosed(event);
+      break;
+
+    case 'PortfolioSnapshot':
+      handlePortfolioSnapshot(event);
+      break;
+  }
+}
+
+function handleBar(event) {
+  const time = toUnixTime(event.timestamp);
+
+  // Add candle
+  const candle = {
+    time,
+    open:  event.open,
+    high:  event.high,
+    low:   event.low,
+    close: event.close,
+  };
+  candleData.push(candle);
+  candleSeries.setData(candleData);
+
+  // Add EMA values if available
+  if (event.ema_fast !== null && event.ema_fast !== undefined) {
+    fastEmaData.push({ time, value: event.ema_fast });
+    fastEmaSeries.setData(fastEmaData);
+  }
+  if (event.ema_slow !== null && event.ema_slow !== undefined) {
+    slowEmaData.push({ time, value: event.ema_slow });
+    slowEmaSeries.setData(slowEmaData);
+  }
+
+  // Update progress
+  const totalBars = allEvents.filter(
+    e => e.event_type === 'BarReceived'
+  ).length;
+  const barsProcessed = candleData.length;
+  const pct = (barsProcessed / totalBars) * 100;
+
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('stat-progress').textContent =
+    `Bar ${barsProcessed} / ${totalBars}`;
+}
+
+function handlePositionOpened(event) {
+  // Store open trade for when it closes
+  openTrade = {
+    direction:  event.direction,
+    entryPrice: event.entry_price,
+    entryTime:  toUnixTime(event.timestamp),
+    sl:         event.sl,
+    tp:         event.tp,
+    positionId: event.position_id,
+  };
+
+  // Add entry marker to chart
+  const marker = {
+    time:     toUnixTime(event.timestamp),
+    position: event.direction === 'Buy' ? 'belowBar' : 'aboveBar',
+    color:    event.direction === 'Buy' ? '#3fb950' : '#f85149',
+    shape:    event.direction === 'Buy' ? 'arrowUp' : 'arrowDown',
+    text:     event.direction === 'Buy'
+                ? `B @ ${event.entry_price.toFixed(5)}`
+                : `S @ ${event.entry_price.toFixed(5)}`,
+  };
+  tradeMarkers.push(marker);
+  candleSeries.setMarkers(
+    [...tradeMarkers].sort((a, b) => a.time - b.time)
+  );
+}
+
+function handlePositionClosed(event) {
+  tradeCount++;
+
+  const pnl = event.pnl;
+
+  // Add exit marker
+  const marker = {
+    time:     toUnixTime(event.timestamp),
+    position: event.direction === 'Buy' ? 'aboveBar' : 'belowBar',
+    color:    pnl >= 0 ? '#3fb950' : '#f85149',
+    shape:    'circle',
+    text:     `✕ ${pnl >= 0 ? '+' : ''}${pnl.toFixed(0)}`,
+  };
+  tradeMarkers.push(marker);
+  candleSeries.setMarkers(
+    [...tradeMarkers].sort((a, b) => a.time - b.time)
+  );
+
+  // Add entry-exit connecting line if enabled
+  if (showLines && openTrade) {
+    const lineSeries = chart.addLineSeries({
+      color:              pnl >= 0
+                            ? 'rgba(63, 185, 80, 0.4)'
+                            : 'rgba(248, 81, 73, 0.4)',
+      lineWidth:          1,
+      lineStyle:          LightweightCharts.LineStyle.Dashed,
+      priceLineVisible:   false,
+      lastValueVisible:   false,
+      crosshairMarkerVisible: false,
+    });
+    lineSeries.setData([
+      { time: openTrade.entryTime,         value: openTrade.entryPrice },
+      { time: toUnixTime(event.timestamp), value: event.exit_price },
+    ]);
+    tradeLines.push(lineSeries);
+  }
+
+  // Add to trade log
+  addTradeToLog(event, openTrade);
+
+  // Update stats
+  balance = event.pnl
+    ? balance + 0  // balance comes from portfolio snapshot
+    : balance;
+
+  document.getElementById('stat-trades').textContent = tradeCount;
+
+  openTrade = null;
+}
+
+function handlePortfolioSnapshot(event) {
+  // Update balance display
+  balance = event.balance;
+  const pnl = event.realised_pnl;
+
+  document.getElementById('stat-balance').textContent =
+    balance.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const pnlEl = document.getElementById('stat-pnl');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') +
+    pnl.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  pnlEl.style.color = pnl >= 0 ? '#3fb950' : '#f85149';
+
+  // Add equity curve point
+  // Use the last candle's time for alignment
+  if (candleData.length > 0) {
+    const lastTime = candleData[candleData.length - 1].time;
+    equityData.push({ time: lastTime, value: event.equity });
+    equitySeries.setData(equityData);
+  }
+}
+
+function addTradeToLog(closeEvent, entryInfo) {
+  const tbody = document.getElementById('trade-log-body');
+  const pnl   = closeEvent.pnl;
+  const row   = document.createElement('tr');
+
+  const entryTime = entryInfo
+    ? new Date(entryInfo.entryTime * 1000).toISOString().slice(0, 16).replace('T', ' ')
+    : '—';
+  const entryPrice = entryInfo
+    ? entryInfo.entryPrice.toFixed(5)
+    : '—';
+  const sl = entryInfo?.sl
+    ? entryInfo.sl.toFixed(5)
+    : '—';
+  const tp = entryInfo?.tp
+    ? entryInfo.tp.toFixed(5)
+    : '—';
+
+  row.innerHTML = `
+    <td>${tradeCount}</td>
+    <td style="color:${closeEvent.direction === 'Buy' ? '#3fb950' : '#f85149'}">
+      ${closeEvent.direction}
+    </td>
+    <td>${entryTime}</td>
+    <td>${entryPrice}</td>
+    <td>${closeEvent.exit_price.toFixed(5)}</td>
+    <td>${sl}</td>
+    <td>${tp}</td>
+    <td>${closeEvent.exit_reason}</td>
+    <td class="${pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}">
+      ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}
+    </td>
+  `;
+  tbody.appendChild(row);
+}
+
+// ══════════════════════════════════════════════
+// PLAYBACK CONTROLS
+// ══════════════════════════════════════════════
+
+function togglePlay() {
+  isPlaying = !isPlaying;
+  const btn = document.getElementById('btn-play');
+
+  if (isPlaying) {
+    btn.textContent = '⏸ Pause';
+    btn.classList.add('active');
+    startPlayback();
+  } else {
+    btn.textContent = '▶ Play';
+    btn.classList.remove('active');
+    stopPlayback();
+  }
+}
+
+function startPlayback() {
+  if (currentIndex >= allEvents.length) return;
+
+  playTimer = setInterval(() => {
+    if (currentIndex >= allEvents.length) {
+      stopPlayback();
+      document.getElementById('btn-play').textContent = '▶ Play';
+      document.getElementById('btn-play').classList.remove('active');
+      isPlaying = false;
+      return;
+    }
+    processEvent(allEvents[currentIndex]);
+    currentIndex++;
+  }, playSpeed);
+}
+
+function stopPlayback() {
+  if (playTimer) {
+    clearInterval(playTimer);
+    playTimer = null;
+  }
+}
+
+function stepOnce() {
+  // Pause if playing
+  if (isPlaying) togglePlay();
+
+  if (currentIndex < allEvents.length) {
+    processEvent(allEvents[currentIndex]);
+    currentIndex++;
+  }
+}
+
+function resetReplay() {
+  stopPlayback();
+  isPlaying = false;
+
+  document.getElementById('btn-play').textContent = '▶ Play';
+  document.getElementById('btn-play').classList.remove('active');
+
+  // Reset state
+  currentIndex  = 0;
+  tradeCount    = 0;
+  balance       = 10000;
+  openTrade     = null;
+  candleData    = [];
+  fastEmaData   = [];
+  slowEmaData   = [];
+  equityData    = [];
+  tradeMarkers  = [];
+
+  // Remove trade lines
+  tradeLines.forEach(line => chart.removeSeries(line));
+  tradeLines = [];
+
+  // Clear chart data
+  candleSeries.setData([]);
+  fastEmaSeries.setData([]);
+  slowEmaSeries.setData([]);
+  candleSeries.setMarkers([]);
+  equitySeries.setData([]);
+
+  // Reset stats
+  document.getElementById('stat-balance').textContent = '10,000.00';
+  document.getElementById('stat-pnl').textContent     = '0.00';
+  document.getElementById('stat-trades').textContent  = '0';
+  document.getElementById('progress-fill').style.width = '0%';
+
+  // Clear trade log
+  document.getElementById('trade-log-body').innerHTML = '';
+}
+
+function updateSpeed() {
+  playSpeed = parseInt(
+    document.getElementById('speed-select').value
+  );
+  if (isPlaying) {
+    stopPlayback();
+    startPlayback();
+  }
+}
+
+function toggleLines() {
+  showLines = !showLines;
+  const btn = document.getElementById('btn-lines');
+  btn.classList.toggle('active', showLines);
+}
+
+// ══════════════════════════════════════════════
+// PANEL CONTROLS
+// ══════════════════════════════════════════════
+
+function showPanel(tab) {
+  document.getElementById('equity-panel').style.display =
+    tab === 'equity' ? 'block' : 'none';
+  document.getElementById('trade-log').style.display =
+    tab === 'trades' ? 'block' : 'none';
+
+  document.querySelectorAll('.panel-tab').forEach((el, i) => {
+    el.classList.toggle('active',
+      (i === 0 && tab === 'equity') ||
+      (i === 1 && tab === 'trades')
+    );
+  });
+}
+
+function togglePanel() {
+  const panel  = document.getElementById('bottom-panel');
+  const toggle = document.getElementById('panel-toggle');
+  const collapsed = panel.classList.toggle('collapsed');
+  toggle.textContent = collapsed ? '▲' : '▼';
+
+  // Resize charts after panel animation
+  setTimeout(() => {
+    chart.resize(
+      document.getElementById('chart').clientWidth,
+      document.getElementById('chart').clientHeight,
+    );
+    equityChart.resize(
+      document.getElementById('equity-panel').clientWidth,
+      document.getElementById('equity-panel').clientHeight,
+    );
+  }, 220);
+}
+
+// ══════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════
+
+async function boot() {
+  initCharts();
+  await loadEvents();
+  
+  // Reset button to correct initial state
+  // after events are loaded
+  document.getElementById('btn-play').textContent = '▶ Play';
+  document.getElementById('btn-play').classList.remove('active');
+  isPlaying = false;
+
+  console.log(`Observa ready — ${allEvents.length} events loaded.`);
+  console.log('Press Play to start replay.');
+}
+
+boot();
+</script>
+</body>
+</html>
