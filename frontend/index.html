@@ -4,19 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Observa</title>
-
-  <!-- TradingView Lightweight Charts from CDN -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-
   <style>
-    /* ── Reset & Base ─────────────────────────── */
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       background: #0d1117;
       color: #e6edf3;
-      font-family: -apple-system, BlinkMacSystemFont,
-                   'Segoe UI', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 13px;
       height: 100vh;
       display: flex;
@@ -24,7 +19,7 @@
       overflow: hidden;
     }
 
-    /* ── Toolbar ──────────────────────────────── */
+    /* ── Toolbar ── */
     #toolbar {
       height: 44px;
       background: #161b22;
@@ -56,11 +51,7 @@
     }
 
     .toolbar-btn:hover { background: #30363d; }
-
-    .toolbar-btn.active {
-      background: #1f6feb;
-      border-color: #1f6feb;
-    }
+    .toolbar-btn.active { background: #1f6feb; border-color: #1f6feb; }
 
     .toolbar-separator {
       width: 1px;
@@ -89,19 +80,16 @@
 
     #status-bar span { color: #e6edf3; }
 
-    /* ── Chart Area ───────────────────────────── */
+    /* ── Chart ── */
     #chart-container {
       flex: 1;
       position: relative;
       min-height: 0;
     }
 
-    #chart {
-      width: 100%;
-      height: 100%;
-    }
+    #chart { width: 100%; height: 100%; }
 
-    /* ── Bottom Panel ─────────────────────────── */
+    /* ── Bottom Panel ── */
     #bottom-panel {
       height: 200px;
       background: #161b22;
@@ -153,27 +141,17 @@
       min-height: 0;
     }
 
-    #bottom-panel.collapsed #panel-content {
-      display: none;
-    }
+    #bottom-panel.collapsed #panel-content { display: none; }
 
-    /* ── Equity Curve Panel ───────────────────── */
-    #equity-panel {
-      width: 100%;
-      height: 100%;
-    }
+    #equity-panel { width: 100%; height: 100%; }
 
-    /* ── Trade Log Panel ──────────────────────── */
     #trade-log {
       display: none;
       height: 100%;
       overflow-y: auto;
     }
 
-    #trade-log table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+    #trade-log table { width: 100%; border-collapse: collapse; }
 
     #trade-log th {
       background: #0d1117;
@@ -199,39 +177,20 @@
     .pnl-positive { color: #3fb950; }
     .pnl-negative { color: #f85149; }
 
-    /* ── Progress Bar ─────────────────────────── */
-    #progress-bar {
-      height: 2px;
-      background: #21262d;
-      flex-shrink: 0;
-    }
-
-    #progress-fill {
-      height: 100%;
-      background: #1f6feb;
-      width: 0%;
-      transition: width 0.1s;
-    }
+    /* ── Progress Bar ── */
+    #progress-bar { height: 2px; background: #21262d; flex-shrink: 0; }
+    #progress-fill { height: 100%; background: #1f6feb; width: 0%; transition: width 0.1s; }
   </style>
 </head>
-
 <body>
 
-  <!-- ── Toolbar ─────────────────────────────── -->
   <div id="toolbar">
     <div class="logo">OBSERVA</div>
-
     <div class="toolbar-separator"></div>
-
-    <button class="toolbar-btn active" id="btn-play"
-            onclick="togglePlay()">▶ Play</button>
-    <button class="toolbar-btn" id="btn-step"
-            onclick="stepOnce()">▶| Step</button>
-    <button class="toolbar-btn" id="btn-reset"
-            onclick="resetReplay()">↺ Reset</button>
-
+    <button class="toolbar-btn" id="btn-play" onclick="togglePlay()">&#9654; Play</button>
+    <button class="toolbar-btn" id="btn-step" onclick="stepOnce()">&#9654;| Step</button>
+    <button class="toolbar-btn" id="btn-reset" onclick="resetReplay()">&#8635; Reset</button>
     <div class="toolbar-separator"></div>
-
     <label style="color:#8b949e; font-size:12px;">Speed</label>
     <select id="speed-select" onchange="updateSpeed()">
       <option value="500">0.5x</option>
@@ -241,14 +200,9 @@
       <option value="10">10x</option>
       <option value="1">Max</option>
     </select>
-
     <div class="toolbar-separator"></div>
-
-    <button class="toolbar-btn active" id="btn-lines"
-            onclick="toggleLines()">⊞ Lines</button>
-
+    <button class="toolbar-btn active" id="btn-lines" onclick="toggleLines()">&#8862; Lines</button>
     <div class="toolbar-separator"></div>
-
     <div id="status-bar">
       <span id="stat-pair">EURUSD M15</span>
       <span>Balance: $<span id="stat-balance">10,000.00</span></span>
@@ -258,25 +212,17 @@
     </div>
   </div>
 
-  <!-- ── Progress Bar ────────────────────────── -->
-  <div id="progress-bar">
-    <div id="progress-fill"></div>
-  </div>
+  <div id="progress-bar"><div id="progress-fill"></div></div>
 
-  <!-- ── Chart ───────────────────────────────── -->
   <div id="chart-container">
     <div id="chart"></div>
   </div>
 
-  <!-- ── Bottom Panel ────────────────────────── -->
   <div id="bottom-panel">
     <div id="panel-tabs">
-      <button class="panel-tab active"
-              onclick="showPanel('equity')">Equity Curve</button>
-      <button class="panel-tab"
-              onclick="showPanel('trades')">Trade Log</button>
-      <button id="panel-toggle"
-              onclick="togglePanel()">▼</button>
+      <button class="panel-tab active" onclick="showPanel('equity')">Equity Curve</button>
+      <button class="panel-tab" onclick="showPanel('trades')">Trade Log</button>
+      <button id="panel-toggle" onclick="togglePanel()">&#9660;</button>
     </div>
     <div id="panel-content">
       <div id="equity-panel"></div>
@@ -303,369 +249,299 @@
 
 <script>
 // ══════════════════════════════════════════════
-// STATE
+// GLOBALS
 // ══════════════════════════════════════════════
 
-let allEvents      = [];   // all events from server
-let currentIndex   = 0;    // current replay position
-let isPlaying      = false;
-let playTimer      = null;
-let playSpeed      = 200;  // ms between bars
-let showLines      = true; // toggle entry-exit lines
-let tradeCount     = 0;
-let balance        = 10000;
-let openTrade      = null; // currently open trade
+var allEvents     = [];
+var currentIndex  = 0;
+var isPlaying     = false;
+var playTimer     = null;
+var playSpeed     = 200;
+var showLines     = true;
+var tradeCount    = 0;
+var openTrade     = null;
 
-// Chart objects
-let chart, candleSeries, fastEmaSeries, slowEmaSeries, equityChart, equitySeries;
+var chart, candleSeries, fastEmaSeries, slowEmaSeries;
+var equityChart, equitySeries;
 
-// Data buffers
-let candleData    = [];
-let fastEmaData   = [];
-let slowEmaData   = [];
-let equityData    = [];
-let tradeLines    = []; // { entry line series, exit line series }
-let tradeMarkers  = []; // accumulated markers
+var candleData   = [];
+var fastEmaData  = [];
+var slowEmaData  = [];
+var equityData   = [];
+var tradeMarkers = [];
+var tradeLines   = [];
+
+var totalBars    = 0;
+var barsDrawn    = 0;
 
 // ══════════════════════════════════════════════
-// INITIALISE CHARTS
+// INIT CHARTS — TradingView Lightweight Charts v5
 // ══════════════════════════════════════════════
 
 function initCharts() {
-  // ── Main candlestick chart ──────────────────
-  chart = LightweightCharts.createChart(
-    document.getElementById('chart'), {
-      layout: {
-        background: { color: '#0d1117' },
-        textColor:  '#8b949e',
-      },
-      grid: {
-        vertLines: { color: '#21262d' },
-        horzLines: { color: '#21262d' },
-      },
-      crosshair: {
-        mode: LightweightCharts.CrosshairMode.Normal,
-      },
-      rightPriceScale: {
-        borderColor: '#30363d',
-      },
-      timeScale: {
-        borderColor:     '#30363d',
-        timeVisible:     true,
-        secondsVisible:  false,
-      },
-      width:  document.getElementById('chart').clientWidth,
-      height: document.getElementById('chart').clientHeight,
-    }
-  );
+  var LC = LightweightCharts;
+
+  // ── Main chart ────────────────────────────
+  chart = LC.createChart(document.getElementById('chart'), {
+    layout: {
+      background: { color: '#0d1117' },
+      textColor: '#8b949e'
+    },
+    grid: {
+      vertLines: { color: '#21262d' },
+      horzLines: { color: '#21262d' }
+    },
+    crosshair: { mode: LC.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#30363d' },
+    timeScale: {
+      borderColor: '#30363d',
+      timeVisible: true,
+      secondsVisible: false
+    },
+    width:  document.getElementById('chart').clientWidth,
+    height: document.getElementById('chart').clientHeight
+  });
 
   // Candlestick series
-  candleSeries = chart.addCandlestickSeries({
-    upColor:        '#3fb950',
-    downColor:      '#f85149',
-    borderUpColor:  '#3fb950',
-    borderDownColor:'#f85149',
-    wickUpColor:    '#3fb950',
-    wickDownColor:  '#f85149',
+  candleSeries = chart.addSeries(LC.CandlestickSeries, {
+    upColor:         '#3fb950',
+    downColor:       '#f85149',
+    borderUpColor:   '#3fb950',
+    borderDownColor: '#f85149',
+    wickUpColor:     '#3fb950',
+    wickDownColor:   '#f85149'
   });
 
-  // Fast EMA line
-  fastEmaSeries = chart.addLineSeries({
-    color:       '#58a6ff',
-    lineWidth:   1,
+  // Fast EMA
+  fastEmaSeries = chart.addSeries(LC.LineSeries, {
+    color:            '#58a6ff',
+    lineWidth:        1,
     priceLineVisible: false,
-    lastValueVisible: false,
+    lastValueVisible: false
   });
 
-  // Slow EMA line
-  slowEmaSeries = chart.addLineSeries({
-    color:       '#f78166',
-    lineWidth:   1,
+  // Slow EMA
+  slowEmaSeries = chart.addSeries(LC.LineSeries, {
+    color:            '#f78166',
+    lineWidth:        1,
     priceLineVisible: false,
-    lastValueVisible: false,
+    lastValueVisible: false
   });
 
-  // ── Equity curve chart ──────────────────────
-  equityChart = LightweightCharts.createChart(
-    document.getElementById('equity-panel'), {
-      layout: {
-        background: { color: '#161b22' },
-        textColor:  '#8b949e',
-      },
-      grid: {
-        vertLines: { color: '#21262d' },
-        horzLines: { color: '#21262d' },
-      },
-      rightPriceScale: { borderColor: '#30363d' },
-      timeScale: {
-        borderColor:    '#30363d',
-        timeVisible:    true,
-        secondsVisible: false,
-      },
-      width:  document.getElementById('equity-panel').clientWidth,
-      height: document.getElementById('equity-panel').clientHeight,
-    }
-  );
-
-  equitySeries = equityChart.addLineSeries({
-    color:     '#3fb950',
-    lineWidth: 2,
-    priceLineVisible: false,
+  // ── Equity chart ──────────────────────────
+  equityChart = LC.createChart(document.getElementById('equity-panel'), {
+    layout: {
+      background: { color: '#161b22' },
+      textColor: '#8b949e'
+    },
+    grid: {
+      vertLines: { color: '#21262d' },
+      horzLines: { color: '#21262d' }
+    },
+    rightPriceScale: { borderColor: '#30363d' },
+    timeScale: {
+      borderColor: '#30363d',
+      timeVisible: true,
+      secondsVisible: false
+    },
+    width:  document.getElementById('equity-panel').clientWidth,
+    height: document.getElementById('equity-panel').clientHeight
   });
 
-  // Resize charts when window resizes
-  window.addEventListener('resize', () => {
+  equitySeries = equityChart.addSeries(LC.LineSeries, {
+    color:            '#3fb950',
+    lineWidth:        2,
+    priceLineVisible: false
+  });
+
+  // Resize on window resize
+  window.addEventListener('resize', function() {
     chart.resize(
       document.getElementById('chart').clientWidth,
-      document.getElementById('chart').clientHeight,
+      document.getElementById('chart').clientHeight
     );
     equityChart.resize(
       document.getElementById('equity-panel').clientWidth,
-      document.getElementById('equity-panel').clientHeight,
+      document.getElementById('equity-panel').clientHeight
     );
   });
 }
 
 // ══════════════════════════════════════════════
-// LOAD EVENTS FROM SERVER
+// LOAD EVENTS
 // ══════════════════════════════════════════════
 
-async function loadEvents() {
-  try {
-    const response = await fetch('/api/events');
-    allEvents = await response.json();
-
-    // Count total bars for progress display
-    const totalBars = allEvents.filter(
-      e => e.event_type === 'BarReceived'
-    ).length;
-
-    document.getElementById('stat-progress').textContent =
-      `Bar 0 / ${totalBars}`;
-
-    console.log(`Loaded ${allEvents.length} events`);
-  } catch (err) {
-    console.error('Failed to load events:', err);
-  }
+function loadEvents() {
+  return fetch('/api/events')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      allEvents = data;
+      totalBars = allEvents.filter(function(e) {
+        return e.event_type === 'BarReceived';
+      }).length;
+      document.getElementById('stat-progress').textContent =
+        'Bar 0 / ' + totalBars;
+      console.log('Loaded ' + allEvents.length + ' events, ' + totalBars + ' bars');
+    })
+    .catch(function(err) {
+      console.error('Failed to load events:', err);
+    });
 }
 
 // ══════════════════════════════════════════════
-// REPLAY ENGINE
+// HELPERS
 // ══════════════════════════════════════════════
 
-// Converts ISO timestamp to Unix seconds
-// TradingView needs Unix timestamps
-function toUnixTime(isoString) {
-  return Math.floor(new Date(isoString).getTime() / 1000);
+function toUnix(iso) {
+  return Math.floor(new Date(iso).getTime() / 1000);
 }
 
-// Processes a single event and updates the chart
-function processEvent(event) {
-  switch (event.event_type) {
-
-    case 'BarReceived':
-      handleBar(event);
-      break;
-
-    case 'PositionOpened':
-      handlePositionOpened(event);
-      break;
-
-    case 'PositionClosed':
-      handlePositionClosed(event);
-      break;
-
-    case 'PortfolioSnapshot':
-      handlePortfolioSnapshot(event);
-      break;
-  }
+function fmtNum(n, dec) {
+  return Number(n).toLocaleString('en-US', {
+    minimumFractionDigits: dec,
+    maximumFractionDigits: dec
+  });
 }
 
-function handleBar(event) {
-  const time = toUnixTime(event.timestamp);
+// ══════════════════════════════════════════════
+// EVENT HANDLERS
+// ══════════════════════════════════════════════
 
-  // Add candle
-  const candle = {
-    time,
-    open:  event.open,
-    high:  event.high,
-    low:   event.low,
-    close: event.close,
-  };
-  candleData.push(candle);
+function processEvent(ev) {
+  if (ev.event_type === 'BarReceived')        { handleBar(ev); }
+  else if (ev.event_type === 'PositionOpened') { handleOpened(ev); }
+  else if (ev.event_type === 'PositionClosed') { handleClosed(ev); }
+  else if (ev.event_type === 'PortfolioSnapshot') { handleSnapshot(ev); }
+}
+
+function handleBar(ev) {
+  var t = toUnix(ev.timestamp);
+
+  candleData.push({ time: t, open: ev.open, high: ev.high, low: ev.low, close: ev.close });
   candleSeries.setData(candleData);
 
-  // Add EMA values if available
-  if (event.ema_fast !== null && event.ema_fast !== undefined) {
-    fastEmaData.push({ time, value: event.ema_fast });
+  if (ev.ema_fast !== null && ev.ema_fast !== undefined) {
+    fastEmaData.push({ time: t, value: ev.ema_fast });
     fastEmaSeries.setData(fastEmaData);
   }
-  if (event.ema_slow !== null && event.ema_slow !== undefined) {
-    slowEmaData.push({ time, value: event.ema_slow });
+  if (ev.ema_slow !== null && ev.ema_slow !== undefined) {
+    slowEmaData.push({ time: t, value: ev.ema_slow });
     slowEmaSeries.setData(slowEmaData);
   }
 
-  // Update progress
-  const totalBars = allEvents.filter(
-    e => e.event_type === 'BarReceived'
-  ).length;
-  const barsProcessed = candleData.length;
-  const pct = (barsProcessed / totalBars) * 100;
-
+  barsDrawn++;
+  var pct = totalBars > 0 ? (barsDrawn / totalBars) * 100 : 0;
   document.getElementById('progress-fill').style.width = pct + '%';
   document.getElementById('stat-progress').textContent =
-    `Bar ${barsProcessed} / ${totalBars}`;
+    'Bar ' + barsDrawn + ' / ' + totalBars;
 }
 
-function handlePositionOpened(event) {
-  // Store open trade for when it closes
+function handleOpened(ev) {
   openTrade = {
-    direction:  event.direction,
-    entryPrice: event.entry_price,
-    entryTime:  toUnixTime(event.timestamp),
-    sl:         event.sl,
-    tp:         event.tp,
-    positionId: event.position_id,
+    direction:  ev.direction,
+    entryPrice: ev.entry_price,
+    entryTime:  toUnix(ev.timestamp),
+    sl:         ev.sl,
+    tp:         ev.tp
   };
 
-  // Add entry marker to chart
-  const marker = {
-    time:     toUnixTime(event.timestamp),
-    position: event.direction === 'Buy' ? 'belowBar' : 'aboveBar',
-    color:    event.direction === 'Buy' ? '#3fb950' : '#f85149',
-    shape:    event.direction === 'Buy' ? 'arrowUp' : 'arrowDown',
-    text:     event.direction === 'Buy'
-                ? `B @ ${event.entry_price.toFixed(5)}`
-                : `S @ ${event.entry_price.toFixed(5)}`,
+  var marker = {
+    time:     toUnix(ev.timestamp),
+    position: ev.direction === 'Buy' ? 'belowBar' : 'aboveBar',
+    color:    ev.direction === 'Buy' ? '#3fb950' : '#f85149',
+    shape:    ev.direction === 'Buy' ? 'arrowUp' : 'arrowDown',
+    text:     (ev.direction === 'Buy' ? 'B' : 'S') + ' @ ' + Number(ev.entry_price).toFixed(5)
   };
   tradeMarkers.push(marker);
-  candleSeries.setMarkers(
-    [...tradeMarkers].sort((a, b) => a.time - b.time)
-  );
+  candleSeries.setMarkers(tradeMarkers.slice().sort(function(a, b) { return a.time - b.time; }));
 }
 
-function handlePositionClosed(event) {
+function handleClosed(ev) {
   tradeCount++;
+  var pnl = ev.pnl;
 
-  const pnl = event.pnl;
-
-  // Add exit marker
-  const marker = {
-    time:     toUnixTime(event.timestamp),
-    position: event.direction === 'Buy' ? 'aboveBar' : 'belowBar',
+  var marker = {
+    time:     toUnix(ev.timestamp),
+    position: ev.direction === 'Buy' ? 'aboveBar' : 'belowBar',
     color:    pnl >= 0 ? '#3fb950' : '#f85149',
     shape:    'circle',
-    text:     `✕ ${pnl >= 0 ? '+' : ''}${pnl.toFixed(0)}`,
+    text:     (pnl >= 0 ? '+' : '') + Math.round(pnl)
   };
   tradeMarkers.push(marker);
-  candleSeries.setMarkers(
-    [...tradeMarkers].sort((a, b) => a.time - b.time)
-  );
+  candleSeries.setMarkers(tradeMarkers.slice().sort(function(a, b) { return a.time - b.time; }));
 
-  // Add entry-exit connecting line if enabled
-  if (showLines && openTrade) {
-    const lineSeries = chart.addLineSeries({
-      color:              pnl >= 0
-                            ? 'rgba(63, 185, 80, 0.4)'
-                            : 'rgba(248, 81, 73, 0.4)',
-      lineWidth:          1,
-      lineStyle:          LightweightCharts.LineStyle.Dashed,
-      priceLineVisible:   false,
-      lastValueVisible:   false,
-      crosshairMarkerVisible: false,
+  // Entry to exit connecting line
+  if (showLines && openTrade && candleData.length > 0) {
+    var LC = LightweightCharts;
+    var line = chart.addSeries(LC.LineSeries, {
+      color:                  pnl >= 0 ? 'rgba(63,185,80,0.4)' : 'rgba(248,81,73,0.4)',
+      lineWidth:              1,
+      lineStyle:              LC.LineStyle.Dashed,
+      priceLineVisible:       false,
+      lastValueVisible:       false,
+      crosshairMarkerVisible: false
     });
-    lineSeries.setData([
+    line.setData([
       { time: openTrade.entryTime,         value: openTrade.entryPrice },
-      { time: toUnixTime(event.timestamp), value: event.exit_price },
+      { time: toUnix(ev.timestamp),        value: ev.exit_price }
     ]);
-    tradeLines.push(lineSeries);
+    tradeLines.push(line);
   }
 
-  // Add to trade log
-  addTradeToLog(event, openTrade);
-
-  // Update stats
-  balance = event.pnl
-    ? balance + 0  // balance comes from portfolio snapshot
-    : balance;
-
+  addTradeRow(ev, openTrade);
   document.getElementById('stat-trades').textContent = tradeCount;
-
   openTrade = null;
 }
 
-function handlePortfolioSnapshot(event) {
-  // Update balance display
-  balance = event.balance;
-  const pnl = event.realised_pnl;
+function handleSnapshot(ev) {
+  var bal = ev.balance;
+  var pnl = ev.realised_pnl;
 
-  document.getElementById('stat-balance').textContent =
-    balance.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+  document.getElementById('stat-balance').textContent = fmtNum(bal, 2);
 
-  const pnlEl = document.getElementById('stat-pnl');
-  pnlEl.textContent = (pnl >= 0 ? '+' : '') +
-    pnl.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+  var pnlEl = document.getElementById('stat-pnl');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + fmtNum(pnl, 2);
   pnlEl.style.color = pnl >= 0 ? '#3fb950' : '#f85149';
 
-  // Add equity curve point
-  // Use the last candle's time for alignment
   if (candleData.length > 0) {
-    const lastTime = candleData[candleData.length - 1].time;
-    equityData.push({ time: lastTime, value: event.equity });
+    var t = candleData[candleData.length - 1].time;
+    equityData.push({ time: t, value: ev.equity });
     equitySeries.setData(equityData);
   }
 }
 
-function addTradeToLog(closeEvent, entryInfo) {
-  const tbody = document.getElementById('trade-log-body');
-  const pnl   = closeEvent.pnl;
-  const row   = document.createElement('tr');
+function addTradeRow(closeEv, entry) {
+  var tbody = document.getElementById('trade-log-body');
+  var pnl   = closeEv.pnl;
+  var row   = document.createElement('tr');
 
-  const entryTime = entryInfo
-    ? new Date(entryInfo.entryTime * 1000).toISOString().slice(0, 16).replace('T', ' ')
-    : '—';
-  const entryPrice = entryInfo
-    ? entryInfo.entryPrice.toFixed(5)
-    : '—';
-  const sl = entryInfo?.sl
-    ? entryInfo.sl.toFixed(5)
-    : '—';
-  const tp = entryInfo?.tp
-    ? entryInfo.tp.toFixed(5)
-    : '—';
+  var entryTime  = entry ? new Date(entry.entryTime * 1000).toISOString().slice(0,16).replace('T',' ') : '-';
+  var entryPrice = entry ? Number(entry.entryPrice).toFixed(5) : '-';
+  var sl         = (entry && entry.sl)  ? Number(entry.sl).toFixed(5)  : '-';
+  var tp         = (entry && entry.tp)  ? Number(entry.tp).toFixed(5)  : '-';
 
-  row.innerHTML = `
-    <td>${tradeCount}</td>
-    <td style="color:${closeEvent.direction === 'Buy' ? '#3fb950' : '#f85149'}">
-      ${closeEvent.direction}
-    </td>
-    <td>${entryTime}</td>
-    <td>${entryPrice}</td>
-    <td>${closeEvent.exit_price.toFixed(5)}</td>
-    <td>${sl}</td>
-    <td>${tp}</td>
-    <td>${closeEvent.exit_reason}</td>
-    <td class="${pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}">
-      ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}
-    </td>
-  `;
+  row.innerHTML =
+    '<td>' + tradeCount + '</td>' +
+    '<td style="color:' + (closeEv.direction === 'Buy' ? '#3fb950' : '#f85149') + '">' + closeEv.direction + '</td>' +
+    '<td>' + entryTime + '</td>' +
+    '<td>' + entryPrice + '</td>' +
+    '<td>' + Number(closeEv.exit_price).toFixed(5) + '</td>' +
+    '<td>' + sl + '</td>' +
+    '<td>' + tp + '</td>' +
+    '<td>' + closeEv.exit_reason + '</td>' +
+    '<td class="' + (pnl >= 0 ? 'pnl-positive' : 'pnl-negative') + '">' +
+      (pnl >= 0 ? '+' : '') + '$' + Number(pnl).toFixed(2) +
+    '</td>';
   tbody.appendChild(row);
 }
 
 // ══════════════════════════════════════════════
-// PLAYBACK CONTROLS
+// PLAYBACK
 // ══════════════════════════════════════════════
 
 function togglePlay() {
   isPlaying = !isPlaying;
-  const btn = document.getElementById('btn-play');
-
+  var btn = document.getElementById('btn-play');
   if (isPlaying) {
     btn.textContent = '⏸ Pause';
     btn.classList.add('active');
@@ -679,8 +555,7 @@ function togglePlay() {
 
 function startPlayback() {
   if (currentIndex >= allEvents.length) return;
-
-  playTimer = setInterval(() => {
+  playTimer = setInterval(function() {
     if (currentIndex >= allEvents.length) {
       stopPlayback();
       document.getElementById('btn-play').textContent = '▶ Play';
@@ -694,16 +569,11 @@ function startPlayback() {
 }
 
 function stopPlayback() {
-  if (playTimer) {
-    clearInterval(playTimer);
-    playTimer = null;
-  }
+  if (playTimer) { clearInterval(playTimer); playTimer = null; }
 }
 
 function stepOnce() {
-  // Pause if playing
   if (isPlaying) togglePlay();
-
   if (currentIndex < allEvents.length) {
     processEvent(allEvents[currentIndex]);
     currentIndex++;
@@ -712,57 +582,44 @@ function stepOnce() {
 
 function resetReplay() {
   stopPlayback();
-  isPlaying = false;
+  isPlaying    = false;
+  currentIndex = 0;
+  tradeCount   = 0;
+  openTrade    = null;
+  barsDrawn    = 0;
+  candleData   = [];
+  fastEmaData  = [];
+  slowEmaData  = [];
+  equityData   = [];
+  tradeMarkers = [];
 
-  document.getElementById('btn-play').textContent = '▶ Play';
-  document.getElementById('btn-play').classList.remove('active');
-
-  // Reset state
-  currentIndex  = 0;
-  tradeCount    = 0;
-  balance       = 10000;
-  openTrade     = null;
-  candleData    = [];
-  fastEmaData   = [];
-  slowEmaData   = [];
-  equityData    = [];
-  tradeMarkers  = [];
-
-  // Remove trade lines
-  tradeLines.forEach(line => chart.removeSeries(line));
+  tradeLines.forEach(function(l) { chart.removeSeries(l); });
   tradeLines = [];
 
-  // Clear chart data
   candleSeries.setData([]);
   fastEmaSeries.setData([]);
   slowEmaSeries.setData([]);
   candleSeries.setMarkers([]);
   equitySeries.setData([]);
 
-  // Reset stats
+  document.getElementById('btn-play').textContent = '▶ Play';
+  document.getElementById('btn-play').classList.remove('active');
   document.getElementById('stat-balance').textContent = '10,000.00';
   document.getElementById('stat-pnl').textContent     = '0.00';
   document.getElementById('stat-trades').textContent  = '0';
   document.getElementById('progress-fill').style.width = '0%';
-
-  // Clear trade log
-  document.getElementById('trade-log-body').innerHTML = '';
+  document.getElementById('progress-fill').textContent = 'Bar 0 / ' + totalBars;
+  document.getElementById('trade-log-body').innerHTML  = '';
 }
 
 function updateSpeed() {
-  playSpeed = parseInt(
-    document.getElementById('speed-select').value
-  );
-  if (isPlaying) {
-    stopPlayback();
-    startPlayback();
-  }
+  playSpeed = parseInt(document.getElementById('speed-select').value);
+  if (isPlaying) { stopPlayback(); startPlayback(); }
 }
 
 function toggleLines() {
   showLines = !showLines;
-  const btn = document.getElementById('btn-lines');
-  btn.classList.toggle('active', showLines);
+  document.getElementById('btn-lines').classList.toggle('active', showLines);
 }
 
 // ══════════════════════════════════════════════
@@ -770,34 +627,26 @@ function toggleLines() {
 // ══════════════════════════════════════════════
 
 function showPanel(tab) {
-  document.getElementById('equity-panel').style.display =
-    tab === 'equity' ? 'block' : 'none';
-  document.getElementById('trade-log').style.display =
-    tab === 'trades' ? 'block' : 'none';
-
-  document.querySelectorAll('.panel-tab').forEach((el, i) => {
-    el.classList.toggle('active',
-      (i === 0 && tab === 'equity') ||
-      (i === 1 && tab === 'trades')
-    );
-  });
+  document.getElementById('equity-panel').style.display = tab === 'equity' ? 'block' : 'none';
+  document.getElementById('trade-log').style.display    = tab === 'trades' ? 'block' : 'none';
+  var tabs = document.querySelectorAll('.panel-tab');
+  tabs[0].classList.toggle('active', tab === 'equity');
+  tabs[1].classList.toggle('active', tab === 'trades');
 }
 
 function togglePanel() {
-  const panel  = document.getElementById('bottom-panel');
-  const toggle = document.getElementById('panel-toggle');
-  const collapsed = panel.classList.toggle('collapsed');
+  var panel   = document.getElementById('bottom-panel');
+  var toggle  = document.getElementById('panel-toggle');
+  var collapsed = panel.classList.toggle('collapsed');
   toggle.textContent = collapsed ? '▲' : '▼';
-
-  // Resize charts after panel animation
-  setTimeout(() => {
+  setTimeout(function() {
     chart.resize(
       document.getElementById('chart').clientWidth,
-      document.getElementById('chart').clientHeight,
+      document.getElementById('chart').clientHeight
     );
     equityChart.resize(
       document.getElementById('equity-panel').clientWidth,
-      document.getElementById('equity-panel').clientHeight,
+      document.getElementById('equity-panel').clientHeight
     );
   }, 220);
 }
@@ -806,18 +655,11 @@ function togglePanel() {
 // BOOT
 // ══════════════════════════════════════════════
 
-async function boot() {
+function boot() {
   initCharts();
-  await loadEvents();
-  
-  // Reset button to correct initial state
-  // after events are loaded
-  document.getElementById('btn-play').textContent = '▶ Play';
-  document.getElementById('btn-play').classList.remove('active');
-  isPlaying = false;
-
-  console.log(`Observa ready — ${allEvents.length} events loaded.`);
-  console.log('Press Play to start replay.');
+  loadEvents().then(function() {
+    console.log('Observa ready. Press Play to start replay.');
+  });
 }
 
 boot();
