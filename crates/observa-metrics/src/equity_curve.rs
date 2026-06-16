@@ -4,21 +4,21 @@ use chrono::{DateTime, Utc};
 #[derive(Debug, Clone)]
 pub struct EquityPoint {
     pub timestamp: DateTime<Utc>,
-    pub equity: f64,
+    pub equity:    f64,
 }
 
 /// Tracks equity over time, built from PortfolioSnapshotEvents
 #[derive(Debug, Default)]
-pub struct EquityCurve{
+pub struct EquityCurve {
     pub points: Vec<EquityPoint>,
 }
 
 impl EquityCurve {
-    pub fn new() -> Self{
-        Self { points: Vec::new()}
+    pub fn new() -> Self {
+        Self { points: Vec::new() }
     }
 
-    // Add a new equity point
+    /// Add a new equity point
     pub fn push(&mut self, timestamp: DateTime<Utc>, equity: f64) {
         // Avoid duplicate timestamps
         if let Some(last) = self.points.last() {
@@ -36,7 +36,7 @@ impl EquityCurve {
 
     /// Returns the final equity (last point)
     pub fn final_equity(&self) -> Option<f64> {
-        self.points.last().map(|p|p.equity)
+        self.points.last().map(|p| p.equity)
     }
 
     /// Returns total return as a percentage
@@ -50,9 +50,9 @@ impl EquityCurve {
     }
 
     /// Returns equity values as a plain Vec<f64>
-    /// Used by sharpe and other calculations
+    /// Used by Sharpe and other calculations
     pub fn values(&self) -> Vec<f64> {
-        self.points.iter().map(|p|p.equity).collect()
+        self.points.iter().map(|p| p.equity).collect()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -64,3 +64,39 @@ impl EquityCurve {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn ts(offset_secs: i64) -> DateTime<Utc> {
+        DateTime::from_timestamp(1640000000 + offset_secs, 0).unwrap()
+    }
+
+    #[test]
+    fn total_return_calculated_correctly() {
+        let mut curve = EquityCurve::new();
+        curve.push(ts(0),    10_000.0);
+        curve.push(ts(3600), 11_000.0);
+        curve.push(ts(7200), 10_500.0);
+
+        let ret = curve.total_return_pct();
+        assert!((ret - 5.0).abs() < 0.001); // 5% return
+    }
+
+    #[test]
+    fn duplicate_timestamps_ignored() {
+        let mut curve = EquityCurve::new();
+        curve.push(ts(0), 10_000.0);
+        curve.push(ts(0), 11_000.0); // same timestamp — ignored
+        assert_eq!(curve.len(), 1);
+        assert_eq!(curve.final_equity(), Some(10_000.0));
+    }
+
+    #[test]
+    fn empty_curve_returns_zero() {
+        let curve = EquityCurve::new();
+        assert_eq!(curve.total_return_pct(), 0.0);
+        assert!(curve.initial().is_none());
+    }
+}
