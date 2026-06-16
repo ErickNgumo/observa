@@ -123,3 +123,67 @@ impl DrawdownTracker {
         tracker.max_drawdown
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use crate::equity_curve::EquityCurve;
+
+    fn ts(offset_secs: i64) -> DateTime<Utc> {
+        DateTime::from_timestamp(1640000000 + offset_secs, 0).unwrap()
+    }
+
+    #[test]
+    fn identifies_correct_max_drawdown() {
+        // Sequence: 10000 → 10500 → 10200 → 9800 → 10100 → 9600 → 10300
+        // Max drawdown: 10500 → 9600 = 8.57%
+        let mut curve = EquityCurve::new();
+        curve.push(ts(0),     10_000.0);
+        curve.push(ts(3600),  10_500.0);
+        curve.push(ts(7200),  10_200.0);
+        curve.push(ts(10800),  9_800.0);
+        curve.push(ts(14400), 10_100.0);
+        curve.push(ts(18000),  9_600.0);
+        curve.push(ts(21600), 10_300.0);
+
+        let dd = DrawdownTracker::from_curve(&curve).unwrap();
+
+        assert!((dd.peak_equity   - 10_500.0).abs() < 0.001);
+        assert!((dd.trough_equity -  9_600.0).abs() < 0.001);
+        assert!((dd.depth_pct - 8.571).abs() < 0.01);
+    }
+
+    #[test]
+    fn no_drawdown_on_rising_curve() {
+        let mut curve = EquityCurve::new();
+        curve.push(ts(0),    10_000.0);
+        curve.push(ts(3600), 10_500.0);
+        curve.push(ts(7200), 11_000.0);
+
+        let dd = DrawdownTracker::from_curve(&curve);
+        // No drawdown — always rising
+        assert!(dd.is_none() || dd.unwrap().depth_pct < 0.001);
+    }
+
+    #[test]
+    fn incremental_update_matches_batch() {
+        let mut curve = EquityCurve::new();
+        curve.push(ts(0),     10_000.0);
+        curve.push(ts(3600),  10_500.0);
+        curve.push(ts(7200),   9_800.0);
+        curve.push(ts(10800), 10_200.0);
+
+        // Batch
+        let batch_dd = DrawdownTracker::from_curve(&curve).unwrap();
+
+        // Incremental
+        let mut tracker = DrawdownTracker::new(10_000.0);
+        for p in &curve.points {
+            tracker.update(p.timestamp, p.equity);
+        }
+        let incremental_dd = tracker.max_drawdown.unwrap();
+
+        assert!((batch_dd.depth_pct - incremental_dd.depth_pct).abs() < 0.001);
+    }
+}
