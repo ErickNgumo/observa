@@ -74,3 +74,54 @@ impl TradeStats {
         (self.gross_profit - self.gross_loss) / self.total_trades as f64
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn win_rate_correct() {
+        let mut stats = TradeStats::new();
+        stats.record(100.0);
+        stats.record(-50.0);
+        stats.record(200.0);
+        stats.record(-75.0);
+
+        assert_eq!(stats.total_trades,   4);
+        assert_eq!(stats.winning_trades, 2);
+        assert_eq!(stats.losing_trades,  2);
+        assert!((stats.win_rate_pct() - 50.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn profit_factor_correct() {
+        let mut stats = TradeStats::new();
+        stats.record(300.0);
+        stats.record(-100.0);
+
+        // Profit factor = 300 / 100 = 3.0
+        assert!((stats.profit_factor() - 3.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn avg_win_and_loss_correct() {
+        let mut stats = TradeStats::new();
+        stats.record(100.0);
+        stats.record(200.0);
+        stats.record(-50.0);
+        stats.record(-150.0);
+
+        assert!((stats.avg_win() - 150.0).abs() < 0.001);
+        assert!((stats.avg_loss() - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn expectancy_correct() {
+        let mut stats = TradeStats::new();
+        stats.record(100.0);
+        stats.record(-50.0);
+
+        // Expectancy = (100 - 50) / 2 = 25
+        assert!((stats.expectancy() - 25.0).abs() < 0.001);
+    }
+}
