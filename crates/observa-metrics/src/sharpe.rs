@@ -1,0 +1,49 @@
+// Calculates the Sharpe ratio from an equity curve.
+///
+/// Sharpe = (mean return - risk free rate) / std dev of returns
+///
+/// We use period returns (equity[i] / equity[i-1] - 1)
+/// and annualise assuming 252 trading days.
+pub fn sharpe_ratio(
+    equity_values: &[f64],
+    risk_free_rate: f64,   // annual, e.g. 0.05 for 5%
+    periods_per_year: f64, // e.g. 252 for daily, 96 for 15min bars
+) -> Option<f64> {
+    if equity_values.len() < 2 {
+        return None;
+    }
+
+    // Calculate period returns
+    let returns: Vec<f64> = equity_values
+        .windows(2)
+        .map(|w| w[1] / w[0] - 1.0)
+        .collect();
+
+    if returns.is_empty() {
+        return None;
+    }
+
+    // Mean return
+    let mean = returns.iter().sum::<f64>() / returns.len() as f64;
+
+    // Standard deviation
+    let variance = returns
+        .iter()
+        .map(|r| (r - mean).powi(2))
+        .sum::<f64>()
+        / returns.len() as f64;
+
+    let std_dev = variance.sqrt();
+
+    if std_dev == 0.0 {
+        return None;
+    }
+
+    // Period risk free rate
+    let period_rf = risk_free_rate / periods_per_year;
+
+    // Annualised Sharpe
+    let sharpe = ((mean - period_rf) / std_dev) * periods_per_year.sqrt();
+
+    Some(sharpe)
+}
