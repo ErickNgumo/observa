@@ -50,8 +50,7 @@ mod tests {
     }
 
     #[test]
-    #[test]
-    fn annualise_return_one_year() {
+        fn annualise_return_one_year() {
         let annual = annualise_return(
             10.0,
             96 * 252,
