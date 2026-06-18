@@ -1,0 +1,34 @@
+/// Calculates the Calmar ratio.
+///
+/// Calmar = Annualised Return / Max Drawdown %
+///
+/// A Calmar > 1.0 means the strategy earns more per year
+/// than its worst drawdown percentage.
+pub fn calmar_ratio(
+    annualised_return_pct: f64,
+    max_drawdown_pct:      f64,
+) -> Option<f64> {
+    if max_drawdown_pct <= 0.0 {
+        return None; // No drawdown - ratio undefined
+    }
+    Some(annualised_return_pct / max_drawdown_pct)
+}
+
+/// Annualises a total return given the number of bars
+/// and bars per year
+pub fn annualise_return(
+    total_return_pct: f64,
+    total_bars:       usize,
+    bars_per_year:    f64,
+) -> f64 {
+    if total_bars == 0 {
+        return 0.0;
+    }
+    let years = total_bar as f64 / bars_per_year;
+    if years <= 0.0 {
+        return 0.0;
+    }
+    // Compound annualisation
+    let growth_factor = 1.0 + total_return_pct / 100.0;
+    (growth_factor.powf(1.0 / years) - 1.0) * 100.0
+}
