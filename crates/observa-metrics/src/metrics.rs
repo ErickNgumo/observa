@@ -121,5 +121,47 @@ impl MetricsEngine {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn ts(offset: i64) -> DateTime<Utc> {
+        DateTime::from_timestamp(1640000000 + offset, 0).unwrap()
+    }
+
+    #[test]
+    fn full_metrics_report_assembles_correctly() {
+        let mut engine = MetricsEngine::new(10_000.0, 24_192.0);
+
+        // Simulate equity curve
+        engine.on_snapshot(ts(0),     10_000.0);
+        engine.on_snapshot(ts(900),   10_500.0);
+        engine.on_snapshot(ts(1800),   9_800.0);
+        engine.on_snapshot(ts(2700),  10_200.0);
+        engine.on_snapshot(ts(3600),  11_000.0);
+
+        // Simulate trades
+        engine.on_trade_closed(500.0);
+        engine.on_trade_closed(-200.0);
+        engine.on_trade_closed(700.0);
+
+        let report = engine.report();
+
+        // Total return: (11000 - 10000) / 10000 = 10%
+        assert!((report.total_return_pct - 10.0).abs() < 0.001);
+
+        // Max drawdown: 10500 → 9800 = 6.67%
+        assert!(report.max_drawdown_pct > 0.0);
+        assert!(report.max_drawdown_pct < 10.0);
+
+        // Trade stats
+        assert_eq!(report.total_trades,   3);
+        assert_eq!(report.winning_trades, 2);
+        assert_eq!(report.losing_trades,  1);
+        assert!((report.win_rate_pct - 66.67).abs() < 0.1);
+        assert!(report.profit_factor > 1.0);
+    }
+}
 
 
