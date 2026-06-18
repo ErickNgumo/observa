@@ -47,3 +47,36 @@ pub fn sharpe_ratio(
 
     Some(sharpe)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sharpe_requires_at_least_two_points() {
+        assert!(sharpe_ratio(&[10_000.0], 0.0, 252.0).is_none());
+        assert!(sharpe_ratio(&[], 0.0, 252.0).is_none());
+    }
+
+    #[test]
+    fn sharpe_positive_for_growing_equity() {
+        // Steadily growing equity should have positive Sharpe
+        let equity: Vec<f64> = (0..50)
+            .map(|i| 10_000.0 + i as f64 * 100.0).
+            collect();
+        let sharpe = sharpe_ratio(&equity, 0.0, 252.0);
+        assert!(sharpe.is_some());
+        assert!(sharpe.unwrap() > 0.0);
+    }
+
+    #[test]
+    fn sharpe_negative_for_declining_equity() {
+        // Steadily declining equity should have negative Sharpe
+        let equity: Vec<f64> = (0..50)
+            .map(|i| 10_000.0 - i as f64 * 100.0)
+            .collect();
+        let sharpe = sharpe_ratio(&equity, 0.0, 252.0);
+        assert!(sharpe.is_some());
+        assert!(sharpe.unwrap() < 0.0);
+    }
+}
