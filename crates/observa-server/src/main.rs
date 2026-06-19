@@ -10,6 +10,7 @@ use observa_core::types::Direction;
 use observa_data::csv_reader::CsvReader;
 use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
 use observa_execution::execution::{ExecutionConfig, ExecutionModel, FillResult};
+use observa_metrics::metrics::MetricsEngine;
 use observa_portfolio::portfolio::PortfolioManager;
 use uuid::Uuid;
 
@@ -128,12 +129,14 @@ impl Strategy for EmaCrossover {
 // ────────────────────────────────────────────────
 
 fn collect_events(bars: Vec<Bar>) -> Vec<String> {
-    // Plain Vec — no Arc, no Mutex, no threads here
     let mut events: Vec<String> = Vec::new();
 
-    let run_id    = Uuid::new_v4();
+    let run_id        = Uuid::new_v4();
     let mut portfolio = PortfolioManager::new(run_id, 10_000.0, 7.0);
-    let execution = ExecutionModel::new(ExecutionConfig::default_eurusd());
+    let execution     = ExecutionModel::new(ExecutionConfig::default_eurusd());
+
+    // 15-minute bars, 252 trading days/year → 96 bars/day * 252
+    let mut metrics = MetricsEngine::new(10_000.0, 96.0 * 252.0);
 
     let mut strategy = EmaCrossover::new(5, 20);
     strategy.initialize();
@@ -151,8 +154,14 @@ fn collect_events(bars: Vec<Bar>) -> Vec<String> {
         // ── Check SL/TP on open positions ─────────
         if let Some(portfolio_events) = portfolio.check_sl_tp(bar) {
             if let Some(closed) = portfolio_events.position_closed {
+                metrics.on_trade_closed(closed.pnl);
                 push(&Event::PositionClosed(closed), &mut events);
             }
+
+            metrics.on_snapshot(
+                portfolio_events.snapshot.metadata.timestamp,
+                portfolio_events.snapshot.equity,
+            );
             push(
                 &Event::PortfolioSnapshot(portfolio_events.snapshot),
                 &mut events,
@@ -174,7 +183,7 @@ fn collect_events(bars: Vec<Bar>) -> Vec<String> {
         events.push(bar_json.to_string());
 
         // ── Build portfolio view for strategy ──────
-        let open_pos      = portfolio.open_position();
+        let open_pos       = portfolio.open_position();
         let portfolio_view = PortfolioView {
             balance:              portfolio.balance(),
             equity:               portfolio.balance(),
@@ -214,11 +223,17 @@ fn collect_events(bars: Vec<Bar>) -> Vec<String> {
                                 );
                             }
                             if let Some(closed) = pe.position_closed {
+                                metrics.on_trade_closed(closed.pnl);
                                 push(
                                     &Event::PositionClosed(closed),
                                     &mut events,
                                 );
                             }
+
+                            metrics.on_snapshot(
+                                pe.snapshot.metadata.timestamp,
+                                pe.snapshot.equity,
+                            );
                             push(
                                 &Event::PortfolioSnapshot(pe.snapshot),
                                 &mut events,
@@ -238,6 +253,23 @@ fn collect_events(bars: Vec<Bar>) -> Vec<String> {
     }
 
     strategy.teardown();
+
+    // ── Emit final metrics report ─────────────────
+    let report = metrics.report();
+
+    let report_json = serde_json::json!({
+        "event_type": "MetricsReport",
+        "report": report,
+    });
+    events.push(report_json.to_string());
+
+    println!("Max Drawdown: {:.2}%", report.max_drawdown_pct);
+    println!("Sharpe Ratio: {:?}", report.sharpe_ratio);
+    println!("Calmar Ratio: {:?}", report.calmar_ratio);
+    println!("Win Rate: {:.1}%", report.win_rate_pct);
+    println!("Profit Factor: {:.2}", report.profit_factor);
+    println!("Total Trades: {}", report.total_trades);
+
     events
 }
 

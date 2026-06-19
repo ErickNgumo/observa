@@ -14,3 +14,4 @@ observa-data      = { path = "../observa-data" }
 observa-engine    = { path = "../observa-engine" }
 observa-execution = { path = "../observa-execution" }
 observa-portfolio = { path = "../observa-portfolio" }
+observa-metrics = { path = "../observa-metrics" }
