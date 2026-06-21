@@ -25,10 +25,14 @@ pub fn annualise_return(
         return 0.0;
     }
     let years = total_bars as f64 / bars_per_year;
-    if years <= 0.0 {
-        return 0.0;
+
+    // Guard against tiny samples producing absurd extrapolation.
+    // Below ~5% of a year (about 2-3 weeks of 15min bars),
+    // annualisation is statistically meaningless.
+    if years < 0.05 {
+        return total_return_pct; // report raw return instead
     }
-    // Compound annualisation
+
     let growth_factor = 1.0 + total_return_pct / 100.0;
     (growth_factor.powf(1.0 / years) - 1.0) * 100.0
 }
