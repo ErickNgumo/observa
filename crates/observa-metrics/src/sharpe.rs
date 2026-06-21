@@ -9,7 +9,9 @@ pub fn sharpe_ratio(
     risk_free_rate: f64,   // annual, e.g. 0.05 for 5%
     periods_per_year: f64, // e.g. 252 for daily, 96 for 15min bars
 ) -> Option<f64> {
-    if equity_values.len() < 2 {
+    // Require a meaningful minimum sample size —
+    // Sharpe on fewer than 30 periods is unreliable
+    if equity_values.len() < 30 {
         return None;
     }
 
