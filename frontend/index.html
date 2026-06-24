@@ -176,6 +176,30 @@
 
     #progress-bar  { height: 2px; background: #21262d; flex-shrink: 0; }
     #progress-fill { height: 100%; background: #1f6feb; width: 0%; transition: width 0.1s; }
+
+    .metric-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .metric-label {
+      color: #8b949e;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .metric-value {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .metric-value.positive { color: #3fb950; }
+    .metric-value.negative { color: #f85149; }
+    .metric-value.neutral  { color: #e6edf3; }
   </style>
 </head>
 <body>
@@ -218,6 +242,7 @@
     <div id="panel-tabs">
       <button class="panel-tab active" onclick="showPanel('equity')">Equity Curve</button>
       <button class="panel-tab" onclick="showPanel('trades')">Trade Log</button>
+      <button class="panel-tab" onclick="showPanel('metrics')">Metrics</button>
       <button id="panel-toggle" onclick="togglePanel()">&#9660;</button>
     </div>
     <div id="panel-content">
@@ -234,6 +259,8 @@
           <tbody id="trade-log-body"></tbody>
         </table>
       </div>
+      <div id="metrics-panel" style="display:none; padding:16px; overflow-y:auto; height:100%;">
+        <div id="metrics-grid" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px;">     
     </div>
   </div>
 
@@ -413,6 +440,7 @@ function processEvent(ev) {
     case 'PositionOpened':     handleOpened(ev);   break;
     case 'PositionClosed':     handleClosed(ev);   break;
     case 'PortfolioSnapshot':  handleSnapshot(ev); break;
+    case 'MetricsReport':      handleMetrics(ev);  break;
   }
 }
 
@@ -532,6 +560,46 @@ function handleSnapshot(ev) {
       equitySeries.setData(equityData);
     }
   }
+}
+
+var lastMetricsReport = null;
+
+function handleMetrics(ev) {
+  var r = ev.report;
+  lastMetricsReport = r;
+
+  var grid = document.getElementById('metrics-grid');
+  grid.innerHTML = '';
+
+  function card(label, value, cls) {
+    return '<div class="metric-card">' +
+      '<div class="metric-label">' + label + '</div>' +
+      '<div class="metric-value ' + (cls || 'neutral') + '">' + value + '</div>' +
+      '</div>';
+  }
+
+  var html = '';
+  html += card('Total Return', fmtNum(r.total_return_pct, 2) + '%',
+                r.total_return_pct >= 0 ? 'positive' : 'negative');
+  html += card('Max Drawdown', fmtNum(r.max_drawdown_pct, 2) + '%', 'negative');
+  html += card('Sharpe Ratio',
+                r.sharpe_ratio !== null ? fmtNum(r.sharpe_ratio, 2) : 'N/A', 'neutral');
+  html += card('Calmar Ratio',
+                r.calmar_ratio !== null ? fmtNum(r.calmar_ratio, 2) : 'N/A', 'neutral');
+  html += card('Win Rate', fmtNum(r.win_rate_pct, 1) + '%', 'neutral');
+  html += card('Profit Factor', fmtNum(r.profit_factor, 2), 'neutral');
+  html += card('Total Trades', r.total_trades, 'neutral');
+  html += card('Winning Trades', r.winning_trades, 'positive');
+  html += card('Losing Trades', r.losing_trades, 'negative');
+  html += card('Avg Win', '$' + fmtNum(r.avg_win, 2), 'positive');
+  html += card('Avg Loss', '$' + fmtNum(r.avg_loss, 2), 'negative');
+  html += card('Expectancy', '$' + fmtNum(r.expectancy, 2),
+                r.expectancy >= 0 ? 'positive' : 'negative');
+
+  grid.innerHTML = html;
+
+  // Draw the drawdown highlight now that we have the data
+  drawDrawdownHighlight(r);
 }
 
 function addTradeRow(closeEv, entry) {
@@ -655,13 +723,14 @@ function toggleLines() {
 // PANEL CONTROLS
 // ══════════════════════════════════════════════
 function showPanel(tab) {
-  document.getElementById('equity-panel').style.display =
-    tab === 'equity' ? 'block' : 'none';
-  document.getElementById('trade-log').style.display =
-    tab === 'trades' ? 'block' : 'none';
+  document.getElementById('equity-panel').style.display  = tab === 'equity'  ? 'block' : 'none';
+  document.getElementById('trade-log').style.display     = tab === 'trades'  ? 'block' : 'none';
+  document.getElementById('metrics-panel').style.display  = tab === 'metrics' ? 'block' : 'none';
+
   var tabs = document.querySelectorAll('.panel-tab');
   tabs[0].classList.toggle('active', tab === 'equity');
   tabs[1].classList.toggle('active', tab === 'trades');
+  tabs[2].classList.toggle('active', tab === 'metrics');
 }
 
 function togglePanel() {
