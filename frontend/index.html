@@ -260,7 +260,8 @@
         </table>
       </div>
       <div id="metrics-panel" style="display:none; padding:16px; overflow-y:auto; height:100%;">
-        <div id="metrics-grid" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px;">     
+        <div id="metrics-grid" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px;"></div>
+      </div>
     </div>
   </div>
 
@@ -602,6 +603,115 @@ function handleMetrics(ev) {
   drawDrawdownHighlight(r);
 }
 
+var drawdownMarkerSeries = null;
+
+function drawDrawdownHighlight(report) {
+  if (!report.max_drawdown_start || !report.max_drawdown_end) {
+    return; // no drawdown recorded
+  }
+
+  var startUnix = toUnix(report.max_drawdown_start);
+  var endUnix   = toUnix(report.max_drawdown_end);
+
+  // Find the equity values at those two points
+  var startPoint = null;
+  var endPoint   = null;
+  for (var i = 0; i < equityData.length; i++) {
+    if (equityData[i].time === startUnix) startPoint = equityData[i];
+    if (equityData[i].time === endUnix)   endPoint   = equityData[i];
+  }
+  if (!startPoint || !endPoint) return;
+
+  var LC = LightweightCharts;
+
+  // Remove any previous highlight
+  if (drawdownMarkerSeries) {
+    equityChart.removeSeries(drawdownMarkerSeries);
+  }
+
+  // Draw a red line segment over the drawdown period
+  drawdownMarkerSeries = equityChart.addSeries(LC.LineSeries, {
+    color:            '#f85149',
+    lineWidth:        3,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
+  drawdownMarkerSeries.setData([startPoint, endPoint]);
+
+  // Add markers at the peak and trough
+  var ddMarkerPlugin = LC.createSeriesMarkers(equitySeries, [
+    {
+      time:  startUnix,
+      position: 'aboveBar',
+      color: '#f85149',
+      shape: 'arrowDown',
+      text:  'Peak: $' + fmtNum(report.max_drawdown_pct === 0 ? 0 : startPoint.value, 0)
+    },
+    {
+      time:  endUnix,
+      position: 'belowBar',
+      color: '#f85149',
+      shape: 'circle',
+      text:  '-' + fmtNum(report.max_drawdown_pct, 1) + '%'
+    }
+  ]);
+
+  // Store for click handling
+  window._ddStartUnix = startUnix;
+  window._ddStartIndex = findEventIndexNearTime(startUnix);
+
+  // Add a clickable label below the equity chart
+  showDrawdownBanner(report, startUnix);
+}
+
+function findEventIndexNearTime(unixTime) {
+  for (var i = 0; i < allEvents.length; i++) {
+    if (allEvents[i].event_type === 'BarReceived') {
+      if (toUnix(allEvents[i].timestamp) >= unixTime) {
+        return i;
+      }
+    }
+  }
+  return 0;
+}
+
+function showDrawdownBanner(report, startUnix) {
+  var existing = document.getElementById('dd-banner');
+  if (existing) existing.remove();
+
+  var banner = document.createElement('div');
+  banner.id = 'dd-banner';
+  banner.style.cssText =
+    'position:absolute; top:8px; right:16px; background:#f8514922; ' +
+    'border:1px solid #f85149; color:#f85149; padding:6px 12px; ' +
+    'border-radius:6px; font-size:12px; cursor:pointer; z-index:10;';
+  banner.textContent =
+    '⚠ Max Drawdown: -' + fmtNum(report.max_drawdown_pct, 1) +
+    '% — click to jump to peak';
+  banner.onclick = function() {
+    jumpToDrawdownPeak();
+  };
+
+  document.getElementById('equity-panel').style.position = 'relative';
+  document.getElementById('equity-panel').appendChild(banner);
+}
+
+function jumpToDrawdownPeak() {
+  if (isPlaying) togglePlay();
+
+  var targetIndex = window._ddStartIndex || 0;
+
+  // Reset everything and replay up to the target index
+  resetReplay();
+
+  for (var i = 0; i < targetIndex; i++) {
+    processEvent(allEvents[i]);
+  }
+  currentIndex = targetIndex;
+
+  console.log('Jumped to drawdown peak at index ' + targetIndex);
+}
+
 function addTradeRow(closeEv, entry) {
   var tbody = document.getElementById('trade-log-body');
   var pnl   = closeEv.pnl;
@@ -690,6 +800,14 @@ function resetReplay() {
   // Remove connecting lines
   tradeLines.forEach(function(l) { chart.removeSeries(l); });
   tradeLines = [];
+
+  // clear the drawdown banner and marker series
+  if (drawdownMarkerSeries) {
+    equityChart.removeSeries(drawdownMarkerSeries);
+    drawdownMarkerSeries = null;
+  }
+  var ddBanner = document.getElementById('dd-banner');
+  if (ddBanner) ddBanner.remove();
 
   // Clear all series data
   candleSeries.setData([]);
