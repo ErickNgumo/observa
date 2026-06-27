@@ -340,6 +340,29 @@ fn main() {
                     request.respond(response).ok();
                 }
 
+                url if url.starts_with("/css/") || url.starts_with("/js/") => {
+                    let file_path = format!("frontend{}", url);
+                    match std::fs::read_to_string(&file_path) {
+                        Ok(contents) => {
+                            let content_type = if url.ends_with(".css") {
+                                "text/css"
+                            } else {
+                                "application/javascript"
+                            };
+                            let response = Response::from_string(contents)
+                                .with_header(
+                                    Header::from_bytes("Content-Type", content_type).unwrap()
+                                );
+                            request.respond(response).ok();
+                        }
+                        Err(_) => {
+                            let response = Response::from_string("Not found")
+                                .with_status_code(404);
+                            request.respond(response).ok();
+                        }
+                    }
+                }
+
                 // ── 404 for everything else ────────
                 _ => {
                     let response =

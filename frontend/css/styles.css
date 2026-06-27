@@ -1,0 +1,231 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0d1117;
+  color: #e6edf3;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Toolbar ── */
+#toolbar {
+  height: 44px;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#toolbar .logo {
+  font-size: 15px;
+  font-weight: 700;
+  color: #58a6ff;
+  margin-right: 16px;
+  letter-spacing: 1px;
+}
+
+.toolbar-btn {
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: #e6edf3;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+
+.toolbar-btn:hover  { background: #30363d; }
+.toolbar-btn.active { background: #1f6feb; border-color: #1f6feb; }
+
+.toolbar-separator {
+  width: 1px;
+  height: 20px;
+  background: #30363d;
+  margin: 0 4px;
+}
+
+#speed-select {
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: #e6edf3;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#status-bar {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  color: #8b949e;
+  font-size: 12px;
+}
+
+#status-bar span { color: #e6edf3; }
+
+/* ── Chart ── */
+#chart-container {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+#chart { width: 100%; height: 100%; }
+
+/* ── Bottom Panel ── */
+#bottom-panel {
+  height: 200px;
+  background: #161b22;
+  border-top: 1px solid #30363d;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: height 0.2s;
+}
+
+#bottom-panel.collapsed { height: 32px; }
+
+#panel-tabs {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  border-bottom: 1px solid #30363d;
+  padding: 0 8px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.panel-tab {
+  background: none;
+  border: none;
+  color: #8b949e;
+  padding: 4px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.panel-tab:hover  { color: #e6edf3; }
+.panel-tab.active { color: #58a6ff; }
+
+#panel-toggle {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+}
+
+#panel-content {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+#bottom-panel.collapsed #panel-content { display: none; }
+
+#equity-panel {
+  width: 100%;
+  height: 100%;
+  position: relative; /* needed so the drawdown banner can be absolutely positioned inside it */
+}
+
+#trade-log {
+  display: none;
+  height: 100%;
+  overflow-y: auto;
+}
+
+#trade-log table { width: 100%; border-collapse: collapse; }
+
+#trade-log th {
+  background: #0d1117;
+  padding: 6px 12px;
+  text-align: left;
+  color: #8b949e;
+  font-weight: 500;
+  position: sticky;
+  top: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#trade-log td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #21262d;
+  color: #e6edf3;
+}
+
+#trade-log tr:hover td { background: #161b22; }
+
+.pnl-positive { color: #3fb950; }
+.pnl-negative { color: #f85149; }
+
+/* ── Progress Bar ── */
+#progress-bar  { height: 2px; background: #21262d; flex-shrink: 0; }
+#progress-fill { height: 100%; background: #1f6feb; width: 0%; transition: width 0.1s; }
+
+/* ── Metrics Panel ── */
+#metrics-panel {
+  display: none;
+  padding: 16px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+#metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.metric-card {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.metric-label {
+  color: #8b949e;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.metric-value.positive { color: #3fb950; }
+.metric-value.negative { color: #f85149; }
+.metric-value.neutral  { color: #e6edf3; }
+
+/* ── Drawdown Banner ── */
+#dd-banner {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  background: #f8514922;
+  border: 1px solid #f85149;
+  color: #f85149;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 10;
+}
