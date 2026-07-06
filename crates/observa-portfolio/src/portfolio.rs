@@ -211,7 +211,7 @@ impl PortfolioManager {
 
         self.positions.push(position);
 
-        let snapshot = self.snapshot(fill.executed_price);
+        let snapshot = self.snapshot(fill.metadata.timestamp, fill.executed_price);
 
         Ok(PortfolioEvents {
             position_opened: Some(position_opened),
@@ -287,7 +287,7 @@ impl PortfolioManager {
             pct_balance,
         };
 
-        let snapshot = self.snapshot(exit_price);
+        let snapshot = self.snapshot(timestamp, exit_price);
 
         PortfolioEvents {
             position_opened: None,
@@ -297,7 +297,7 @@ impl PortfolioManager {
     }
 
     /// Builds a portfolio snapshot at the current price
-    fn snapshot(&self, current_price: f64) -> PortfolioSnapshotEvent {
+    fn snapshot(&self, bar_timestamp: DateTime<Utc>, current_price: f64) -> PortfolioSnapshotEvent {
         let unrealised_pnl: f64 = self.positions
             .iter()
             .filter(|p| p.is_open())
@@ -315,7 +315,7 @@ impl PortfolioManager {
         PortfolioSnapshotEvent {
             metadata: EventMetadata::new(
                 self.run_id,
-                Utc::now(),
+                bar_timestamp,
                 ),
             balance: self.balance,
             equity,
