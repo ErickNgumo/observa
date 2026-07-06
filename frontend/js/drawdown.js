@@ -17,14 +17,34 @@ function drawDrawdownHighlight(report) {
   var startUnix = toUnix(report.max_drawdown_start);
   var endUnix   = toUnix(report.max_drawdown_end);
 
-  // Find the equity values at those two points
-  var startPoint = null;
-  var endPoint   = null;
-  for (var i = 0; i < equityData.length; i++) {
-    if (equityData[i].time === startUnix) startPoint = equityData[i];
-    if (equityData[i].time === endUnix)   endPoint   = equityData[i];
+  // Find the closest equity point to each target time,
+  // rather than requiring an exact timestamp match —
+  // serialization/timezone rounding can shift things
+  // by a second or two.
+  function closestPoint(targetUnix) {
+    var closest = null;
+    var smallestDiff = Infinity;
+    for (var i = 0; i < equityData.length; i++) {
+      var diff = Math.abs(equityData[i].time - targetUnix);
+      if (diff < smallestDiff) {
+        smallestDiff = diff;
+        closest = equityData[i];
+      }
+    }
+    return closest;
   }
-  if (!startPoint || !endPoint) return;
+
+  // Find the equity values at those two points
+  var startPoint = closestPoint(startUnix);
+  var endPoint   = closestPoint(endUnix);
+
+  
+  if (!startPoint || !endPoint) {
+    console.warn('Drawdown highlight: could not find matching equity points', {
+      startUnix: startUnix, endUnix: endUnix
+    });
+    return;
+  }
 
   var LC = LightweightCharts;
 
@@ -45,14 +65,14 @@ function drawDrawdownHighlight(report) {
   // Markers at the peak and trough
   LC.createSeriesMarkers(equitySeries, [
     {
-      time:     startUnix,
+      time:     startPoint.time,
       position: 'aboveBar',
       color:    '#f85149',
       shape:    'arrowDown',
       text:     'Peak: $' + fmtNum(startPoint.value, 0)
     },
     {
-      time:     endUnix,
+      time:     endPoint.time,
       position: 'belowBar',
       color:    '#f85149',
       shape:    'circle',
@@ -61,7 +81,7 @@ function drawDrawdownHighlight(report) {
   ]);
 
   // Remember where to jump to when the banner is clicked
-  window._ddStartIndex = findEventIndexNearTime(startUnix);
+  window._ddStartIndex = findEventIndexNearTime(startPoint.time);
 
   showDrawdownBanner(report);
 }
