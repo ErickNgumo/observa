@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 pyo3 = { version = "0.21", features = ["auto-initialize"] }
 serde_json = "1.0"
+thiserror = "1.0"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 observa-core    = { path = "../observa-core" }
 observa-engine  = { path = "../observa-engine" }
