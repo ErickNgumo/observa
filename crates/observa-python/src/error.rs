@@ -20,6 +20,6 @@ pub enum BridgeError {
 
 impl From<pyo3::PyErr> for BridgeError {
     fn from(e: pyo3::PyErr) -> Self {
-        BridgeError::PythonError((e.to_string()))
+        BridgeError::PythonError(e.to_string())
     }
 }
