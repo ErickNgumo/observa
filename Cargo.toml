@@ -9,7 +9,7 @@ members = [
     "crates/observa-runner", 
     "crates/observa-server",
     "crates/observa-metrics",
-    "crates/observa-python",
+    "crates/observa-python", "crates/observa-cli",
 ]
 resolver = "2"
 
