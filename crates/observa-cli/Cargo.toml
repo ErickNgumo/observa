@@ -1,0 +1,17 @@
+[package]
+name = "observa-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono    = { version = "0.4", features = ["serde"] }
+serde_json = "1.0"
+tiny_http  = "0.12"
+uuid       = { version = "1.0", features = ["v4", "serde"] }
+observa-core      = { path = "../observa-core" }
+observa-data      = { path = "../observa-data" }
+observa-engine    = { path = "../observa-engine" }
+observa-execution = { path = "../observa-execution" }
+observa-portfolio = { path = "../observa-portfolio" }
+observa-metrics   = { path = "../observa-metrics" }
+observa-python    = { path = "../observa-python" }
