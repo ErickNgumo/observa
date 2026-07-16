@@ -172,3 +172,143 @@ EXAMPLE:
         "#.trim().to_string()
     }
 }
+
+// ────────────────────────────────────────────────
+// Backtest runner
+// ────────────────────────────────────────────────
+
+fn run_backtest(
+    bars: Vec<Bar>,
+    strategy: &mut dyn Strategy,
+    initial_balance: f64,
+    execution_config: ExecutionConfig,
+) -> Vec<String> {
+    let mut events: Vec<String> = Vec::new();
+
+    let run_id        = Uuid::new_v4();
+    let mut portfolio = PortfolioManager::new(run_id, initial_balance, execution_config.commission);
+    let execution     = ExecutionModel::new(execution_config);
+    let mut metrics   = MetricsEngine::new(initial_balance, 96.0 * 252.0);
+
+    strategy.initialize();
+
+    let mut history: Vec<Bar> = Vec::new();
+
+    let push = |event: &Event, store: &mut Vec<String>| {
+        if let Ok(json) = serde_json::to_string(event) {
+            store.push(json);
+        }
+    };
+
+    for bar in &bars {
+        // Check SL/TP
+        if let Some(pe) = portfolio.check_sl_tp(bar) {
+            if let Some(closed) = pe.position_closed {
+                metrics.on_trade_closed(closed.pnl);
+                push(&Event::PositionClosed(closed), &mut events);
+            }
+            metrics.on_snapshot(bar.timestamp, pe.snapshot.equity);
+            push(&Event::PortfolioSnapshot(pe.snapshot), &mut events);
+        }
+
+        // Emit bar event with current indicator state
+        // (indicators are managed inside the Python strategy
+        //  so we emit a basic bar event here)
+        let bar_json = serde_json::json!({
+            "event_type": "BarReceived",
+            "timestamp":  bar.timestamp,
+            "open":       bar.open,
+            "high":       bar.high,
+            "low":        bar.low,
+            "close":      bar.close,
+            "volume":     bar.volume,
+            "ema_fast":   null,
+            "ema_slow":   null,
+        });
+        events.push(bar_json.to_string());
+
+        // Build portfolio view
+        let open_pos       = portfolio.open_position();
+        let portfolio_view = PortfolioView {
+            balance:              portfolio.balance(),
+            equity:               portfolio.balance(),
+            has_open_position:    open_pos.is_some(),
+            position_direction:   open_pos.map(|p| p.direction),
+            position_entry_price: open_pos.map(|p| p.entry_price),
+            unrealised_pnl:       0.0,
+        };
+
+        // Call strategy
+        let signals = strategy.on_bar(bar, &portfolio_view, &history);
+
+        // Process signals
+        for signal in signals {
+            let intent = OrderIntentCreatedEvent {
+                metadata:       EventMetadata::new(run_id, bar.timestamp),
+                order_id:       Uuid::new_v4(),
+                signal_id:      Uuid::new_v4(),
+                direction:      signal.direction,
+                size:           signal.size,
+                intended_price: if signal.intended_price == 0.0 {
+                    bar.close // default to bar close if not specified
+                } else {
+                    signal.intended_price
+                },
+                sl:             signal.sl,
+                tp:             signal.tp,
+                reason:         signal.reason.clone(),
+            };
+
+            match execution.process(&intent, bar, portfolio.balance()) {
+                Ok(FillResult::Filled(fill)) => {
+                    push(&Event::OrderFilled(fill.clone()), &mut events);
+                    match portfolio.process_fill(&fill) {
+                        Ok(pe) => {
+                            if let Some(opened) = pe.position_opened {
+                                push(&Event::PositionOpened(opened), &mut events);
+                            }
+                            if let Some(closed) = pe.position_closed {
+                                metrics.on_trade_closed(closed.pnl);
+                                push(&Event::PositionClosed(closed), &mut events);
+                            }
+                            metrics.on_snapshot(bar.timestamp, pe.snapshot.equity);
+                            push(&Event::PortfolioSnapshot(pe.snapshot), &mut events);
+                        }
+                        Err(e) => eprintln!("Portfolio error: {}", e),
+                    }
+                }
+                Ok(FillResult::Rejected(r)) => {
+                    push(&Event::OrderRejected(r), &mut events);
+                }
+                Err(e) => eprintln!("Execution error: {}", e),
+            }
+        }
+
+        history.push(bar.clone());
+    }
+
+    strategy.teardown();
+
+    // Emit final metrics
+    let report = metrics.report();
+    println!();
+    println!("════════════════════════════════════════");
+    println!("  BACKTEST COMPLETE");
+    println!("════════════════════════════════════════");
+    println!("  Total Return:   {:.2}%", report.total_return_pct);
+    println!("  Max Drawdown:   {:.2}%", report.max_drawdown_pct);
+    println!("  Win Rate:       {:.1}%", report.win_rate_pct);
+    println!("  Profit Factor:  {:.2}",  report.profit_factor);
+    println!("  Total Trades:   {}",     report.total_trades);
+    println!("  Final Balance:  ${:.2}", report.total_return_pct / 100.0
+        * 10_000.0 + 10_000.0);
+    println!("════════════════════════════════════════");
+
+    let report_json = serde_json::json!({
+        "event_type": "MetricsReport",
+        "report": report,
+    });
+    events.push(report_json.to_string());
+
+    events
+}
