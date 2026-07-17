@@ -312,3 +312,176 @@ fn run_backtest(
 
     events
 }
+
+// ────────────────────────────────────────────────
+// HTTP Server — same as observa-server
+// ────────────────────────────────────────────────
+
+fn serve(events: Vec<String>, port: u16) {
+    let events_json = Arc::new(format!("[{}]", events.join(",")));
+    let addr        = format!("0.0.0.0:{}", port);
+    let server      = Server::http(&addr).expect("Failed to start server");
+
+    println!();
+    println!("  Open http://localhost:{} in your browser", port);
+    println!("  Press Ctrl+C to stop");
+    println!();
+
+    for request in server.incoming_requests() {
+        let url         = request.url().to_string();
+        let events_json = events_json.clone();
+
+        thread::spawn(move || {
+            match url.as_str() {
+                "/" => {
+                    let html = include_str!("../../../frontend/index.html");
+                    let response = Response::from_string(html)
+                        .with_header(
+                            Header::from_bytes("Content-Type",
+                                "text/html; charset=utf-8").unwrap()
+                        );
+                    request.respond(response).ok();
+                }
+
+                "/api/events" => {
+                    let response =
+                        Response::from_string((*events_json).clone())
+                            .with_header(
+                                Header::from_bytes("Content-Type",
+                                    "application/json").unwrap()
+                            )
+                            .with_header(
+                                Header::from_bytes(
+                                    "Access-Control-Allow-Origin", "*").unwrap()
+                            );
+                    request.respond(response).ok();
+                }
+
+                url if url.starts_with("/css/") || url.starts_with("/js/") => {
+                    let file_path = format!("frontend{}", url);
+                    match std::fs::read_to_string(&file_path) {
+                        Ok(contents) => {
+                            let content_type = if url.ends_with(".css") {
+                                "text/css"
+                            } else {
+                                "application/javascript"
+                            };
+                            let response = Response::from_string(contents)
+                                .with_header(
+                                    Header::from_bytes(
+                                        "Content-Type", content_type).unwrap()
+                                );
+                            request.respond(response).ok();
+                        }
+                        Err(_) => {
+                            request.respond(
+                                Response::from_string("Not found")
+                                    .with_status_code(404)
+                            ).ok();
+                        }
+                    }
+                }
+
+                _ => {
+                    request.respond(
+                        Response::from_string("Not found")
+                            .with_status_code(404)
+                    ).ok();
+                }
+            }
+        });
+    }
+}
+
+// ────────────────────────────────────────────────
+// Main
+// ────────────────────────────────────────────────
+
+fn main() {
+    let args = match CliArgs::parse() {
+        Ok(a)  => a,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    println!("╔══════════════════════════════════════╗");
+    println!("║         OBSERVA v0.1                 ║");
+    println!("╚══════════════════════════════════════╝");
+    println!();
+
+    // ── Detect or use provided class name ─────
+    let class_name = match args.class_name {
+        Some(name) => {
+            println!("  Strategy class: {}", name);
+            name
+        }
+        None => {
+            println!("  Detecting strategy class...");
+            match detect_strategy_class(&args.strategy_file) {
+                Ok(name) => {
+                    println!("  Found: {}", name);
+                    name
+                }
+                Err(e) => {
+                    eprintln!("  Error: {}", e);
+                    eprintln!(
+                        "  Tip: use --class <ClassName> to specify manually"
+                    );
+                    std::process::exit(1);
+                }
+            }
+        }
+    };
+
+    // ── Load Python strategy ───────────────────
+    println!("  Loading strategy: {}",
+        args.strategy_file.display());
+
+    let mut strategy = match PyStrategy::load(
+        &args.strategy_file,
+        &class_name,
+    ) {
+        Ok(s)  => s,
+        Err(e) => {
+            eprintln!("  Failed to load strategy: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // ── Load market data ───────────────────────
+    println!("  Loading data: {}", args.data_file.display());
+    let bars = match CsvReader::load(&args.data_file) {
+        Ok(b)  => b,
+        Err(e) => {
+            eprintln!("  Failed to load data: {}", e);
+            std::process::exit(1);
+        }
+    };
+    println!("  Loaded {} bars", bars.len());
+
+    // ── Run backtest ───────────────────────────
+    println!();
+    println!("  Running backtest...");
+
+    let execution_config = ExecutionConfig {
+        spread:            args.spread,
+        slippage:          args.slippage,
+        commission:        args.commission,
+        min_stop_distance: 0.0010,
+        min_lot_size:      0.01,
+        max_lot_size:      100.0,
+        fill_mode:         observa_execution::execution::FillMode::NextBarOpen,
+    };
+
+    let events = run_backtest(
+        bars,
+        &mut strategy,
+        args.initial_balance,
+        execution_config,
+    );
+
+    // ── Serve visualization ────────────────────
+    serve(events, args.port);
+}
