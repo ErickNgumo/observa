@@ -1,52 +1,65 @@
-"""
-EMA Crossover — Reference strategy for Observa.
+class EMACrossover:
+    """
+    Simple EMA crossover strategy.
+    Buys when fast EMA crosses above slow EMA.
+    Closes when fast EMA crosses below slow EMA.
+    """
 
-Buys when the 20 EMA crosses above the 50 EMA.
-Sells when the 20 EMA crosses below the 50 EMA.
+    def initialize(self, params=None):
+        self.fast_period = 5
+        self.slow_period = 20
+        self.fast_ema    = None
+        self.slow_ema    = None
+        self.prev_fast   = None
+        self.prev_slow   = None
+        print(f"EMA{self.fast_period}/{self.slow_period} strategy initialized")
 
-This is what a trader writes when using Observa.
-"""
-from observa import Strategy, OrderIntent, Direction, EMA
+    def _update_ema(self, current, price, period):
+        if current is None:
+            return price
+        k = 2.0 / (period + 1.0)
+        return price * k + current * (1.0 - k)
 
-
-class EMACrossover(Strategy):
-
-    def initialize(self, params):
-        self.ema20 = self.indicator(EMA(period=params.get("ema_fast", 20)))
-        self.ema50 = self.indicator(EMA(period=params.get("ema_slow", 50)))
-        self.in_trade = False
-
-    def on_bar(self, bar):
-        if not self.ema20.ready or not self.ema50.ready:
-            return
-
-        crossed_up = (
-            self.ema20.previous <= self.ema50.previous and
-            self.ema20.value    >  self.ema50.value
+    def on_bar(self, bar, portfolio, history):
+        # Update EMAs
+        self.prev_fast = self.fast_ema
+        self.prev_slow = self.slow_ema
+        self.fast_ema  = self._update_ema(
+            self.fast_ema, bar['close'], self.fast_period
         )
-        crossed_down = (
-            self.ema20.previous >= self.ema50.previous and
-            self.ema20.value    <  self.ema50.value
+        self.slow_ema  = self._update_ema(
+            self.slow_ema, bar['close'], self.slow_period
         )
 
-        if crossed_up and not self.in_trade:
-            self.submit(OrderIntent(
-                direction = Direction.BUY,
-                size      = 1.0,
-                sl        = bar.close - 0.0020,
-                tp        = bar.close + 0.0040,
-                reason    = "EMA20 crossed above EMA50",
-            ))
-        elif crossed_down and self.in_trade:
-            self.close(reason="EMA20 crossed below EMA50")
+        # Wait for warmup
+        if self.prev_fast is None or self.prev_slow is None:
+            return []
 
-    def on_fill(self, fill):
-        self.in_trade = True
-        self.annotate(fill.event_id, "Entered on EMA crossover")
+        crossed_up   = self.prev_fast <= self.prev_slow \
+                       and self.fast_ema > self.slow_ema
+        crossed_down = self.prev_fast >= self.prev_slow \
+                       and self.fast_ema < self.slow_ema
 
-    def on_close(self, fill):
-        self.in_trade = False
-        self.annotate(fill.event_id, f"Closed — {fill.exit_reason} | PnL: {fill.pnl}")
+        # Entry
+        if crossed_up and not portfolio['has_open_position']:
+            return [{
+                'direction': 'buy',
+                'size':      1.0,
+                'price':     bar['close'],
+                'sl':        bar['close'] - 0.0030,
+                'tp':        bar['close'] + 0.0060,
+                'reason':    f'EMA{self.fast_period} crossed above EMA{self.slow_period}',
+            }]
+
+        # Exit
+        if crossed_down and portfolio['has_open_position']:
+            return [{
+                'direction': 'close',
+                'size':      1.0,
+                'reason':    f'EMA{self.fast_period} crossed below EMA{self.slow_period}',
+            }]
+
+        return []
 
     def teardown(self):
-        self.log("Strategy complete.")
+        print("Strategy complete")
