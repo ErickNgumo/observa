@@ -225,7 +225,9 @@ pub fn detect_strategy_class(
             e.to_string(),
         ))?;
 
+    // Strategy 1
     // Simple heuristic — find "class Foo(Strategy):"
+    // explicit inheritance is the cleanest signal
     for line in source.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with("class ") && trimmed.contains("Strategy") {
@@ -240,8 +242,53 @@ pub fn detect_strategy_class(
         }
     }
 
+    // Strategy 2 - look for any class that has all three
+    // required methods: initialize, on_bar, teardown
+    // This handles plain Python classes with no inheritance
+    let mut current_class: Option<String> = None;
+    let mut has_initialize = false;
+    let mut has_on_bar = false;
+    let mut has_teardown = false;
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+
+        // Found a class definition
+        if trimmed.starts_with("class ") && trimmed.contains(':') {
+            // Check of previous class was a valid strategy
+            if let Some(ref name) = current_class {
+                if has_initialize && has_on_bar && has_teardown {
+                    return Ok(name.clone());
+                }
+            }
+            // Start with tracking new class
+            let after_class = &trimmed["class ".len()..];
+            let end = after_class.find(|c| c == '(' || c == ':')
+                .unwrap_or(after_class.len());
+            current_class = Some(after_class[..end].trim().to_string());
+            has_initialize = false;
+            has_on_bar = false;
+            has_teardown = false;
+        }
+
+        // TRack method definitions inside current class
+        if current_class.is_some() {
+            if trimmed.starts_with("def initialize") { has_initialize = true; }
+            if trimmed.starts_with("def on_bar")      { has_on_bar     = true; }
+            if trimmed.starts_with("def teardown")   {has_teardown    = true; }
+        }
+    }
+
+    // Check the last class in the file
+    if let Some(ref name) = current_class {
+        if has_initialize && has_on_bar && has_teardown {
+            return Ok(name.clone());
+        }
+    }
+
     Err(BridgeError::ClassNotFound(
-        "no class inheriting from Strategy found in file".to_string()
+        "no Strategy class found — class must have \
+         initialize(), on_bar(), and teardown() methods".to_string()
     ))
 }
 
@@ -259,7 +306,19 @@ mod tests {
     }
 
     #[test]
-    fn detects_strategy_class_name() {
+    fn detects_strategy_class_by_methods() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, "class EMACrossover:").unwrap();
+        writeln!(file, "    def initialize(self): pass").unwrap();
+        writeln!(file, "    def on_bar(self, bar, portfolio, history): return []").unwrap();
+        writeln!(file, "    def teardown(self): pass").unwrap();
+
+        let name = detect_strategy_class(file.path()).unwrap();
+        assert_eq!(name, "EMACrossover");
+    }
+
+    #[test]
+    fn detects_strategy_class_by_inheritance() {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(file, "class MyCrossover(Strategy):").unwrap();
         writeln!(file, "    pass").unwrap();
@@ -272,7 +331,7 @@ mod tests {
     fn returns_error_when_no_strategy_class() {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(file, "class Foo:").unwrap();
-        writeln!(file, "    pass").unwrap();
+        writeln!(file, "    def some_method(self): pass").unwrap();
 
         let result = detect_strategy_class(file.path());
         assert!(result.is_err());
