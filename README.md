@@ -78,9 +78,16 @@ The goal is not a better backtest. The goal is the end of blind trust.
 
 ## Roadmap
 
+- ## Roadmap
+
 - [x] Problem definition & invariants  
 - [x] Domain model & event taxonomy  
-- [ ] Core engine (Rust)  
-- [ ] Strategy interface (Python)  
-- [ ] Visual replay layer  
+- [x] Core engine (Rust)  
+- [x] Strategy interface (Python)  
+- [x] Python bridge (PyO3 — CLI)  
+- [x] Visual replay layer  
+- [x] Metrics (drawdown, Sharpe, Calmar, win rate)
+- [ ] UI polish  
+- [ ] pip installable package  
+- [ ] Live data integration  
 - [ ] MVP release
