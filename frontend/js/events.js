@@ -27,6 +27,7 @@ function loadEvents() {
 function processEvent(ev) {
   switch (ev.event_type) {
     case 'BarReceived':       handleBar(ev);      break;
+    case 'DrawingsEmitted':   handleDrawings(ev); break;
     case 'PositionOpened':    handleOpened(ev);   break;
     case 'PositionClosed':    handleClosed(ev);   break;
     case 'PortfolioSnapshot': handleSnapshot(ev); break;
@@ -146,6 +147,202 @@ function handleSnapshot(ev) {
   }
 }
 
+// Indicator Drawing
+
+function handleDrawings(ev) {
+  if (!ev.drawings || ev.drawings.length === 0) return;
+
+  ev.drawings.forEach(function(d) {
+    var action = d.action || 'add';
+
+    if (action === 'remove') {
+      removeDrawing(d.id);
+      return;
+    }
+
+    if (action === 'update') {
+      removeDrawing(d.id);
+      // Fall through to add the updated version
+    }
+
+    // Add the drawing
+    addDrawing(d);
+  });
+}
+
+function addDrawing(d) {
+  var LC = LightweightCharts;
+  var series = null;
+
+  switch (d.type) {
+
+    case 'rectangle': {
+      // Draw as two line series — top and bottom edges
+      // with a filled area between them using two series
+      var topSeries = chart.addSeries(LC.LineSeries, {
+        color:            d.border || d.color,
+        lineWidth:        1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      var botSeries = chart.addSeries(LC.LineSeries, {
+        color:            d.border || d.color,
+        lineWidth:        1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+
+      var t1 = toUnix(d.time_start);
+      var t2 = d.time_end
+        ? toUnix(d.time_end)
+        : candleData.length > 0
+          ? candleData[candleData.length - 1].time
+          : t1;
+
+      topSeries.setData([
+        { time: t1, value: d.price_top },
+        { time: t2, value: d.price_top },
+      ]);
+      botSeries.setData([
+        { time: t1, value: d.price_bot },
+        { time: t2, value: d.price_bot },
+      ]);
+
+      activeDrawings[d.id] = [topSeries, botSeries];
+      break;
+    }
+
+    case 'hline': {
+      series = chart.addSeries(LC.LineSeries, {
+        color:            d.color,
+        lineWidth:        d.width || 1,
+        lineStyle:        lineStyleCode(d.style),
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      var t = toUnix(d.time);
+      var endT = candleData.length > 0
+        ? candleData[candleData.length - 1].time
+        : t;
+      series.setData([
+        { time: t,    value: d.price },
+        { time: endT, value: d.price },
+      ]);
+      activeDrawings[d.id] = [series];
+      break;
+    }
+
+    case 'line': {
+      series = chart.addSeries(LC.LineSeries, {
+        color:            d.color,
+        lineWidth:        d.width || 1,
+        lineStyle:        lineStyleCode(d.style),
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      series.setData([
+        { time: toUnix(d.x1), value: d.y1 },
+        { time: toUnix(d.x2), value: d.y2 },
+      ]);
+      activeDrawings[d.id] = [series];
+      break;
+    }
+
+    case 'label': {
+      // Labels are markers on the main candlestick series
+      var labelMarker = {
+        time:     toUnix(d.time),
+        position: d.position === 'below' ? 'belowBar' : 'aboveBar',
+        color:    d.color || '#e6edf3',
+        shape:    'circle',
+        text:     d.text,
+      };
+      tradeMarkers.push(labelMarker);
+      refreshMarkers();
+      // Store the marker index for potential removal
+      activeDrawings[d.id] = {
+        type:   'label',
+        marker: labelMarker,
+      };
+      break;
+    }
+
+    case 'region': {
+      // Region — shaded vertical band
+      // Implemented as a very wide rectangle at
+      // the price extremes of the current chart
+      series = chart.addSeries(LC.LineSeries, {
+        color:            d.color,
+        lineWidth:        1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      // We use a transparent line — the visual effect
+      // comes from the background color
+      // A proper region needs a custom primitive in v5
+      // For now we mark with vertical lines at start/end
+      var t1 = toUnix(d.time_start);
+      var t2 = toUnix(d.time_end);
+      LC.createSeriesMarkers(candleSeries, [
+        {
+          time:     t1,
+          position: 'aboveBar',
+          color:    d.color.slice(0, 7),
+          shape:    'arrowDown',
+          text:     d.label || '',
+        },
+        {
+          time:     t2,
+          position: 'aboveBar',
+          color:    d.color.slice(0, 7),
+          shape:    'arrowDown',
+          text:     '',
+        },
+      ]);
+      activeDrawings[d.id] = [series];
+      break;
+    }
+
+    case 'bar_color': {
+      // Store bar color overrides — applied on next render
+      if (!window._barColors) window._barColors = {};
+      window._barColors[d.time] = d.color;
+      activeDrawings[d.id] = { type: 'bar_color', time: d.time };
+      break;
+    }
+  }
+}
+
+function removeDrawing(id) {
+  var drawing = activeDrawings[id];
+  if (!drawing) return;
+
+  if (Array.isArray(drawing)) {
+    drawing.forEach(function(s) { chart.removeSeries(s); });
+  } else if (drawing.type === 'label') {
+    var idx = tradeMarkers.indexOf(drawing.marker);
+    if (idx !== -1) {
+      tradeMarkers.splice(idx, 1);
+      refreshMarkers();
+    }
+  } else if (drawing.type === 'bar_color') {
+    if (window._barColors) {
+      delete window._barColors[drawing.time];
+    }
+  }
+
+  delete activeDrawings[id];
+}
+
+function lineStyleCode(style) {
+  var LC = LightweightCharts;
+  switch (style) {
+    case 'dashed': return LC.LineStyle.Dashed;
+    case 'dotted': return LC.LineStyle.Dotted;
+    default:       return LC.LineStyle.Solid;
+  }
+}
+
 // ── MetricsReport ────────────────────────────
 function handleMetrics(ev) {
   var r = ev.report;
@@ -184,6 +381,7 @@ function handleMetrics(ev) {
   // drawdown highlight on top of it.
   drawDrawdownHighlight(r);
 }
+
 
 // ── Trade log row builder ────────────────────
 function addTradeRow(closeEv, entry) {

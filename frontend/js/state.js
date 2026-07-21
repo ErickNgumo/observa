@@ -23,6 +23,7 @@ var drawdownMarkerSeries = null;  // red highlight line on equity chart
 
 // Data buffers
 var candleData   = [];
+var activeDrawings = {}; // Active drawings — keyed by id for updates/removal
 var fastEmaData  = [];
 var slowEmaData  = [];
 var equityData   = [];

@@ -7,6 +7,7 @@ use crate::types::{
     AnnotationSource, CancellationReason, Direction,
     ErrorType, ExitReason, RejectionReason, UpdateType,
 };
+use crate::drawings::DrawingInstruction;
 
 // ────────────────────────────────────────────────
 // EventMetadata — shared baseline for all events
@@ -85,6 +86,21 @@ pub struct SignalEmittedEvent {
 
     /// Why the strategy signalled — shown on chart tooltip
     pub reason: String,
+}
+
+/// Emitted when a strategy returns drawing instructions.
+/// The visualization layer subscribes to this and
+/// renders each instruction on the chart.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DrawingsEmittedEvent {
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+
+    /// The bar timestamp these drawings were emitted on
+    pub bar_timestamp: DateTime<Utc>,
+
+    /// The drawing instructions from the strategy
+    pub drawings: Vec<DrawingInstruction>,
 }
 
 /// An indicator value was recalculated for this bar.
@@ -526,6 +542,7 @@ pub enum Event {
     RunCompleted(RunCompletedEvent),
     RunError(RunErrorEvent),
     JournalEntryAdded(JournalEntryAddedEvent),
+    DrawingsEmitted(DrawingsEmittedEvent),
 }
 
 impl Event {
@@ -549,6 +566,7 @@ impl Event {
             Event::RunCompleted(e)       => &e.metadata,
             Event::RunError(e)           => &e.metadata,
             Event::JournalEntryAdded(e)  => &e.metadata,
+            Event::DrawingsEmitted(e) => &e.metadata,
         }
     }
 

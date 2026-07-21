@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 
@@ -179,7 +179,7 @@ EXAMPLE:
 
 fn run_backtest(
     bars: Vec<Bar>,
-    strategy: &mut dyn Strategy,
+    strategy: &mut PyStrategy,
     initial_balance: f64,
     execution_config: ExecutionConfig,
 ) -> Vec<String> {
@@ -241,7 +241,21 @@ fn run_backtest(
         // Call strategy
         let signals = strategy.on_bar(bar, &portfolio_view, &history);
 
-        // Process signals
+        // Emit any drawings the strategy produced
+        // Collect drawings directly since we own the PyStrategy
+        if !strategy.pending_drawings.is_empty() {
+            let drawings = std::mem::take(&mut strategy.pending_drawings);
+            let drawing_json = serde_json::json!({
+                "event_type":    "DrawingsEmitted",
+                "event_id":      Uuid::new_v4().to_string(),
+                "run_id":        run_id.to_string(),
+                "timestamp":     bar.timestamp,
+                "bar_timestamp": bar.timestamp,
+                "drawings":      drawings,
+            });
+            events.push(drawing_json.to_string());
+        }
+                // Process signals
         for signal in signals {
             let intent = OrderIntentCreatedEvent {
                 metadata:       EventMetadata::new(run_id, bar.timestamp),

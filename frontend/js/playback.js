@@ -68,6 +68,11 @@ function resetReplay() {
   slowEmaSeries.setData([]);
   equitySeries.setData([]);
   markerPlugin.setMarkers([]);
+  // Clear all active drawings
+  Object.keys(activeDrawings).forEach(function(id) {
+    removeDrawing(id);
+  });
+  activeDrawings = {};
 
   document.getElementById('btn-play').textContent = '▶ Play';
   document.getElementById('btn-play').classList.remove('active');

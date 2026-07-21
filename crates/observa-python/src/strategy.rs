@@ -26,6 +26,8 @@ pub struct PyStrategy {
 
     /// Name of the strategy class — used in errors
     class_name: String,
+    /// Drawing from the strategy
+    pub pending_drawings: Vec<observa_core::drawings::DrawingInstruction>,
 }
 
 impl PyStrategy {
@@ -78,6 +80,7 @@ impl PyStrategy {
             Ok(PyStrategy {
                 instance,
                 class_name: class_name.to_string(),
+                pending_drawings: Vec::new(),
             })
         })
     }
@@ -117,7 +120,7 @@ impl Strategy for PyStrategy {
     /// Calls on_bar() on the Python strategy,
     /// passing bar and portfolio as Python dicts.
     /// Converts the returned list of signal dicts
-    /// into Rust StrategySignals.
+    /// into Rust StrategySignals. as well as drawings
     fn on_bar(
         &mut self,
         bar: &Bar,
@@ -125,24 +128,14 @@ impl Strategy for PyStrategy {
         history: &[Bar],
     ) -> Vec<StrategySignal> {
         Python::with_gil(|py| {
-            // Convert bar and portfolio to Python dicts
             let py_bar = match bar_to_py(py, bar) {
                 Ok(d)  => d,
-                Err(e) => {
-                    eprintln!("[PyStrategy] bar conversion failed: {}", e);
-                    return vec![];
-                }
+                Err(e) => { eprintln!("[PyStrategy] bar: {}", e); return vec![]; }
             };
-
             let py_portfolio = match portfolio_to_py(py, portfolio) {
                 Ok(d)  => d,
-                Err(e) => {
-                    eprintln!("[PyStrategy] portfolio conversion failed: {}", e);
-                    return vec![];
-                }
+                Err(e) => { eprintln!("[PyStrategy] portfolio: {}", e); return vec![]; }
             };
-
-            // Build history as a Python list of dicts
             let py_history = PyList::empty_bound(py);
             for h_bar in history {
                 if let Ok(d) = bar_to_py(py, h_bar) {
@@ -150,44 +143,56 @@ impl Strategy for PyStrategy {
                 }
             }
 
-            // Call on_bar(bar, portfolio, history)
             let result = match self.instance.call_method1(
-                py,
-                "on_bar",
-                (py_bar, py_portfolio, py_history),
+                py, "on_bar", (py_bar, py_portfolio, py_history),
             ) {
                 Ok(r)  => r,
                 Err(e) => {
-                    eprintln!(
-                        "[PyStrategy] on_bar() failed on '{}': {}",
-                        self.class_name, e
-                    );
+                    eprintln!("[PyStrategy] on_bar() failed: {}", e);
                     return vec![];
                 }
             };
 
-            // Convert result to a list of signal dicts
-            let signal_list = match result.downcast_bound::<PyList>(py) {
-                Ok(l)  => l.to_owned(),
-                Err(_) => {
-                    // on_bar returned None or non-list — no signals
-                    return vec![];
+            // Handle both return styles:
+            // Old: return [signal_dict, ...]
+            // New: return {'signals': [...], 'drawings': [...]}
+            let (signal_list, drawing_list) = if let Ok(dict) =
+                result.downcast_bound::<PyDict>(py)
+            {
+                let signals = dict.get_item("signals")
+                    .ok().flatten()
+                    .and_then(|v| v.downcast::<PyList>().ok().map(|l| l.to_owned()));
+                let drawings = dict.get_item("drawings")
+                    .ok().flatten();
+
+                // Store drawings for the caller to retrieve
+                if let Some(d) = drawings {
+                    match crate::drawings::drawings_from_py(py, &d) {
+                        Ok(parsed) => {
+                            self.pending_drawings = parsed;
+                        }
+                        Err(e) => eprintln!("[PyStrategy] drawings: {}", e),
+                    }
                 }
+                (signals, ())
+            } else {
+                // Old style — plain list
+                let list = result.downcast_bound::<PyList>(py)
+                    .ok()
+                    .map(|l| l.to_owned());
+                (list, ())
             };
 
-            // Convert each dict to a StrategySignal
-            signal_list
-                .iter()
+            let signal_list = match signal_list {
+                Some(l) => l,
+                None    => return vec![],
+            };
+
+            signal_list.iter()
                 .filter_map(|item| {
                     match signal_from_py(py, &item) {
-                        Ok(signal) => Some(signal),
-                        Err(e) => {
-                            eprintln!(
-                                "[PyStrategy] invalid signal: {}",
-                                e
-                            );
-                            None
-                        }
+                        Ok(s)  => Some(s),
+                        Err(e) => { eprintln!("[PyStrategy] signal: {}", e); None }
                     }
                 })
                 .collect()
