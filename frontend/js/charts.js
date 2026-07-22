@@ -128,4 +128,7 @@ function resizeCharts() {
   if (equityEl.clientWidth > 0 && equityEl.clientHeight > 0) {
     equityChart.resize(equityEl.clientWidth, equityEl.clientHeight);
   }
+  if (typeof updateInvestigationOverlay === 'function') {
+    updateInvestigationOverlay();
+  }
 }

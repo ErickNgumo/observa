@@ -51,6 +51,15 @@ body {
 
 #chart { width: 100%; height: 100%; }
 
+/* ── Investigation Mode ── */
+#investigation-overlay { position: absolute; top: 0; bottom: 0; z-index: 3; pointer-events: none; background: color-mix(in srgb, var(--negative) 12%, transparent); border-left: 1px solid color-mix(in srgb, var(--negative) 68%, transparent); border-right: 1px solid color-mix(in srgb, var(--negative) 68%, transparent); box-shadow: inset 0 0 30px color-mix(in srgb, var(--negative) 7%, transparent); }
+#investigation-overlay span { position: absolute; top: 8px; left: 8px; color: var(--negative); font: 800 8px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; opacity: .9; }
+#investigation-banner { position: absolute; z-index: 4; top: 10px; left: 14px; display: flex; align-items: center; gap: 14px; padding: 8px 9px 8px 11px; background: color-mix(in srgb, var(--surface) 91%, var(--negative)); border: 1px solid color-mix(in srgb, var(--negative) 62%, var(--border)); border-radius: 8px; box-shadow: 0 8px 20px var(--shadow); color: var(--text); animation: investigation-enter .22s ease-out; }
+#investigation-banner div { display: grid; gap: 2px; } #investigation-banner span { color: var(--negative); font: 800 8px 'Manrope', sans-serif; letter-spacing: .09em; text-transform: uppercase; } #investigation-banner strong { font-size: 10px; font-weight: 700; } #investigation-banner em { color: var(--negative); font-family: 'DM Mono', monospace; font-style: normal; }
+#investigation-banner button { border: 1px solid var(--border-strong); border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; padding: 5px 7px; font: 700 9px 'Manrope', sans-serif; transition: background .16s, color .16s, border-color .16s; } #investigation-banner button:hover { background: var(--surface-hover); border-color: var(--negative); color: var(--text); }
+body.is-inspecting #equity-context { box-shadow: inset 3px 0 var(--negative); }
+@keyframes investigation-enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
 /* ── Bottom Panel ── */
 #panel-resize-handle {
   height: 7px; flex-shrink: 0; position: relative; cursor: row-resize;
@@ -161,6 +170,7 @@ body {
 #trade-log td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 10px; white-space: nowrap; }
 #trade-log tbody tr { transition: background .14s ease; } #trade-log tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-raised) 22%, transparent); }
 #trade-log tr:hover td { background: var(--surface-hover); }
+.is-inspection-muted td { opacity: .36; }.is-inspection-match td { background: color-mix(in srgb, var(--negative) 9%, var(--surface-raised)) !important; border-bottom-color: color-mix(in srgb, var(--negative) 32%, var(--border)) !important; }.is-inspection-match .trade-number { color: var(--negative) !important; }
 .trade-number { color: var(--faint) !important; text-align: center; width: 42px; }
 .direction-badge { display: inline-flex; min-width: 40px; justify-content: center; padding: 3px 6px; border-radius: 4px; font: 800 9px 'Manrope', sans-serif; letter-spacing: .04em; text-transform: uppercase; }
 .direction-badge.long { color: var(--positive); background: color-mix(in srgb, var(--positive) 12%, transparent); }.direction-badge.short { color: var(--negative); background: color-mix(in srgb, var(--negative) 12%, transparent); }
@@ -182,7 +192,7 @@ body {
 }
 
 .metric-group { display: grid; gap: 8px; }.metric-group-heading { display: flex; align-items: end; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 0 2px 7px; }.metric-group h3 { color: var(--text); font-size: 11px; font-weight: 800; letter-spacing: -.01em; }.metric-group p { margin-top: 2px; color: var(--muted); font-size: 9px; }.metric-group-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
-.metric-card { min-height: 76px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; padding: 10px 11px; transition: border-color .16s, transform .16s, background .16s; }.metric-card:hover { border-color: var(--border-strong); background: var(--surface-hover); transform: translateY(-1px); }.metric-card.positive { border-top-color: color-mix(in srgb, var(--positive) 55%, var(--border)); }.metric-card.negative { border-top-color: color-mix(in srgb, var(--negative) 55%, var(--border)); }
+.metric-card { min-height: 76px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; padding: 10px 11px; color: inherit; text-align: left; transition: border-color .16s, transform .16s, background .16s; }.metric-card:hover { border-color: var(--border-strong); background: var(--surface-hover); transform: translateY(-1px); }.metric-card.positive { border-top-color: color-mix(in srgb, var(--positive) 55%, var(--border)); }.metric-card.negative { border-top-color: color-mix(in srgb, var(--negative) 55%, var(--border)); }.metric-card.inspectable { cursor: pointer; position: relative; }.metric-card.inspectable::after { content: 'Inspect'; position: absolute; right: 9px; bottom: 8px; color: var(--negative); font: 800 8px 'Manrope', sans-serif; letter-spacing: .07em; opacity: 0; text-transform: uppercase; transition: opacity .16s; }.metric-card.inspectable:hover { border-color: var(--negative); }.metric-card.inspectable:hover::after { opacity: 1; }
 
 .metric-label {
   color: var(--muted);
@@ -198,20 +208,7 @@ body {
 .metric-value.positive { color: var(--positive); }.metric-value.negative { color: var(--negative); }.metric-value.neutral { color: var(--text); }
 .metric-detail { color: var(--muted); font-size: 9px; margin-top: 5px; line-height: 1.3; }
 
-/* ── Drawdown Banner ── */
-#dd-banner {
-  position: absolute;
-  top: 56px;
-  right: 16px;
-  background: color-mix(in srgb, var(--negative) 12%, var(--surface)); border: 1px solid var(--negative); color: var(--negative);
-  padding: 6px 12px;
-  border-radius: 7px;
-  font: 700 10px 'Manrope', sans-serif;
-  cursor: pointer;
-  z-index: 10;
-}
-
 @media (max-width: 1080px) { #toolbar { gap: 10px; padding-inline: 12px; } .brand { min-width: auto; } .tagline, .status-metric { display: none; } .toolbar-group { padding-left: 10px; } }
-@media (max-width: 760px) { #toolbar { min-height: 56px; } .replay-settings .control-label, .theme-control .control-label, #btn-step, #btn-reset { display: none; } #status-bar { gap: 7px; } .replay-position { display: none; } .theme-control { padding-left: 8px; } #panel-resize-handle { height: 10px; } #bottom-panel { height: var(--panel-height, 42vh); } #bottom-panel.collapsed { height: 36px; } #panel-tabs { padding-inline: 8px; } .panel-tab { padding-inline: 8px; } #equity-context { padding-inline: 10px; } .equity-legend > span:last-child, #equity-inspector { display: none; } #metrics-panel { padding: 12px; } .metric-group-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { #toolbar { min-height: 56px; } .replay-settings .control-label, .theme-control .control-label, #btn-step, #btn-reset { display: none; } #status-bar { gap: 7px; } .replay-position { display: none; } .theme-control { padding-left: 8px; } #panel-resize-handle { height: 10px; } #bottom-panel { height: var(--panel-height, 42vh); } #bottom-panel.collapsed { height: 36px; } #panel-tabs { padding-inline: 8px; } .panel-tab { padding-inline: 8px; } #equity-context { padding-inline: 10px; } .equity-legend > span:last-child, #equity-inspector { display: none; } #metrics-panel { padding: 12px; } .metric-group-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } #investigation-banner { left: 8px; top: 8px; gap: 8px; } #investigation-banner button { padding-inline: 5px; } }
 
-@media (prefers-reduced-motion: reduce) { #bottom-panel, #panel-toggle, #panel-resize-handle::before, #panel-resize-handle span { transition-duration: 0s; } }
+@media (prefers-reduced-motion: reduce) { #bottom-panel, #panel-toggle, #panel-resize-handle::before, #panel-resize-handle span { transition-duration: 0s; } #investigation-banner { animation: none; } }

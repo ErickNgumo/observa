@@ -19,7 +19,6 @@ var barsDrawn    = 0;
 var chart, candleSeries, fastEmaSeries, slowEmaSeries;
 var equityChart, equitySeries;
 var markerPlugin = null;          // v5 marker plugin for the main chart
-var drawdownMarkerSeries = null;  // red highlight line on equity chart
 
 // Data buffers
 var candleData   = [];

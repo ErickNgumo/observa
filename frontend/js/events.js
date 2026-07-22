@@ -350,12 +350,13 @@ function handleMetrics(ev) {
 
   var grid = document.getElementById('metrics-grid');
 
-  function card(label, value, cls, detail) {
-    return '<div class="metric-card ' + (cls || 'neutral') + '">' +
+  function card(label, value, cls, detail, action) {
+    var tag = action ? 'button' : 'div';
+    return '<' + tag + (action ? ' type="button" onclick="' + action + '"' : '') + ' class="metric-card ' + (cls || 'neutral') + (action ? ' inspectable' : '') + '">' +
       '<div class="metric-label">' + label + '</div>' +
       '<div class="metric-value ' + (cls || 'neutral') + '">' + value + '</div>' +
       (detail ? '<div class="metric-detail">' + detail + '</div>' : '') +
-      '</div>';
+      '</' + tag + '>';
   }
 
   function group(title, description, cards, extraClass) {
@@ -371,7 +372,7 @@ function handleMetrics(ev) {
     card('Sharpe Ratio', r.sharpe_ratio !== null ? fmtNum(r.sharpe_ratio, 2) : 'N/A', 'neutral') +
     card('Calmar Ratio', r.calmar_ratio !== null ? fmtNum(r.calmar_ratio, 2) : 'N/A', 'neutral'), 'performance-group');
   html += group('Risk', 'Drawdown and return durability',
-    card('Max Drawdown', fmtNum(r.max_drawdown_pct, 2) + '%', 'negative', 'Highlighted on the equity curve') +
+    card('Max Drawdown', fmtNum(r.max_drawdown_pct, 2) + '%', 'negative', 'Inspect evidence across charts and trades', 'inspectMaxDrawdown()') +
     card('Current Drawdown', r.current_drawdown_pct != null ? fmtNum(r.current_drawdown_pct, 2) + '%' : 'N/A', 'negative') +
     card('Profit Factor', fmtNum(r.profit_factor, 2), 'neutral'), 'risk-group');
   html += group('Trade Statistics', 'Execution outcomes across closed positions',
@@ -417,5 +418,7 @@ function addTradeRow(closeEv, entry) {
     '<td class="' + (pnl >= 0 ? 'pnl-positive' : 'pnl-negative') + '">' +
       (pnl >= 0 ? '+' : '') + '$' + Number(pnl).toFixed(2) +
     '</td>';
+  row.setAttribute('data-entry-time', entry ? entry.entryTime : toUnix(closeEv.timestamp));
+  row.setAttribute('data-exit-time', toUnix(closeEv.timestamp));
   tbody.appendChild(row);
 }
