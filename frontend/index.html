@@ -70,12 +70,16 @@
     <div id="chart"></div>
   </div>
 
-  <div id="bottom-panel">
+  <div id="panel-resize-handle" role="separator" aria-orientation="horizontal" aria-label="Resize analysis panel" tabindex="0">
+    <span></span>
+  </div>
+
+  <section id="bottom-panel" aria-label="Analysis workspace">
     <div id="panel-tabs">
       <button class="panel-tab active" onclick="showPanel('equity')">Equity Curve</button>
       <button class="panel-tab" onclick="showPanel('trades')">Trade Log</button>
       <button class="panel-tab" onclick="showPanel('metrics')">Metrics</button>
-      <button id="panel-toggle" onclick="togglePanel()">&#9660;</button>
+      <button id="panel-toggle" onclick="togglePanel()" aria-label="Collapse analysis panel" aria-expanded="true">&#9660;</button>
     </div>
     <div id="panel-content">
       <div id="equity-panel"></div>
@@ -97,7 +101,7 @@
         <div id="metrics-grid"></div>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- Order matters: state first, then everything that reads it -->
   <script src="/js/state.js"></script>

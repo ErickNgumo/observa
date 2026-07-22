@@ -87,14 +87,7 @@ function initCharts() {
 
   // Resize both charts whenever the window resizes
   window.addEventListener('resize', function() {
-    chart.resize(
-      document.getElementById('chart').clientWidth,
-      document.getElementById('chart').clientHeight
-    );
-    equityChart.resize(
-      document.getElementById('equity-panel').clientWidth,
-      document.getElementById('equity-panel').clientHeight
-    );
+    resizeCharts();
   });
 }
 
@@ -110,12 +103,15 @@ function refreshMarkers() {
 // Resizes both charts — used after the bottom panel
 // is collapsed or expanded.
 function resizeCharts() {
-  chart.resize(
-    document.getElementById('chart').clientWidth,
-    document.getElementById('chart').clientHeight
-  );
-  equityChart.resize(
-    document.getElementById('equity-panel').clientWidth,
-    document.getElementById('equity-panel').clientHeight
-  );
+  var chartEl = document.getElementById('chart');
+  var equityEl = document.getElementById('equity-panel');
+
+  if (chartEl.clientWidth > 0 && chartEl.clientHeight > 0) {
+    chart.resize(chartEl.clientWidth, chartEl.clientHeight);
+  }
+  // A hidden analysis tab has a zero-sized container. Avoid resizing the
+  // equity canvas to 0×0; it will resize on the next visible layout pass.
+  if (equityEl.clientWidth > 0 && equityEl.clientHeight > 0) {
+    equityChart.resize(equityEl.clientWidth, equityEl.clientHeight);
+  }
 }

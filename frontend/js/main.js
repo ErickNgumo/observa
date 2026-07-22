@@ -8,6 +8,7 @@
 function boot() {
   restoreTheme();
   initCharts();
+  initializeWorkspaceLayout();
   loadEvents().then(function() {
     console.log('Observa ready. Press Play to start replay.');
   });
