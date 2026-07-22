@@ -350,30 +350,38 @@ function handleMetrics(ev) {
 
   var grid = document.getElementById('metrics-grid');
 
-  function card(label, value, cls) {
-    return '<div class="metric-card">' +
+  function card(label, value, cls, detail) {
+    return '<div class="metric-card ' + (cls || 'neutral') + '">' +
       '<div class="metric-label">' + label + '</div>' +
       '<div class="metric-value ' + (cls || 'neutral') + '">' + value + '</div>' +
+      (detail ? '<div class="metric-detail">' + detail + '</div>' : '') +
       '</div>';
   }
 
+  function group(title, description, cards, extraClass) {
+    return '<section class="metric-group ' + (extraClass || '') + '">' +
+      '<div class="metric-group-heading"><div><h3>' + title + '</h3><p>' + description + '</p></div></div>' +
+      '<div class="metric-group-cards">' + cards + '</div></section>';
+  }
+
   var html = '';
-  html += card('Total Return', fmtNum(r.total_return_pct, 2) + '%',
-                r.total_return_pct >= 0 ? 'positive' : 'negative');
-  html += card('Max Drawdown', fmtNum(r.max_drawdown_pct, 2) + '%', 'negative');
-  html += card('Sharpe Ratio',
-                r.sharpe_ratio !== null ? fmtNum(r.sharpe_ratio, 2) : 'N/A', 'neutral');
-  html += card('Calmar Ratio',
-                r.calmar_ratio !== null ? fmtNum(r.calmar_ratio, 2) : 'N/A', 'neutral');
-  html += card('Win Rate', fmtNum(r.win_rate_pct, 1) + '%', 'neutral');
-  html += card('Profit Factor', fmtNum(r.profit_factor, 2), 'neutral');
-  html += card('Total Trades', r.total_trades, 'neutral');
-  html += card('Winning Trades', r.winning_trades, 'positive');
-  html += card('Losing Trades', r.losing_trades, 'negative');
-  html += card('Avg Win', '$' + fmtNum(r.avg_win, 2), 'positive');
-  html += card('Avg Loss', '$' + fmtNum(r.avg_loss, 2), 'negative');
-  html += card('Expectancy', '$' + fmtNum(r.expectancy, 2),
-                r.expectancy >= 0 ? 'positive' : 'negative');
+  html += group('Performance', 'Return quality and risk-adjusted outcome',
+    card('Total Return', fmtNum(r.total_return_pct, 2) + '%', r.total_return_pct >= 0 ? 'positive' : 'negative') +
+    card('Annualised Return', r.annualised_return_pct != null ? fmtNum(r.annualised_return_pct, 2) + '%' : 'N/A', r.annualised_return_pct != null ? (r.annualised_return_pct >= 0 ? 'positive' : 'negative') : 'neutral') +
+    card('Sharpe Ratio', r.sharpe_ratio !== null ? fmtNum(r.sharpe_ratio, 2) : 'N/A', 'neutral') +
+    card('Calmar Ratio', r.calmar_ratio !== null ? fmtNum(r.calmar_ratio, 2) : 'N/A', 'neutral'), 'performance-group');
+  html += group('Risk', 'Drawdown and return durability',
+    card('Max Drawdown', fmtNum(r.max_drawdown_pct, 2) + '%', 'negative', 'Highlighted on the equity curve') +
+    card('Current Drawdown', r.current_drawdown_pct != null ? fmtNum(r.current_drawdown_pct, 2) + '%' : 'N/A', 'negative') +
+    card('Profit Factor', fmtNum(r.profit_factor, 2), 'neutral'), 'risk-group');
+  html += group('Trade Statistics', 'Execution outcomes across closed positions',
+    card('Win Rate', fmtNum(r.win_rate_pct, 1) + '%', 'neutral') +
+    card('Total Trades', r.total_trades, 'neutral') +
+    card('Winning Trades', r.winning_trades, 'positive') +
+    card('Losing Trades', r.losing_trades, 'negative') +
+    card('Avg Win', '$' + fmtNum(r.avg_win, 2), 'positive') +
+    card('Avg Loss', '$' + fmtNum(r.avg_loss, 2), 'negative') +
+    card('Expectancy', '$' + fmtNum(r.expectancy, 2), r.expectancy >= 0 ? 'positive' : 'negative'), 'trades-group');
 
   grid.innerHTML = html;
 
@@ -398,14 +406,14 @@ function addTradeRow(closeEv, entry) {
 
   var dir = closeEv.direction;
   row.innerHTML =
-    '<td>' + tradeCount + '</td>' +
-    '<td style="color:' + (dir === 'Buy' ? '#3fb950' : '#f85149') + '">' + dir + '</td>' +
+    '<td class="trade-number">' + tradeCount + '</td>' +
+    '<td><span class="direction-badge ' + (dir === 'Buy' ? 'long' : 'short') + '">' + dir + '</span></td>' +
     '<td>' + entryTime + '</td>' +
     '<td>' + entryPrice + '</td>' +
     '<td>' + Number(closeEv.exit_price).toFixed(5) + '</td>' +
     '<td>' + sl + '</td>' +
     '<td>' + tp + '</td>' +
-    '<td>' + closeEv.exit_reason + '</td>' +
+    '<td class="trade-reason">' + closeEv.exit_reason + '</td>' +
     '<td class="' + (pnl >= 0 ? 'pnl-positive' : 'pnl-negative') + '">' +
       (pnl >= 0 ? '+' : '') + '$' + Number(pnl).toFixed(2) +
     '</td>';

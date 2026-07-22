@@ -58,7 +58,7 @@ function initializeWorkspaceLayout() {
   if (window.ResizeObserver) {
     var workspaceObserver = new ResizeObserver(function() { resizeCharts(); });
     workspaceObserver.observe(document.getElementById('chart-container'));
-    workspaceObserver.observe(document.getElementById('equity-panel'));
+    workspaceObserver.observe(document.getElementById('equity-chart'));
   }
   document.getElementById('bottom-panel').addEventListener('transitionend', function(event) {
     if (event.propertyName === 'height') resizeCharts();
@@ -71,7 +71,7 @@ function initializeWorkspaceLayout() {
 }
 
 function showPanel(tab, persist) {
-  document.getElementById('equity-panel').style.display  = tab === 'equity'  ? 'block' : 'none';
+  document.getElementById('equity-panel').style.display  = tab === 'equity'  ? 'flex' : 'none';
   document.getElementById('trade-log').style.display     = tab === 'trades'  ? 'block' : 'none';
   document.getElementById('metrics-panel').style.display  = tab === 'metrics' ? 'block' : 'none';
 

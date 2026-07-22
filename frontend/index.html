@@ -82,7 +82,24 @@
       <button id="panel-toggle" onclick="togglePanel()" aria-label="Collapse analysis panel" aria-expanded="true">&#9660;</button>
     </div>
     <div id="panel-content">
-      <div id="equity-panel"></div>
+      <div id="equity-panel">
+        <div id="equity-context">
+          <div class="analysis-heading">
+            <span class="eyebrow">Investigation view</span>
+            <span class="analysis-title">Equity trajectory</span>
+          </div>
+          <div class="equity-tools">
+            <div id="equity-inspector" aria-live="polite">
+              <span>Point</span><strong>Hover curve</strong>
+            </div>
+            <div class="equity-legend" aria-label="Equity chart legend">
+              <span><i class="legend-line balance-line"></i>Balance</span>
+              <span><i class="legend-line drawdown-line"></i>Max drawdown</span>
+            </div>
+          </div>
+        </div>
+        <div id="equity-chart"></div>
+      </div>
 
       <div id="trade-log">
         <table>

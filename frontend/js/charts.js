@@ -60,7 +60,7 @@ function initCharts() {
   markerPlugin = LC.createSeriesMarkers(candleSeries, []);
 
   // ── Equity curve chart ─────────────────────
-  equityChart = LC.createChart(document.getElementById('equity-panel'), {
+  equityChart = LC.createChart(document.getElementById('equity-chart'), {
     layout: {
       background: { color: activeTheme.surface },
       textColor:  activeTheme.muted
@@ -75,14 +75,28 @@ function initCharts() {
       timeVisible:    true,
       secondsVisible: false
     },
-    width:  document.getElementById('equity-panel').clientWidth,
-    height: document.getElementById('equity-panel').clientHeight
+    width:  document.getElementById('equity-chart').clientWidth,
+    height: document.getElementById('equity-chart').clientHeight
   });
 
   equitySeries = equityChart.addSeries(LC.LineSeries, {
     color:            activeTheme.positive,
     lineWidth:        2,
     priceLineVisible: false
+  });
+
+  // Keep the selected equity observation visible while investigating the curve.
+  equityChart.subscribeCrosshairMove(function(param) {
+    var inspector = document.getElementById('equity-inspector');
+    if (!inspector) return;
+    var point = param.seriesData && param.seriesData.get(equitySeries);
+    if (!point || point.value === undefined || !param.time) {
+      inspector.innerHTML = '<span>Point</span><strong>Hover curve</strong>';
+      return;
+    }
+    var timestamp = typeof param.time === 'number' ? param.time : param.time.timestamp;
+    var time = timestamp ? new Date(timestamp * 1000).toISOString().slice(0, 16).replace('T', ' ') : '—';
+    inspector.innerHTML = '<span>' + time + '</span><strong>Balance $' + fmtNum(point.value, 2) + '</strong>';
   });
 
   // Resize both charts whenever the window resizes
@@ -104,7 +118,7 @@ function refreshMarkers() {
 // is collapsed or expanded.
 function resizeCharts() {
   var chartEl = document.getElementById('chart');
-  var equityEl = document.getElementById('equity-panel');
+  var equityEl = document.getElementById('equity-chart');
 
   if (chartEl.clientWidth > 0 && chartEl.clientHeight > 0) {
     chart.resize(chartEl.clientWidth, chartEl.clientHeight);
