@@ -22,3 +22,6 @@ Thumbs.db
 data/*.csv
 
 setup_observa.sh
+
+frontend/FRONTEND_CONTEXT.md
+frontend/FRONTEND_VISION.MD

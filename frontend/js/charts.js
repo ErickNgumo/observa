@@ -8,21 +8,22 @@
 
 function initCharts() {
   var LC = LightweightCharts;
+  var activeTheme = observaThemes[(document.getElementById('theme-select') || {}).value] || observaThemes.midnight;
 
   // ── Main candlestick chart ─────────────────
   chart = LC.createChart(document.getElementById('chart'), {
     layout: {
-      background: { color: '#0d1117' },
-      textColor:  '#8b949e'
+      background: { color: activeTheme.chart },
+      textColor:  activeTheme.muted
     },
     grid: {
-      vertLines: { color: '#21262d' },
-      horzLines: { color: '#21262d' }
+      vertLines: { color: activeTheme.grid },
+      horzLines: { color: activeTheme.grid }
     },
     crosshair: { mode: LC.CrosshairMode.Normal },
-    rightPriceScale: { borderColor: '#30363d' },
+    rightPriceScale: { borderColor: activeTheme.border },
     timeScale: {
-      borderColor:    '#30363d',
+      borderColor:    activeTheme.border,
       timeVisible:    true,
       secondsVisible: false,
       rightOffset:    5,
@@ -33,16 +34,16 @@ function initCharts() {
   });
 
   candleSeries = chart.addSeries(LC.CandlestickSeries, {
-    upColor:         '#3fb950',
-    downColor:       '#f85149',
-    borderUpColor:   '#3fb950',
-    borderDownColor: '#f85149',
-    wickUpColor:     '#3fb950',
-    wickDownColor:   '#f85149'
+    upColor:         activeTheme.positive,
+    downColor:       activeTheme.negative,
+    borderUpColor:   activeTheme.positive,
+    borderDownColor: activeTheme.negative,
+    wickUpColor:     activeTheme.positive,
+    wickDownColor:   activeTheme.negative
   });
 
   fastEmaSeries = chart.addSeries(LC.LineSeries, {
-    color:            '#58a6ff',
+    color:            activeTheme.accent,
     lineWidth:        1,
     priceLineVisible: false,
     lastValueVisible: false
@@ -61,16 +62,16 @@ function initCharts() {
   // ── Equity curve chart ─────────────────────
   equityChart = LC.createChart(document.getElementById('equity-panel'), {
     layout: {
-      background: { color: '#161b22' },
-      textColor:  '#8b949e'
+      background: { color: activeTheme.surface },
+      textColor:  activeTheme.muted
     },
     grid: {
-      vertLines: { color: '#21262d' },
-      horzLines: { color: '#21262d' }
+      vertLines: { color: activeTheme.grid },
+      horzLines: { color: activeTheme.grid }
     },
-    rightPriceScale: { borderColor: '#30363d' },
+    rightPriceScale: { borderColor: activeTheme.border },
     timeScale: {
-      borderColor:    '#30363d',
+      borderColor:    activeTheme.border,
       timeVisible:    true,
       secondsVisible: false
     },
@@ -79,7 +80,7 @@ function initCharts() {
   });
 
   equitySeries = equityChart.addSeries(LC.LineSeries, {
-    color:            '#3fb950',
+    color:            activeTheme.positive,
     lineWidth:        2,
     priceLineVisible: false
   });

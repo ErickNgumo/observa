@@ -9,33 +9,60 @@
 </head>
 <body>
 
-  <div id="toolbar">
-    <div class="logo">OBSERVA</div>
-    <div class="toolbar-separator"></div>
-    <button class="toolbar-btn" id="btn-play" onclick="togglePlay()">&#9654; Play</button>
-    <button class="toolbar-btn" id="btn-step" onclick="stepOnce()">&#9654;| Step</button>
-    <button class="toolbar-btn" id="btn-reset" onclick="resetReplay()">&#8635; Reset</button>
-    <div class="toolbar-separator"></div>
-    <label style="color:#8b949e;font-size:12px;">Speed</label>
-    <select id="speed-select" onchange="updateSpeed()">
+  <header id="toolbar">
+    <div class="brand" aria-label="Observa — Research. Replay. Refine.">
+      <div class="brand-mark" aria-hidden="true"><span></span></div>
+      <div class="brand-copy">
+        <div class="logo"><span>bserva</span></div>
+        <div class="tagline">Research. Replay. Refine.</div>
+      </div>
+    </div>
+
+    <div class="toolbar-group playback-controls" aria-label="Replay controls">
+      <button class="toolbar-btn primary-action" id="btn-play" onclick="togglePlay()"><span class="button-icon">&#9654;</span> Play</button>
+      <button class="toolbar-btn" id="btn-step" onclick="stepOnce()"><span class="button-icon">&#9654;|</span> Step</button>
+      <button class="toolbar-btn subtle-action" id="btn-reset" onclick="resetReplay()">&#8635; Reset</button>
+    </div>
+
+    <div class="toolbar-group replay-settings">
+      <label class="control-label" for="speed-select">Speed</label>
+      <select id="speed-select" onchange="updateSpeed()" aria-label="Replay speed">
       <option value="500">0.5x</option>
       <option value="200" selected>1x</option>
       <option value="100">2x</option>
       <option value="50">5x</option>
       <option value="10">10x</option>
       <option value="1">Max</option>
-    </select>
-    <div class="toolbar-separator"></div>
-    <button class="toolbar-btn active" id="btn-lines" onclick="toggleLines()">&#8862; Lines</button>
-    <div class="toolbar-separator"></div>
-    <div id="status-bar">
-      <span id="stat-pair">EURUSD M15</span>
-      <span>Balance: $<span id="stat-balance">10,000.00</span></span>
-      <span>PnL: $<span id="stat-pnl">0.00</span></span>
-      <span>Trades: <span id="stat-trades">0</span></span>
-      <span id="stat-progress">Bar 0 / 0</span>
+      </select>
+      <button class="toolbar-btn active icon-label" id="btn-lines" onclick="toggleLines()">&#8862; Lines</button>
     </div>
-  </div>
+
+    <div id="status-bar" aria-label="Backtest status">
+      <span class="instrument-chip" id="stat-pair">EURUSD M15</span>
+      <span class="status-metric"><em>Balance</em>$<span id="stat-balance">10,000.00</span></span>
+      <span class="status-metric"><em>PnL</em>$<span id="stat-pnl">0.00</span></span>
+      <span class="status-metric"><em>Trades</em><span id="stat-trades">0</span></span>
+      <span class="replay-position" id="stat-progress">Bar 0 / 0</span>
+    </div>
+
+    <div class="theme-control">
+      <label class="control-label" for="theme-select">Theme</label>
+      <select id="theme-select" onchange="setTheme(this.value)" aria-label="Application theme">
+        <optgroup label="Dark">
+          <option value="midnight" selected>Midnight</option>
+          <option value="carbon">Carbon</option>
+          <option value="graphite">Graphite</option>
+          <option value="navy">Navy</option>
+          <option value="oled">OLED</option>
+        </optgroup>
+        <optgroup label="Light">
+          <option value="paper">Paper</option>
+          <option value="snow">Snow</option>
+          <option value="studio">Studio</option>
+        </optgroup>
+      </select>
+    </div>
+  </header>
 
   <div id="progress-bar"><div id="progress-fill"></div></div>
 
@@ -75,6 +102,7 @@
   <!-- Order matters: state first, then everything that reads it -->
   <script src="/js/state.js"></script>
   <script src="/js/helpers.js"></script>
+  <script src="/js/themes.js"></script>
   <script src="/js/charts.js"></script>
   <script src="/js/events.js"></script>
   <script src="/js/drawdown.js"></script>
