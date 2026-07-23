@@ -188,7 +188,11 @@ fn run_backtest(
     let run_id        = Uuid::new_v4();
     let mut portfolio = PortfolioManager::new(run_id, initial_balance, execution_config.commission);
     let execution     = ExecutionModel::new(execution_config);
-    let mut metrics   = MetricsEngine::new(initial_balance, 96.0 * 252.0);
+    // 15-minute bars: 4 bars per hour × 6.5 trading hours × 252 days
+    // For EURUSD (forex, 24h market): 4 × 24 × 252 = 24,192
+    // For stocks (9:30-16:00 EST): 4 × 6.5 × 252 = 6,552
+    // We use forex here since the data is EURUSD
+    let mut metrics   = MetricsEngine::new(initial_balance, 4.0 * 24.0 * 252.0);
 
     strategy.initialize();
 
@@ -206,9 +210,7 @@ fn run_backtest(
             if let Some(closed) = pe.position_closed {
                 metrics.on_trade_closed(closed.pnl);
                 push(&Event::PositionClosed(closed), &mut events);
-            }
-            metrics.on_snapshot(bar.timestamp, pe.snapshot.equity);
-            push(&Event::PortfolioSnapshot(pe.snapshot), &mut events);
+            }            
         }
 
         // Emit bar event with current indicator state
@@ -229,9 +231,14 @@ fn run_backtest(
 
         // Build portfolio view
         let open_pos       = portfolio.open_position();
+
+        let unrealised = open_pos
+            .map(|p| p.unrealised_pnl(bar.close))
+            .unwrap_or(0.0);
+
         let portfolio_view = PortfolioView {
             balance:              portfolio.balance(),
-            equity:               portfolio.balance(),
+            equity:               portfolio.balance() + unrealised,
             has_open_position:    open_pos.is_some(),
             position_direction:   open_pos.map(|p| p.direction),
             position_entry_price: open_pos.map(|p| p.entry_price),
@@ -285,8 +292,7 @@ fn run_backtest(
                                 metrics.on_trade_closed(closed.pnl);
                                 push(&Event::PositionClosed(closed), &mut events);
                             }
-                            metrics.on_snapshot(bar.timestamp, pe.snapshot.equity);
-                            push(&Event::PortfolioSnapshot(pe.snapshot), &mut events);
+                            
                         }
                         Err(e) => eprintln!("Portfolio error: {}", e),
                     }
@@ -299,6 +305,38 @@ fn run_backtest(
         }
 
         history.push(bar.clone());
+
+
+        // ── Emit per-bar portfolio snapshot ──────────
+        // This is the key fix for Sharpe correctness.
+        // The equity curve must be sampled at every bar,
+        // not just when trades close.
+        // Without this, return periods are unequal in length
+        // which violates Sharpe ratio assumptions.
+        let unrealised = portfolio
+            .open_position()
+            .map(|p| p.unrealised_pnl(bar.close))
+            .unwrap_or(0.0);
+
+        let bar_equity   = portfolio.balance() + unrealised;
+        let bar_snapshot = serde_json::json!({
+            "event_type":    "PortfolioSnapshot",
+            "event_id":      Uuid::new_v4().to_string(),
+            "run_id":        run_id.to_string(),
+            "timestamp":     bar.timestamp,
+            "balance":       portfolio.balance(),
+            "equity":        bar_equity,
+            "margin":        0.0,
+            "free_margin":   bar_equity,
+            "unrealised_pnl": unrealised,
+            "realised_pnl":  portfolio.realised_pnl(),
+            "open_positions": if portfolio.open_position().is_some() { 1 } else { 0 },
+        });
+        events.push(bar_snapshot.to_string());
+
+        // Feed the metrics engine every bar
+        metrics.on_snapshot(bar.timestamp, bar_equity);
+    
     }
 
     strategy.teardown();
