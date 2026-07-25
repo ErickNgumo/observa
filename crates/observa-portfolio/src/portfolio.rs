@@ -357,7 +357,7 @@ mod tests {
     fn test_run_id() -> Uuid { Uuid::new_v4() }
 
     fn test_portfolio() -> PortfolioManager {
-        PortfolioManager::new(test_run_id(), 10_000.0, 7.0)
+        PortfolioManager::new(test_run_id(), 10_000.0, 7.0, 0.0001)
     }
 
     fn buy_fill(price: f64) -> OrderFilledEvent {

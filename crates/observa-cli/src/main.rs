@@ -186,7 +186,7 @@ fn run_backtest(
     let mut events: Vec<String> = Vec::new();
 
     let run_id        = Uuid::new_v4();
-    let mut portfolio = PortfolioManager::new(run_id, initial_balance, execution_config.commission);
+    let mut portfolio = PortfolioManager::new(run_id, initial_balance, execution_config.commission, execution_config.slippage,);
     let execution     = ExecutionModel::new(execution_config);
     // 15-minute bars: 4 bars per hour × 6.5 trading hours × 252 days
     // For EURUSD (forex, 24h market): 4 × 24 × 252 = 24,192
