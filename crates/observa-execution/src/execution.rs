@@ -110,50 +110,46 @@ impl ExecutionModel {
     /// 
     /// For NextBarOpen mode, pass the Next bar.
     /// For ThisBarClose mode, pass the current bar.
-    pub fn process (
+    pub fn process(
         &self,
         intent: &OrderIntentCreatedEvent,
         fill_bar: &Bar,
         account_balance: f64,
     ) -> Result<FillResult, ExecutionError> {
-        //step 1 - validate the order
-        if let Some(rejection) = self.validate(
+
+        // Step 1 — calculate fill price first
+        let (base_price, slippage_amount) = match intent.direction {
+            Direction::Buy => (
+                fill_bar.open + self.config.spread,
+                self.config.slippage,
+            ),
+            Direction::Sell => (
+                fill_bar.open - self.config.spread,
+                -self.config.slippage,
+            ),
+            Direction::Close => (fill_bar.open, 0.0),
+        };
+
+        let executed_price = base_price + slippage_amount;
+
+        // Step 2 — validate AFTER slippage is known
+        // This is correct because the trader's SL/TP distances
+        // must be valid relative to the actual fill price,
+        // not the intended price before market impact
+        if let Some(rejection) = self.validate_after_fill(
             intent,
-            fill_bar,
+            executed_price,
             account_balance,
         ) {
             return Ok(FillResult::Rejected(rejection));
         }
 
-        //Step 2 - calculate fill price
-        let base_price = match intent.direction {
-            // Buying - fill at ask (base +spread)
-            Direction::Buy => fill_bar.open + self.config.spread,
-
-            //Selling - fill at bid (base - spread)
-            Direction::Sell => fill_bar.open - self.config.spread,
-
-            //Close exits at mid price - no spread cost
-            Direction::Close => fill_bar.open,
-        };
-
-        //Step 3 - apply slippage
-        let slippage = match intent.direction {
-            // Slippage always works against the trader
-            Direction::Buy  =>  self.config.slippage,
-            Direction::Sell => -self.config.slippage,
-            //Close has minimal slippage -existing is easier
-            Direction::Close => 0.0,
-        };
-
-        let executed_price = base_price + slippage;
-
-        //Step 4 - build the fill event
+        // Step 3 — build the fill event
         let fill = OrderFilledEvent {
-            metadata: EventMetadata::new(
-            intent.metadata.run_id,
-            fill_bar.timestamp,            
-            ),
+            metadata:        EventMetadata::new(
+                                intent.metadata.run_id,
+                                fill_bar.timestamp,
+                            ),
             order_id:        intent.order_id,
             signal_id:       intent.signal_id,
             intended_price:  intent.intended_price,
@@ -163,33 +159,31 @@ impl ExecutionModel {
             commission:      self.config.commission,
             size:            intent.size,
             direction:       intent.direction,
+            reason:          intent.reason.clone(),
             sl:              intent.sl,
             tp:              intent.tp,
-            reason:          intent.reason.clone(),
         };
-        
+
         Ok(FillResult::Filled(fill))
-        
     }
 
     /// Validates an order intent.
     /// Returns Some(rejection) if invalid, None if valid.
-    fn validate(
+    fn validate_after_fill(
         &self,
         intent: &OrderIntentCreatedEvent,
-        fill_bar: &Bar,
+        executed_price: f64,  // ← actual fill price after slippage
         account_balance: f64,
     ) -> Option<OrderRejectedEvent> {
         let run_id = intent.metadata.run_id;
-        let now = Utc::now();
+        let now    = Utc::now();
 
-        // Close orders bypass all validation —
-    // they just exit the existing position
+        // Close orders bypass all validation
         if intent.direction == Direction::Close {
             return None;
         }
 
-        // Rule 1 — lot size must be within bounds
+        // Rule 1 — lot size within bounds
         if intent.size < self.config.min_lot_size
             || intent.size > self.config.max_lot_size
         {
@@ -200,48 +194,50 @@ impl ExecutionModel {
             };
             let detail = reason.to_string();
             return Some(OrderRejectedEvent {
-                metadata: EventMetadata::new(run_id, now),
-                order_id: intent.order_id,
-                signal_id: intent.signal_id,
+                metadata:         EventMetadata::new(run_id, now),
+                order_id:         intent.order_id,
+                signal_id:        intent.signal_id,
                 rejection_reason: reason,
                 rejection_detail: detail,
             });
         }
 
-        // Rule 2 — stop loss must be far enough away
+        // Rule 2 — SL distance from ACTUAL fill price (not intended)
+        // This is the key fix — we validate against executed_price
+        // because that's where the position actually opens
         if let Some(sl) = intent.sl {
-            let distance = (fill_bar.open - sl).abs();
+            let distance = (executed_price - sl).abs();
             if distance < self.config.min_stop_distance {
                 let reason = RejectionReason::InvalidStop {
-                    entry_price:  fill_bar.open,
+                    entry_price:  executed_price,
                     sl_price:     sl,
                     min_distance: self.config.min_stop_distance,
                 };
                 let detail = reason.to_string();
                 return Some(OrderRejectedEvent {
-                    metadata: EventMetadata::new(run_id, now),
-                    order_id: intent.order_id,
-                    signal_id: intent.signal_id,
+                    metadata:         EventMetadata::new(run_id, now),
+                    order_id:         intent.order_id,
+                    signal_id:        intent.signal_id,
                     rejection_reason: reason,
                     rejection_detail: detail,
                 });
             }
         }
 
-        // Rule 3 — take profit must be far enough away
+        // Rule 3 — TP distance from ACTUAL fill price
         if let Some(tp) = intent.tp {
-            let distance = (fill_bar.open - tp).abs();
+            let distance = (executed_price - tp).abs();
             if distance < self.config.min_stop_distance {
                 let reason = RejectionReason::InvalidTakeProfit {
-                    entry_price:  fill_bar.open,
+                    entry_price:  executed_price,
                     tp_price:     tp,
                     min_distance: self.config.min_stop_distance,
                 };
                 let detail = reason.to_string();
                 return Some(OrderRejectedEvent {
-                    metadata: EventMetadata::new(run_id, now),
-                    order_id: intent.order_id,
-                    signal_id: intent.signal_id,
+                    metadata:         EventMetadata::new(run_id, now),
+                    order_id:         intent.order_id,
+                    signal_id:        intent.signal_id,
                     rejection_reason: reason,
                     rejection_detail: detail,
                 });
@@ -249,10 +245,10 @@ impl ExecutionModel {
         }
 
         // Rule 4 — sufficient capital
-        let required_margin = fill_bar.open
+        let required_margin = executed_price
             * intent.size
             * 1000.0  // contract size placeholder
-            * 0.01;   // 1% margin requirement
+            * 0.01; // 1% margin requirement
 
         if required_margin > account_balance {
             let reason = RejectionReason::InsufficientCapital {
@@ -261,15 +257,15 @@ impl ExecutionModel {
             };
             let detail = reason.to_string();
             return Some(OrderRejectedEvent {
-                metadata: EventMetadata::new(run_id, now),
-                order_id: intent.order_id,
-                signal_id: intent.signal_id,
+                metadata:         EventMetadata::new(run_id, now),
+                order_id:         intent.order_id,
+                signal_id:        intent.signal_id,
                 rejection_reason: reason,
                 rejection_detail: detail,
             });
         }
 
-        None // all rules passed
+        None
     }
 }
 
