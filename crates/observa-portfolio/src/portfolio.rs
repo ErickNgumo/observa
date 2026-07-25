@@ -38,6 +38,9 @@ pub struct PortfolioManager {
     /// Commission per trade
     commission: f64,
 
+    /// Slippage to be applied in stoploss
+    slippage: f64,
+
     /// Total realised PnL this run
     realised_pnl: f64,
 
@@ -57,15 +60,17 @@ pub struct PortfolioEvents {
 impl PortfolioManager {
     /// Creates a new portfolio manager
     pub fn new(
-        run_id: Uuid,
+        run_id:          Uuid,
         initial_balance: f64,
-        commission: f64,
+        commission:      f64,
+        slippage:        f64,
     ) -> Self {
         Self {
             run_id,
             balance: initial_balance,
             positions: Vec::new(),
             commission,
+            slippage,
             realised_pnl: 0.0,
             total_trades: 0
         }
@@ -141,8 +146,17 @@ impl PortfolioManager {
                 if let Some(sl_price) = p.check_sl(
                     bar.low, bar.high
                 ) {
+                    // SL is a market order — apply slippage
+                    // Slippage always works against the trader
+                    let exit_price = match p.direction {
+                        Direction::Buy  => sl_price - self.slippage,
+                        Direction::Sell => sl_price + self.slippage,
+                        Direction::Close => sl_price,
+                    };
                     Some((i, sl_price, ExitReason::StopLoss))
                 } else if let Some(tp_price) = p.check_tp(bar.low, bar.high) {
+                    // TP is a limit order — no slippage applied
+                    // (TP executes at the exact level or better)
                     Some((i, tp_price, ExitReason::TakeProfit))
                 } else {
                     None
