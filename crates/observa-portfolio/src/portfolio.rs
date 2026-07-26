@@ -148,7 +148,7 @@ impl PortfolioManager {
                 ) {
                     // SL is a market order — apply slippage
                     // Slippage always works against the trader
-                    let exit_price = match p.direction {
+                    let _exit_price = match p.direction {
                         Direction::Buy  => sl_price - self.slippage,
                         Direction::Sell => sl_price + self.slippage,
                         Direction::Close => sl_price,

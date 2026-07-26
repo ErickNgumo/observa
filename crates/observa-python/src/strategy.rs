@@ -156,7 +156,7 @@ impl Strategy for PyStrategy {
             // Handle both return styles:
             // Old: return [signal_dict, ...]
             // New: return {'signals': [...], 'drawings': [...]}
-            let (signal_list, drawing_list) = if let Ok(dict) =
+            let (signal_list, _drawing_list) = if let Ok(dict) =
                 result.downcast_bound::<PyDict>(py)
             {
                 let signals = dict.get_item("signals")

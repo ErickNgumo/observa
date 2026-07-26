@@ -6,7 +6,7 @@ use serde_json;
 use tiny_http::{Header, Response, Server};
 
 mod config;
-use config::{load_config, generate_default_config};
+use config::load_config;
 use observa_core::bar::Bar;
 use observa_core::events::{Event, EventMetadata, OrderIntentCreatedEvent};
 use observa_data::csv_reader::CsvReader;
