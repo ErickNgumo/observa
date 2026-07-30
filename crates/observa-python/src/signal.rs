@@ -65,6 +65,7 @@ pub fn signal_from_py(
     let sl = extract_optional_f64(dict, "sl", py)?;
     let tp = extract_optional_f64(dict, "tp", py)?;
 
+    
     // reason is optional
     let reason: String = dict
         .get_item("reason")
@@ -73,6 +74,14 @@ pub fn signal_from_py(
         .and_then(|v| v.extract::<String>().ok())
         .unwrap_or_else(|| "Python strategy signal".to_string());
 
+    // position ticket
+    let ticket: Option<String> = dict
+    .get_item("ticket")
+    .ok()
+    .flatten()
+    .and_then(|v| if v.is_none() { None } else { v.extract::<String>().ok() });
+
+
     Ok(StrategySignal {
         direction,
         size,
@@ -80,6 +89,7 @@ pub fn signal_from_py(
         sl,
         tp,
         reason,
+        ticket,        
     })
 }
 

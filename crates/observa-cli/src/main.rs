@@ -10,7 +10,7 @@ use config::load_config;
 use observa_core::bar::Bar;
 use observa_core::events::{Event, EventMetadata, OrderIntentCreatedEvent};
 use observa_data::csv_reader::CsvReader;
-use observa_engine::strategy::{PortfolioView, Strategy};
+use observa_engine::strategy::{PortfolioView, Strategy, OpenPositionView};
 use observa_execution::execution::{ExecutionConfig, ExecutionModel, FillResult, FillMode};
 use observa_metrics::metrics::MetricsEngine;
 use observa_portfolio::portfolio::PortfolioManager;
@@ -177,11 +177,13 @@ fn run_backtest(
 
     for bar in &bars {
         // Check SL/TP
-        if let Some(pe) = portfolio.check_sl_tp(bar) {
+        // Check SL/TP — now handles multiple positions
+        for pe in portfolio.check_sl_tp(bar) {
             if let Some(closed) = pe.position_closed {
                 metrics.on_trade_closed(closed.pnl);
                 push(&Event::PositionClosed(closed), &mut events);
-            }            
+            }
+            push(&Event::PortfolioSnapshot(pe.snapshot), &mut events);
         }
 
         // Emit bar event with current indicator state
@@ -207,13 +209,36 @@ fn run_backtest(
             .map(|p| p.unrealised_pnl(bar.close))
             .unwrap_or(0.0);
 
+        
+
+        // Build portfolio view with all open positions
+        let open_pos_views: Vec<OpenPositionView> = portfolio
+            .open_positions()
+            .iter()
+            .map(|p| OpenPositionView {
+                ticket:         p.position_id.to_string(),
+                direction:      p.direction,
+                size:           p.size,
+                entry_price:    p.entry_price,
+                unrealised_pnl: p.unrealised_pnl(bar.close),
+                sl:             p.sl,
+                tp:             p.tp,
+            })
+            .collect();
+
+        let unrealised = open_pos_views
+            .iter()
+            .map(|p| p.unrealised_pnl)
+            .sum::<f64>();
+
+        let first_pos = open_pos_views.first();
+
         let portfolio_view = PortfolioView {
             balance:              portfolio.balance(),
             equity:               portfolio.balance() + unrealised,
-            has_open_position:    open_pos.is_some(),
-            position_direction:   open_pos.map(|p| p.direction),
-            position_entry_price: open_pos.map(|p| p.entry_price),
-            unrealised_pnl:       0.0,
+            has_open_position:    !open_pos_views.is_empty(),
+            open_positions:       open_pos_views,
+            unrealised_pnl:       unrealised,            
         };
 
         // Call strategy
@@ -235,6 +260,8 @@ fn run_backtest(
         }
                 // Process signals
         for signal in signals {
+            let signal_ticket = signal.ticket.clone();
+
             let intent = OrderIntentCreatedEvent {
                 metadata:       EventMetadata::new(run_id, bar.timestamp),
                 order_id:       Uuid::new_v4(),
@@ -254,7 +281,7 @@ fn run_backtest(
             match execution.process(&intent, bar, portfolio.balance()) {
                 Ok(FillResult::Filled(fill)) => {
                     push(&Event::OrderFilled(fill.clone()), &mut events);
-                    match portfolio.process_fill(&fill) {
+                    match portfolio.process_fill(&fill, signal_ticket) {
                         Ok(pe) => {
                             if let Some(opened) = pe.position_opened {
                                 push(&Event::PositionOpened(opened), &mut events);

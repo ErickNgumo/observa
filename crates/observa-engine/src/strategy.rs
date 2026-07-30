@@ -1,6 +1,26 @@
 use observa_core::bar::Bar;
 use observa_core::types::Direction;
 
+/// A single open position visible to the strategy
+/// Read-only — the strategy can see it but not modify it.
+#[derive(Debug, Clone)]
+pub struct OpenPositionView {
+    /// Unique ticket ID - use this to close the position
+    pub ticket:         String,
+    /// Buy or Sell
+    pub direction:      Direction,
+    /// Lot size
+    pub size:           f64,
+    /// Price at which the position was opened
+    pub entry_price:    f64,
+    /// Current unrealised pnl
+    pub unrealised_pnl: f64,
+    /// Current Stoploss 
+    pub sl:             Option<f64>,
+    /// Current take profit
+    pub tp:             Option<f64>,
+}
+
 // ────────────────────────────────────────────────
 // StrategySignal
 // ────────────────────────────────────────────────
@@ -30,6 +50,9 @@ pub struct StrategySignal {
     /// Why the strategy signalled
     /// Appears on chart tooltip
     pub reason: String,
+
+    /// signal ticket
+    pub ticket: Option<String>,
 }
 
 // ────────────────────────────────────────────────
@@ -42,7 +65,7 @@ pub struct StrategySignal {
 /// The strategy can READ this but never mutate it.
 #[derive(Debug, Clone)]
 pub struct PortfolioView {
-    /// Current account balance
+    /// Current account balance (realised only)
     pub balance: f64,
 
     /// Current equity (balance + unrealised PnL)
@@ -51,11 +74,8 @@ pub struct PortfolioView {
     /// Whether there is currently an open position
     pub has_open_position: bool,
 
-    /// Direction of open position if any
-    pub position_direction: Option<Direction>,
-
-    /// Entry price of open position if any
-    pub position_entry_price: Option<f64>,
+    /// All currently open positions
+    pub open_positions: Vec<OpenPositionView>,
 
     /// Current unrealised PnL of open position
     pub unrealised_pnl: f64,
@@ -69,8 +89,7 @@ impl PortfolioView {
             balance: initial_balance,
             equity: initial_balance,
             has_open_position: false,
-            position_direction: None,
-            position_entry_price: None,
+            open_positions:Vec::new(),            
             unrealised_pnl: 0.0,
         }
     }
@@ -160,6 +179,7 @@ mod tests {
                 sl: Some(bar.close - 0.0020),
                 tp: Some(bar.close + 0.0040),
                 reason: "Always buy".to_string(),
+                ticket: None,
             }]
         }
 
@@ -182,7 +202,7 @@ mod tests {
     fn test_portfolio() -> PortfolioView {
         PortfolioView::empty(10_000.0)
     }
-
+    #[test]
     fn strategy_lifecycle_works_correctly () {
         let mut strategy = AlwaysBuyStrategy::new();
 
@@ -215,7 +235,7 @@ mod tests {
         assert_eq!(portfolio.balance, 10_000.0);
         assert_eq!(portfolio.equity, 10_000.0);
         assert!(!portfolio.has_open_position);
-        assert!(portfolio.position_direction.is_none());
+        assert!(portfolio.open_positions.is_empty());
         assert_eq!(portfolio.unrealised_pnl, 0.0);
     }
 

@@ -23,22 +23,25 @@ pub fn portfolio_to_py<'py>(
     dict.set_item("has_open_position", portfolio.has_open_position)?;
     dict.set_item("unrealised_pnl",    portfolio.unrealised_pnl)?;
 
-    match portfolio.position_direction {
-        Some(dir) => dict.set_item(
-            "position_direction",
-            format!("{:?}", dir),
-        )?,
-        None => dict.set_item("position_direction", py.None())?,
+    // All open positions with tickets
+    let positions_list = pyo3::types::PyList::empty_bound(py);
+    for pos in &portfolio.open_positions {
+        let pos_dict = PyDict::new_bound(py);
+        pos_dict.set_item("ticket",         &pos.ticket)?;
+        pos_dict.set_item("direction",      format!("{:?}", pos.direction))?;
+        pos_dict.set_item("size",           pos.size)?;
+        pos_dict.set_item("entry_price",    pos.entry_price)?;
+        pos_dict.set_item("unrealised_pnl", pos.unrealised_pnl)?;
+        pos_dict.set_item("sl",
+            pos.sl.map_or_else(|| py.None(), |v| v.into_py(py)))?;
+        pos_dict.set_item("tp",
+            pos.tp.map_or_else(|| py.None(), |v| v.into_py(py)))?;
+        positions_list.append(pos_dict)?;
     }
-
-    match portfolio.position_entry_price {
-        Some(price) => dict.set_item("position_entry_price", price)?,
-        None        => dict.set_item("position_entry_price", py.None())?,
-    }
+    dict.set_item("open_positions", positions_list)?;
 
     Ok(dict)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

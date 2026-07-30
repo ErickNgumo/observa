@@ -333,6 +333,7 @@ mod tests {
                 sl:             Some(bar.close - 0.0020),
                 tp:             Some(bar.close + 0.0040),
                 reason:         "Test buy".to_string(),
+                ticket:         None
             }]
         }
         fn teardown(&mut self) {}

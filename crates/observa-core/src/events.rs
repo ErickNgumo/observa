@@ -288,6 +288,10 @@ pub struct PositionOpenedEvent {
     /// Always 0.0 at open — included for consistency
     pub pnl: f64,
 
+     /// DEPRECATED — division of lot size by monetary value
+    /// has no financial meaning. Will be replaced with
+    /// notional_exposure_pct and risk_pct in a future version.
+
     /// Position size as % of total equity
     pub pct_equity: f64,
 
