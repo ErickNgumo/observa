@@ -9,6 +9,9 @@ pub struct ObservaConfig {
 
     #[serde(default)]
     pub account: AccountSettings,
+
+    #[serde(default)]
+    pub instrument: InstrumentSettings,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -53,6 +56,20 @@ pub struct AccountSettings {
     pub currency: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstrumentSettings {
+    #[serde(default = "default_symbol")]
+    pub symbol:         String,
+    #[serde(default = "default_contract_size")]
+    pub contract_size:  f64,
+    #[serde(default = "default_pip_value")]
+    pub pip_value:      f64,
+    #[serde(default = "default_price_decimals")]
+    pub price_decimals: u32,
+    #[serde(default = "default_margin_rate")]
+    pub margin_rate:    f64,
+}
+
 impl Default for ExecutionSettings {
     fn default() -> Self {
         Self {
@@ -81,9 +98,23 @@ impl Default for ObservaConfig {
         Self {
             execution: ExecutionSettings::default(),
             account:   AccountSettings::default(),
+            instrument: InstrumentSettings::default(),
         }
     }
 }
+
+impl Default for InstrumentSettings {
+    fn default() -> Self {
+        Self {
+            symbol:         default_symbol(),
+            contract_size:  default_contract_size(),
+            pip_value:      default_pip_value(),
+            price_decimals: default_price_decimals(),
+            margin_rate:    default_margin_rate(),
+        }
+    }
+}
+
 
 // ── Defaults ─────────────────────────────────────
 
@@ -96,6 +127,12 @@ fn default_max_lot()     -> f64    { 100.0  }
 fn default_balance()     -> f64    { 10_000.0 }
 fn default_fill_mode()   -> String { "next_bar_open".to_string() }
 fn default_currency()    -> String { "USD".to_string() }
+
+fn default_symbol()         -> String { "EURUSD".to_string() }
+fn default_contract_size()  -> f64    { 100_000.0 }
+fn default_pip_value()      -> f64    { 10.0 }
+fn default_price_decimals() -> u32    { 5 }
+fn default_margin_rate()    -> f64    { 0.01 }
 
 // ── Loader ───────────────────────────────────────
 
@@ -141,5 +178,37 @@ execution:
 account:
   initial_balance: 10000.0   # Starting capital
   currency:        USD        # Account currency
+
+  # Instrument contract specifications
+# These determine how lot size converts to monetary exposure
+instrument:
+  symbol:         EURUSD    # Instrument identifier
+  contract_size:  100000    # Units per lot (100k for forex)
+  pip_value:      10.0      # $ value of 1 pip per lot
+  price_decimals: 5         # Decimal places in price
+  margin_rate:    0.01      # Margin requirement (1% = 100:1 leverage)
+
+# Examples for other instruments:
+#
+# Gold (XAUUSD):
+#   symbol: XAUUSD
+#   contract_size: 100
+#   pip_value: 1.0
+#   price_decimals: 2
+#   margin_rate: 0.005
+#
+# US Stocks:
+#   symbol: AAPL
+#   contract_size: 1
+#   pip_value: 0.01
+#   price_decimals: 2
+#   margin_rate: 0.25
+#
+# Crypto:
+#   symbol: BTC/USD
+#   contract_size: 1
+#   pip_value: 1.0
+#   price_decimals: 2
+#   margin_rate: 0.1
 "#.to_string()
 }

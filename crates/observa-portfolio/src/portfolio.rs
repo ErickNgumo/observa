@@ -11,6 +11,7 @@ use observa_core::types::{Direction, ExitReason};
 
 use crate::error::PortfolioError;
 use crate::position::Position;
+use observa_core::instrument::InstrumentSpec;
 
 pub struct PortfolioEvents {
     pub position_opened: Option<PositionOpenedEvent>,
@@ -24,6 +25,7 @@ pub struct PortfolioManager {
     positions:    Vec<Position>,
     commission:   f64,
     slippage:     f64,
+    instrument:   InstrumentSpec,
     realised_pnl: f64,
     total_trades: u64,
 }
@@ -34,6 +36,7 @@ impl PortfolioManager {
         initial_balance: f64,
         commission:      f64,
         slippage:        f64,
+        instrument:      InstrumentSpec,
     ) -> Self {
         Self {
             run_id,
@@ -41,6 +44,7 @@ impl PortfolioManager {
             positions: Vec::new(),
             commission,
             slippage,
+            instrument,
             realised_pnl: 0.0,
             total_trades: 0,
         }
@@ -135,8 +139,8 @@ impl PortfolioManager {
 
         // Process hits in reverse index order to avoid
         // index shifting when removing positions
-        let mut indices: Vec<usize> = hits.iter().map(|(i,_,_)| *i).collect();
-        indices.sort_unstable_by(|a, b| b.cmp(a));
+        // let mut indices: Vec<usize> = hits.iter().map(|(i,_,_)| *i).collect();
+        // indices.sort_unstable_by(|a, b| b.cmp(a));
 
         for (orig_idx, exit_price, reason) in hits {
             let events = self.close_position_at(
@@ -166,19 +170,34 @@ impl PortfolioManager {
             fill.metadata.timestamp,
         );
 
-        let equity      = self.equity(fill.executed_price);
-        let pct_equity  = if equity > 0.0 {
-            (fill.size / equity) * 100.0
-        } else { 0.0 };
-        let pct_balance = if self.balance > 0.0 {
-            (fill.size / self.balance) * 100.0
-        } else { 0.0 };
+        let equity = self.equity(fill.executed_price);
+
+        let exposure_pct = self.instrument.exposure_pct(
+            fill.size,
+            fill.executed_price,
+            equity,
+        );
+
+        let risk_pct = fill.sl.map(|sl| {
+            self.instrument.risk_pct(
+                fill.size,
+                fill.executed_price,
+                sl,
+                equity,
+            )
+        });
+
+        let margin_pct = self.instrument.margin_pct(
+            fill.size,
+            fill.executed_price,
+            equity,
+        );
 
         let position_opened = PositionOpenedEvent {
             metadata:    EventMetadata::new(
-                             self.run_id,
-                             fill.metadata.timestamp,
-                         ),
+                            self.run_id,
+                            fill.metadata.timestamp,
+                        ),
             position_id: position.position_id,
             order_id:    fill.order_id,
             direction:   fill.direction,
@@ -187,12 +206,12 @@ impl PortfolioManager {
             sl:          fill.sl,
             tp:          fill.tp,
             pnl:         0.0,
-            pct_equity,
-            pct_balance,
+            exposure_pct,
+            risk_pct,
+            margin_pct,
         };
 
         self.positions.push(position);
-
         let snapshot = self.snapshot(fill.executed_price, fill.metadata.timestamp);
 
         Ok(PortfolioEvents {
@@ -262,13 +281,22 @@ impl PortfolioManager {
         self.total_trades += 1;
 
         let position    = &self.positions[idx];
-        let equity      = self.equity(exit_price);
-        let pct_equity  = if equity > 0.0 {
-            (position.size / equity) * 100.0
-        } else { 0.0 };
-        let pct_balance = if self.balance > 0.0 {
-            (position.size / self.balance) * 100.0
-        } else { 0.0 };
+        let equity = self.equity(exit_price);
+
+        let exposure_pct = self.instrument.exposure_pct(
+            position.size,
+            position.entry_price,
+            equity,
+        );
+
+        let risk_pct = position.sl.map(|sl| {
+            self.instrument.risk_pct(
+                position.size,
+                position.entry_price,
+                sl,
+                equity,
+            )
+        });
 
         let position_closed = PositionClosedEvent {
             metadata:    EventMetadata::new(self.run_id, timestamp),
@@ -280,8 +308,8 @@ impl PortfolioManager {
             exit_price,
             exit_reason: reason,
             pnl,
-            pct_equity,
-            pct_balance,
+            exposure_pct,
+            risk_pct,
         };
 
         let snapshot = self.snapshot(exit_price, timestamp);
@@ -331,6 +359,7 @@ mod tests {
     use chrono::Utc;
     use observa_core::bar::Bar;
     use observa_core::events::{EventMetadata, OrderFilledEvent};
+    use observa_core::instrument::InstrumentSpec;
     use observa_core::types::Direction;
     use uuid::Uuid;
 
@@ -339,7 +368,7 @@ mod tests {
     }
 
     fn test_portfolio() -> PortfolioManager {
-        PortfolioManager::new(test_run_id(), 10_000.0, 7.0, 0.0001)
+        PortfolioManager::new(test_run_id(), 10_000.0, 7.0, 0.0001, InstrumentSpec::eurusd(),)
     }
 
     fn buy_fill(price: f64) -> OrderFilledEvent {

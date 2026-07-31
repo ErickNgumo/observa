@@ -9,6 +9,7 @@ mod config;
 use config::load_config;
 use observa_core::bar::Bar;
 use observa_core::events::{Event, EventMetadata, OrderIntentCreatedEvent};
+use observa_core::instrument::InstrumentSpec;
 use observa_data::csv_reader::CsvReader;
 use observa_engine::strategy::{PortfolioView, Strategy, OpenPositionView};
 use observa_execution::execution::{ExecutionConfig, ExecutionModel, FillResult, FillMode};
@@ -153,11 +154,12 @@ fn run_backtest(
     strategy: &mut PyStrategy,
     initial_balance: f64,
     execution_config: ExecutionConfig,
+    instrument_spec: InstrumentSpec,
 ) -> Vec<String> {
     let mut events: Vec<String> = Vec::new();
 
     let run_id        = Uuid::new_v4();
-    let mut portfolio = PortfolioManager::new(run_id, initial_balance, execution_config.commission, execution_config.slippage,);
+    let mut portfolio = PortfolioManager::new(run_id, initial_balance, execution_config.commission, execution_config.slippage,instrument_spec);
     let execution     = ExecutionModel::new(execution_config);
     // 15-minute bars: 4 bars per hour × 6.5 trading hours × 252 days
     // For EURUSD (forex, 24h market): 4 × 24 × 252 = 24,192
@@ -548,7 +550,19 @@ fn main() {
         max_lot_size:      config.execution.max_lot_size,
         fill_mode:         FillMode::NextBarOpen,
     };
+    
+    // Build instrument spec from config
+    let instrument = InstrumentSpec {
+        symbol:         config.instrument.symbol.clone(),
+        contract_size:  config.instrument.contract_size,
+        pip_value:      config.instrument.pip_value,
+        price_decimals: config.instrument.price_decimals,
+        margin_rate:    config.instrument.margin_rate,
+    };
 
+    println!("  Instrument: {}", instrument.symbol);
+    println!("  Contract:   {} units/lot", instrument.contract_size);
+    
     let initial_balance = config.account.initial_balance;
 
     let events = run_backtest(
@@ -556,6 +570,7 @@ fn main() {
         &mut strategy,
         initial_balance,
         execution_config,
+        instrument
     );
 
     // ── Serve visualization ────────────────────

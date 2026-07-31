@@ -6,4 +6,5 @@
 pub mod bar;
 pub mod events;
 pub mod types;
+pub mod instrument;
 pub mod drawings;

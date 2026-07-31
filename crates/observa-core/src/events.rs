@@ -288,15 +288,16 @@ pub struct PositionOpenedEvent {
     /// Always 0.0 at open — included for consistency
     pub pnl: f64,
 
-     /// DEPRECATED — division of lot size by monetary value
-    /// has no financial meaning. Will be replaced with
-    /// notional_exposure_pct and risk_pct in a future version.
+    /// Notional exposure as % of equity
+    /// e.g. 1 EURUSD lot at 1.13786 with $10k = 1137.86%
+    pub exposure_pct: f64,
 
-    /// Position size as % of total equity
-    pub pct_equity: f64,
+    /// Capital at risk as % of equity (if SL is hit)
+    /// e.g. 30 pip stop on 1 lot = $300 = 3% of $10k
+    pub risk_pct:     Option<f64>,
 
-    /// Position size as % of total balance
-    pub pct_balance: f64,
+    /// Margin used as % of equity
+    pub margin_pct:   f64,
 }
 
 /// An open position was modified.
@@ -366,11 +367,11 @@ pub struct PositionClosedEvent {
     /// Realised PnL for this trade
     pub pnl: f64,
 
-    /// As % of equity at close time
-    pub pct_equity: f64,
+    /// Notional exposure at entry as % of equity at close time
+    pub exposure_pct: f64,
 
-    /// As % of balance at close time
-    pub pct_balance: f64,
+    /// Risk taken as % of equity (distance to SL at entry)
+    pub risk_pct:     Option<f64>,
 }
 
 // ────────────────────────────────────────────────
