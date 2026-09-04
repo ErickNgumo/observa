@@ -1,0 +1,38 @@
+version: 2
+provider: deepseek
+
+context:
+  always_read:
+    - docs/README.md
+    - docs/CURRENT_STATE.md
+    - agent_system/tickets/{ticket}.md
+  role_docs: docs/agents/{role}.md
+  domain_map:
+    product: [docs/PROJECT.md, docs/MVP.md]
+    architecture: [docs/ARCHITECTURE.md, docs/DECISIONS.md, docs/DOMAIN_MODEL.md]
+    strategy: [docs/STRATEGY_API.md, docs/DOMAIN_MODEL.md]
+    execution: [docs/domain/EXECUTION.md, docs/domain/PORTFOLIO.md]
+    portfolio: [docs/domain/PORTFOLIO.md]
+    metrics: [docs/domain/METRICS.md]
+    data: [docs/domain/DATA.md]
+    visualization: [docs/domain/VISUALIZATION.md]
+    testing: [docs/engineering/TESTING.md]
+    packaging: [docs/engineering/PACKAGING.md]
+    development: [docs/engineering/DEVELOPMENT.md]
+
+roles:
+  research: {mode: advisory, prompt_file: docs/agents/RESEARCH.md}
+  architecture: {mode: review, prompt_file: docs/agents/ARCHITECTURE.md}
+  developer: {mode: implement, prompt_file: docs/agents/DEVELOPER.md}
+  qa: {mode: verify, prompt_file: docs/agents/QA.md}
+  finance: {mode: verify, prompt_file: docs/agents/FINANCE.md}
+  release: {mode: release, prompt_file: docs/agents/RELEASE.md}
+
+routing:
+  small: [developer, qa]
+  medium: [architecture, developer, qa]
+  large: [research, architecture, developer, qa]
+  financial_addition: finance
+  release_addition: release
+
+terminal_states: [ACCEPTED, DEFERRED, BLOCKED]

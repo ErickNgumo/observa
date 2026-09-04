@@ -1,0 +1,11 @@
+version: 3
+providers:
+  deepseek-harness:
+    runtime: deepseek-harness
+    launcher: npx @deepseek-ai/dsh
+    default_profile: headless
+    model_env: DSH_MODEL
+    api_key_env: DEEPSEEK_API_KEY
+    base_url_env: DEEPSEEK_BASE_URL
+    cache: automatic_prefix_cache
+    notes: DeepSeek Harness is the runtime; model/API settings are managed by DSH.

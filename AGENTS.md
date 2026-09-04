@@ -1,138 +1,37 @@
-# AGENTS.md — Observa Context for AI Assistants
+# Observa Agent Instructions
 
-## What Observa is
-Observa is an event-driven visual backtesting engine.
-The Rust engine is the source of truth. Python strategies
-are loaded at runtime via PyO3.
+You are working in the Observa repository.
 
-## How to write a strategy
+## Before changing anything
+Read:
+1. `docs/PROJECT.md` when product context is needed.
+2. `docs/MVP.md` when deciding scope.
+3. `docs/CURRENT_STATE.md` for the current implementation baseline.
+4. `docs/ARCHITECTURE.md` for architectural invariants.
+5. The task ticket under `agent_system/tickets/`.
+6. Your role instructions under `docs/agents/`.
+7. Relevant domain/engineering documents referenced by the ticket.
 
-Strategies are plain Python classes with three required methods:
+## Authority
+- Current code is runtime truth.
+- `docs/MVP.md` controls MVP scope.
+- `docs/ARCHITECTURE.md` controls architectural invariants.
+- `docs/DECISIONS.md` records historical decisions; it does not override current code or approved scope.
+- Never invent undocumented APIs when the repository can be inspected.
 
-    class MyStrategy:
-        def initialize(self, params=None):
-            # Called once before replay starts
-            # Set up indicators and state here
-            pass
+## Non-negotiable Observa invariants
+- Event log is the source of truth.
+- Visualization does not compute financial truth.
+- Strategy emits intent/signals; execution determines fills.
+- Execution applies spread/slippage according to the execution rules.
+- Equity snapshots are sampled per bar for mark-to-market metrics.
+- Determinism is required.
+- Future data must be structurally inaccessible to strategies.
+- Financial changes require independent Finance/QA verification.
 
-        def on_bar(self, bar, portfolio, history):
-            # Called on every closed bar
-            # bar: dict with open/high/low/close/volume/timestamp
-            # portfolio: dict with balance/equity/has_open_position/
-            #            position_direction/position_entry_price/unrealised_pnl
-            # history: list of previous bar dicts
-            # Returns: list of signal dicts, or empty list
-            return []
-
-        def teardown(self):
-            # Called once after replay ends
-            pass
-
-## Signal format
-
-on_bar() must return a list of dicts:
-
-    {
-        'direction': 'buy' | 'sell' | 'close',  # required
-        'size':      1.0,                         # required, in lots
-        'price':     1.1376,                      # optional, defaults to bar close
-        'sl':        1.1350,                      # optional, stop loss price
-        'tp':        1.1420,                      # optional, take profit price
-        'reason':    'RSI divergence',            # optional, shown on chart tooltip
-    }
-
-## Running a strategy
-
-    cargo run -p observa-cli -- run \
-        --strategy strategies/my_strategy.py \
-        --data data/EURUSD_M15.csv
-
-    # Or with options:
-    cargo run -p observa-cli -- run \
-        --strategy strategies/my_strategy.py \
-        --data data/EURUSD_M15.csv \
-        --balance 50000 \
-        --spread 0.0002 \
-        --commission 7.0
-
-## Example strategy
-
-    class EMACrossover:
-        def initialize(self, params=None):
-            self.fast_ema = None
-            self.slow_ema = None
-            self.prev_fast = None
-            self.prev_slow = None
-
-        def _ema(self, current, price, period):
-            if current is None:
-                return price
-            k = 2.0 / (period + 1.0)
-            return price * k + current * (1.0 - k)
-
-        def on_bar(self, bar, portfolio, history):
-            self.prev_fast = self.fast_ema
-            self.prev_slow = self.slow_ema
-            self.fast_ema = self._ema(self.fast_ema, bar['close'], 5)
-            self.slow_ema = self._ema(self.slow_ema, bar['close'], 20)
-
-            if self.prev_fast is None:
-                return []
-
-            crossed_up   = self.prev_fast <= self.prev_slow \
-                           and self.fast_ema > self.slow_ema
-            crossed_down = self.prev_fast >= self.prev_slow \
-                           and self.fast_ema < self.slow_ema
-
-            if crossed_up and not portfolio['has_open_position']:
-                return [{'direction': 'buy', 'size': 1.0,
-                         'sl': bar['close'] - 0.003,
-                         'tp': bar['close'] + 0.006,
-                         'reason': 'EMA crossover up'}]
-
-            if crossed_down and portfolio['has_open_position']:
-                return [{'direction': 'close', 'size': 1.0,
-                         'reason': 'EMA crossover down'}]
-
-            return []
-
-        def teardown(self):
-            pass
-
-## Architecture — for contributors
-
-The engine is event-sourced. Every meaningful action emits
-an immutable event. The event log is the source of truth.
-
-Crate responsibilities:
-  observa-core      — Bar, all event types, shared enums
-  observa-data      — CSV reader, validation
-  observa-engine    — Event Bus, Strategy trait, replay loop
-  observa-execution — Fill simulation, spread/slippage/commission
-  observa-portfolio — Positions, capital, PnL tracking
-  observa-metrics   — Drawdown, Sharpe, Calmar, win rate
-  observa-python    — PyO3 bridge, loads Python strategies
-  observa-cli       — CLI binary, argument parsing, HTTP server
-
-The four hard rules:
-  1. Strategy never places orders directly — it emits signals
-  2. Visualization never computes truth — it subscribes to events
-  3. Execution model is the only place realism is applied
-  4. Every state change emits an event
-
-## Common mistakes to avoid
-
-Wrong — returning a signal without the required fields:
-    return [{'direction': 'buy'}]  # missing 'size'
-
-Wrong — mutating the bar dict:
-    bar['close'] = 1.1376  # don't do this
-
-Wrong — using future data:
-    history[10]  # this is fine, history is past bars only
-    # but never try to access future bars — the engine
-    # structurally prevents this
-
-Right — always return a list, never a single dict:
-    return [signal]   # correct
-    return signal     # wrong — must be wrapped in a list
+## Agent behavior
+- Work only on the assigned ticket.
+- Do not silently expand scope.
+- Report uncertainty instead of guessing.
+- Run relevant tests/checks after changes.
+- Record important findings in the ticket/run artifacts.

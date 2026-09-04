@@ -1,0 +1,4 @@
+runs/
+worktrees/
+*.pyc
+__pycache__/

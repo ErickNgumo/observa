@@ -1,134 +1,151 @@
-# Observa — Architecture Blueprint
+# Observa Architecture
 
-> This document shows how a single bar flows through the system,
-> from raw data to visual output. Every arrow is an event. Every
-> box is an isolated component.
+## 1. Architectural style
 
----
+Observa is designed as an event-sourced, component-isolated system.
 
-## Single Bar Flow
+Every meaningful state change emits an immutable event. Components communicate through the event architecture rather than sharing hidden mutable state.
 
-```mermaid
-flowchart LR
-    DS[(Dataset\nOHLCV / Tick)]
-    RE[Replay Engine]
-    EB{{Event Bus}}
-    EL[(Event Log)]
-    ST[Strategy Sandbox]
-    EM[Execution Model]
-    PM[Portfolio Manager]
-    ML[Metrics Layer]
-    VL[Visualization Layer]
+## 2. Golden rules
 
-    DS -->|next bar| RE
-    RE -->|BarReceivedEvent| EB
+These are the core architectural invariants carried forward from the source knowledge base:
 
-    EB -->|BarReceivedEvent| ST
-    EB -->|every event| EL
-    EB -->|every event| VL
-    EB -->|every event| ML
+1. The UI computes nothing about system truth.
+2. The Strategy decides nothing about execution.
+3. The Execution Engine knows nothing about portfolio state.
+4. Components communicate through events.
 
-    PM -.->|read-only portfolio state| ST
+## 3. Additional invariants
 
-    ST -->|IndicatorUpdatedEvent| EB
-    ST -->|SignalEmittedEvent| EB
+- Every state-changing operation emits an event.
+- Same inputs produce the same outputs.
+- Future data is structurally unavailable to the strategy.
+- Execution realism is applied in the execution model / approved portfolio logic, not in presentation code.
+- Portfolio snapshots are emitted on every bar so the equity curve is mark-to-market.
 
-    EB -->|SignalEmittedEvent| RE
-    RE -->|OrderIntentCreatedEvent| EB
+## 4. Runtime flow
 
-    EB -->|OrderIntentCreatedEvent| EM
-    EM -->|OrderSubmittedEvent| EB
-    EM -->|OrderFilledEvent| EB
-    EM -->|OrderRejectedEvent| EB
-    EM -->|OrderCancelledEvent| EB
-
-    EB -->|OrderFilledEvent| PM
-    PM -->|PositionOpenedEvent| EB
-    PM -->|PositionClosedEvent| EB
-    PM -->|PortfolioSnapshotEvent| EB
-
-    classDef data        fill:#1a1a2e,stroke:#4a90d9,color:#fff
-    classDef engine      fill:#16213e,stroke:#e94560,color:#fff
-    classDef processing  fill:#0f3460,stroke:#53d8fb,color:#fff
-    classDef output      fill:#1a1a2e,stroke:#a8e063,color:#fff
-    classDef bus         fill:#e94560,stroke:#fff,color:#fff
-
-    class DS,EL data
-    class RE engine
-    class EB bus
-    class ST,EM,PM processing
-    class ML,VL output
+```text
+CSV
+ ↓
+observa-data
+ ↓
+observa-cli / replay orchestration
+ ├─ bar received
+ ├─ strategy.on_bar() through PyO3
+ ├─ signal → order intent
+ ├─ execution model → fill or rejection
+ ├─ portfolio manager → position / PnL events
+ ├─ portfolio snapshot every bar
+ └─ drawings/events
+ ↓
+HTTP server
+ ↓
+Browser frontend
+ ↓
+TradingView Lightweight Charts
 ```
 
----
+## 5. Crates
 
-## Key Design Decision — Portfolio Visibility
+```text
+observa-core
+  Shared Bar, events, enums, drawings, InstrumentSpec
 
-The Strategy is allowed to *read* the current portfolio state — open
-positions, direction, entry price — so it can make exit decisions.
+observa-data
+  CSV loading and validation
 
-It receives this as a **read-only snapshot** each bar, passed alongside
-the market data. It can never mutate portfolio state directly.
+observa-engine
+  Event bus, Strategy trait, signals, portfolio view, replay loop
 
+observa-execution
+  ExecutionModel, configuration, fill calculation, validation
+
+observa-portfolio
+  PortfolioManager, positions, SL/TP, equity
+
+observa-metrics
+  EquityCurve, drawdown, trade statistics, MetricsEngine
+
+observa-python
+  PyO3 bridge, strategy loading, conversion, drawings
+
+observa-cli
+  CLI, configuration, orchestration, HTTP serving
+
+observa-runner
+  Earlier prototype; largely superseded
+
+observa-server
+  Earlier prototype; retained mainly for development testing
 ```
-Each bar, the Strategy receives:
-  ├── Current Bar (OHLCV)
-  ├── Its own private indicator state
-  └── Read-only Portfolio snapshot
-         ├── Open positions
-         ├── Position direction (long / short)
-         ├── Entry price
-         └── Unrealised PnL
+
+## 6. Event taxonomy
+
+### Market
+- BarReceivedEvent
+
+### Strategy
+- SignalEmittedEvent
+- IndicatorUpdatedEvent
+- DrawingsEmitted
+
+### Order
+- OrderIntentCreatedEvent
+- OrderSubmittedEvent
+- OrderFilledEvent
+- OrderRejectedEvent
+- OrderCancelledEvent
+
+### Position
+- PositionOpenedEvent
+- PositionUpdatedEvent
+- PositionClosedEvent
+
+### Portfolio
+- PortfolioSnapshotEvent
+
+### Run
+- RunStartedEvent
+- RunCompletedEvent
+- RunErrorEvent
+
+### Annotation
+- JournalEntryAddedEvent
+
+## 7. Traceability
+
+The intended chain for a normal trade is:
+
+```text
+SignalEmittedEvent
+  ↓
+OrderIntentCreatedEvent
+  ↓
+OrderFilledEvent / OrderRejectedEvent
+  ↓
+PositionOpenedEvent
+  ↓
+PositionClosedEvent
 ```
 
-The exit flow works like this:
+The event IDs and run ID provide traceability across the chain.
 
-```
-Strategy reads open position
-  → emits ExitSignalEvent
-  → Replay Engine creates OrderIntentCreatedEvent (close)
-  → Execution Model processes it
-  → OrderFilledEvent emitted
-  → Portfolio Manager closes position
-  → PositionClosedEvent emitted
-  → Visualization renders exit marker
-```
+## 8. Financial execution invariants
 
-The Strategy **decides**. The Portfolio Manager **executes the result**.
+- Calculate actual fill price before validating SL/TP distance.
+- SL exits receive slippage because they represent market execution.
+- TP exits do not receive slippage because they represent limit execution.
+- Portfolio equity includes unrealised PnL.
+- Portfolio snapshots are emitted for every bar.
+- InstrumentSpec is the intended source for monetary exposure calculations.
 
----
+## 9. Important implementation constraint
 
-## Component Responsibilities
+The CLI currently depends on the concrete `PyStrategy` type when it needs access to `pending_drawings`. `pending_drawings` is not available through `dyn Strategy`.
 
-| Component | Role | Emits | Receives |
-|---|---|---|---|
-| **Dataset** | Serves raw bar or tick data | — | — |
-| **Replay Engine** | Controls time, drives the loop, converts signals to order intents | `BarReceivedEvent` `OrderIntentCreatedEvent` | `SignalEmittedEvent` |
-| **Event Bus** | Routes all events to subscribers | — | Everything |
-| **Strategy Sandbox** | Runs user logic, reads portfolio state, emits signals | `SignalEmittedEvent` `IndicatorUpdatedEvent` | `BarReceivedEvent` + read-only portfolio |
-| **Execution Model** | Applies spread, slippage, commission, fill logic | `OrderSubmittedEvent` `OrderFilledEvent` `OrderRejectedEvent` `OrderCancelledEvent` | `OrderIntentCreatedEvent` |
-| **Portfolio Manager** | Tracks capital, positions, PnL. Provides read-only view to Strategy | `PositionOpenedEvent` `PositionClosedEvent` `PortfolioSnapshotEvent` | `OrderFilledEvent` |
-| **Metrics Layer** | Derives statistics from the event stream | — | All events |
-| **Visualization Layer** | Renders chart, markers, indicators, equity curve | — | All events |
-| **Event Log** | Persists every event immutably | — | All events |
+This is an implementation constraint, not a general architectural principle that every future component must copy.
 
----
+## 10. Architecture review rule
 
-## The Four Hard Rules
-
-1. **The Strategy never places orders directly.**
-   It emits signals. The Replay Engine creates intents.
-
-2. **The Visualization Layer computes nothing.**
-   It only reacts to events. All truth lives in the event log.
-
-3. **The Execution Model is the only place realism is applied.**
-   Spread, slippage, and commission live here and nowhere else.
-
-4. **Every state change emits an event.**
-   If it didn't emit an event, it didn't happen.
-
----
-
-*This diagram reflects the MVP architecture. Components are designed
-to be extended without modifying each other.*
+An old architectural decision may be changed when there is a documented reason. The architecture document describes current approved invariants; historical rationale belongs in `DECISIONS.md`.
