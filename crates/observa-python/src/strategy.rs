@@ -28,6 +28,9 @@ pub struct PyStrategy {
     class_name: String,
     /// Drawing from the strategy
     pub pending_drawings: Vec<observa_core::drawings::DrawingInstruction>,
+    /// Last structured strategy error produced by the bridge (drained by the
+    /// Engine after each callback so failures are never silent).
+    last_error: Option<String>,
 }
 
 impl PyStrategy {
@@ -81,6 +84,7 @@ impl PyStrategy {
                 instance,
                 class_name: class_name.to_string(),
                 pending_drawings: Vec::new(),
+                last_error: None,
             })
         })
     }
@@ -114,6 +118,7 @@ impl Strategy for PyStrategy {
                 "[PyStrategy] initialize() failed on '{}': {}",
                 self.class_name, e
             );
+            self.last_error = Some(format!("initialize() failed: {e}"));
         }
     }
 
@@ -130,11 +135,17 @@ impl Strategy for PyStrategy {
         Python::with_gil(|py| {
             let py_bar = match bar_to_py(py, bar) {
                 Ok(d)  => d,
-                Err(e) => { eprintln!("[PyStrategy] bar: {}", e); return vec![]; }
+                Err(e) => {
+                    self.last_error = Some(format!("bar conversion failed: {e}"));
+                    return vec![];
+                }
             };
             let py_portfolio = match portfolio_to_py(py, portfolio) {
                 Ok(d)  => d,
-                Err(e) => { eprintln!("[PyStrategy] portfolio: {}", e); return vec![]; }
+                Err(e) => {
+                    self.last_error = Some(format!("portfolio conversion failed: {e}"));
+                    return vec![];
+                }
             };
             let py_history = PyList::empty_bound(py);
             for h_bar in history {
@@ -149,6 +160,7 @@ impl Strategy for PyStrategy {
                 Ok(r)  => r,
                 Err(e) => {
                     eprintln!("[PyStrategy] on_bar() failed: {}", e);
+                    self.last_error = Some(format!("on_bar() failed: {e}"));
                     return vec![];
                 }
             };
@@ -171,7 +183,10 @@ impl Strategy for PyStrategy {
                         Ok(parsed) => {
                             self.pending_drawings = parsed;
                         }
-                        Err(e) => eprintln!("[PyStrategy] drawings: {}", e),
+                        Err(e) => {
+                            eprintln!("[PyStrategy] drawings: {}", e);
+                            self.last_error = Some(format!("drawings parse failed: {e}"));
+                        }
                     }
                 }
                 (signals, ())
@@ -188,15 +203,37 @@ impl Strategy for PyStrategy {
                 None    => return vec![],
             };
 
-            signal_list.iter()
+            let mut parse_error: Option<String> = None;
+            let signals = signal_list
+                .iter()
                 .filter_map(|item| {
                     match signal_from_py(py, &item) {
-                        Ok(s)  => Some(s),
-                        Err(e) => { eprintln!("[PyStrategy] signal: {}", e); None }
+                        Ok(s) => Some(s),
+                        Err(e) => {
+                            eprintln!("[PyStrategy] signal: {}", e);
+                            parse_error = Some(format!("signal parse failed: {e}"));
+                            None
+                        }
                     }
                 })
-                .collect()
+                .collect();
+            if let Some(err) = parse_error {
+                self.last_error = Some(err);
+            }
+            signals
         })
+    }
+
+    /// Drains drawings produced by the last strategy callback.
+    fn take_drawings(
+        &mut self,
+    ) -> Vec<observa_core::drawings::DrawingInstruction> {
+        std::mem::take(&mut self.pending_drawings)
+    }
+
+    /// Drains the last structured strategy error, if any.
+    fn take_strategy_error(&mut self) -> Option<String> {
+        self.last_error.take()
     }
 
     /// Calls teardown() on the Python strategy.
@@ -206,6 +243,7 @@ impl Strategy for PyStrategy {
                 "[PyStrategy] teardown() failed on '{}': {}",
                 self.class_name, e
             );
+            self.last_error = Some(format!("teardown() failed: {e}"));
         }
     }
 }

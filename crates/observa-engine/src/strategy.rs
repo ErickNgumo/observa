@@ -1,95 +1,120 @@
-use observa_core::bar::Bar;
-use observa_core::types::Direction;
+use std::collections::BTreeMap;
 
-/// A single open position visible to the strategy
+use serde_json::Value;
+
+use observa_core::bar::Bar;
+use observa_core::drawings::DrawingInstruction;
+use observa_core::types::{Direction, OrderKind};
+
+/// A single open position visible to the strategy.
 /// Read-only — the strategy can see it but not modify it.
 #[derive(Debug, Clone)]
 pub struct OpenPositionView {
-    /// Unique ticket ID - use this to close the position
-    pub ticket:         String,
-    /// Buy or Sell
-    pub direction:      Direction,
-    /// Lot size
-    pub size:           f64,
-    /// Price at which the position was opened
-    pub entry_price:    f64,
-    /// Current unrealised pnl
+    /// Unique ticket ID — use this to close the position.
+    pub ticket: String,
+    /// Buy or Sell.
+    pub direction: Direction,
+    /// Position quantity in lots.
+    pub size: f64,
+    /// Price at which the position was opened.
+    pub entry_price: f64,
+    /// Current unrealised PnL at the current valuation price.
     pub unrealised_pnl: f64,
-    /// Current Stoploss 
-    pub sl:             Option<f64>,
-    /// Current take profit
-    pub tp:             Option<f64>,
+    /// Current stop loss.
+    pub sl: Option<f64>,
+    /// Current take profit.
+    pub tp: Option<f64>,
 }
 
 // ────────────────────────────────────────────────
 // StrategySignal
 // ────────────────────────────────────────────────
 
-/// A signal emitted by a strategy indicating
-/// it wants to enter or exit a trade.
+/// A signal emitted by a strategy expressing intent.
 ///
-/// This is not an order — it is intent.
-/// The engine converts this into an OrderIntent.
+/// This is not an order — it is intent. The Engine (OBS-0007) converts each
+/// signal into a canonical runtime order and schedules/executes it.
 #[derive(Debug, Clone)]
 pub struct StrategySignal {
-    /// Buy or Sell
+    /// `Buy`/`Sell` open a new position; `Close` closes the position named by
+    /// `ticket`.
     pub direction: Direction,
 
-    /// Requested lot size
+    /// Generic order type requested (defaults to MARKET). LIMIT/STOP orders
+    /// use `intended_price` as their limit/stop trigger price.
+    pub order_type: OrderKind,
+
+    /// Requested quantity in lots.
     pub size: f64,
 
-    /// Price the strategy wants to fill at
+    /// For LIMIT/STOP orders this is the trigger/limit price; for MARKET
+    /// orders it is informational (market reference prices come from the bar
+    /// per the fill mode).
     pub intended_price: f64,
 
-    /// Stop loss price — optional
+    /// Stop loss price — optional (attached to an entry position).
     pub sl: Option<f64>,
 
-    /// Take profit price — optional
+    /// Take profit price — optional (attached to an entry position).
     pub tp: Option<f64>,
 
-    /// Why the strategy signalled
-    /// Appears on chart tooltip
+    /// Why the strategy signalled (shown on chart tooltips).
     pub reason: String,
 
-    /// signal ticket
+    /// Position ticket — required for `Close`.
     pub ticket: Option<String>,
+}
+
+impl StrategySignal {
+    /// A MARKET order signal.
+    pub fn market(
+        direction: Direction,
+        size: f64,
+        sl: Option<f64>,
+        tp: Option<f64>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            direction,
+            order_type: OrderKind::Market,
+            size,
+            intended_price: 0.0,
+            sl,
+            tp,
+            reason: reason.into(),
+            ticket: None,
+        }
+    }
 }
 
 // ────────────────────────────────────────────────
 // PortfolioView — read only snapshot for strategy
 // ────────────────────────────────────────────────
 
-/// A read-only snapshot of portfolio state
-/// passed to the strategy on every bar.
-///
-/// The strategy can READ this but never mutate it.
+/// A read-only snapshot of portfolio state passed to the strategy on every
+/// bar. The strategy can READ it but never mutate it.
 #[derive(Debug, Clone)]
 pub struct PortfolioView {
-    /// Current account balance (realised only)
+    /// Current account balance (realised only).
     pub balance: f64,
-
-    /// Current equity (balance + unrealised PnL)
+    /// Current equity (balance + unrealised PnL of ALL open positions).
     pub equity: f64,
-
-    /// Whether there is currently an open position
+    /// Whether any position is currently open.
     pub has_open_position: bool,
-
-    /// All currently open positions
+    /// All currently open positions.
     pub open_positions: Vec<OpenPositionView>,
-
-    /// Current unrealised PnL of open position
+    /// Current unrealised PnL across all open positions.
     pub unrealised_pnl: f64,
 }
 
 impl PortfolioView {
-    /// Creates an empty portfolio view
-    /// used at the start of a run
+    /// An empty portfolio view, used at the start of a run.
     pub fn empty(initial_balance: f64) -> Self {
         Self {
             balance: initial_balance,
             equity: initial_balance,
             has_open_position: false,
-            open_positions:Vec::new(),            
+            open_positions: Vec::new(),
             unrealised_pnl: 0.0,
         }
     }
@@ -101,24 +126,35 @@ impl PortfolioView {
 
 /// The interface every strategy must implement.
 ///
-/// The engine calls these methods in strict order:
-///   1. initialize() — once before replay starts
-///   2. on_bar()     — once per closed bar
-///   3. teardown()   — once after replay ends
+/// The Engine (OBS-0007) drives the strategy lifecycle in strict order:
+///   1. `initialize_with_params` — once before replay starts (with the
+///      resolved strategy parameters when available);
+///   2. `on_bar` — once per closed bar;
+///   3. `teardown` — once after replay ends.
 ///
-/// The strategy never touches orders, fills, or
-/// portfolio state directly. It only returns signals.
+/// The strategy never touches orders, fills, or portfolio state directly. It
+/// returns signals (and optionally drawings) which the Engine converts into
+/// canonical runtime orders.
 pub trait Strategy {
-    /// Called once before the first bar.
-    /// Use this to set up indicators and state.
-    fn initialize(&mut self);
+    /// Called once before the first bar. Default: no-op.
+    fn initialize(&mut self) {}
+
+    /// Engine-owned parameterized initialization hook.
+    ///
+    /// Default implementation forwards to [`Strategy::initialize`]. Bridges
+    /// that can deliver parameters (e.g. a future Python packaging layer)
+    /// should override this method. The Engine always passes the resolved
+    /// strategy parameters through this method; never call `initialize`
+    /// directly from orchestration.
+    fn initialize_with_params(&mut self, _params: Option<&BTreeMap<String, Value>>) {
+        self.initialize();
+    }
 
     /// Called on every closed bar in strict time order.
-    /// Receives the current bar and a read-only
-    /// portfolio snapshot.
     ///
-    /// Returns zero or more signals. Returning an
-    /// empty Vec means "do nothing this bar."
+    /// Receives the current bar, a read-only portfolio snapshot (all open
+    /// positions) and the strictly-prior bar history. Returns zero or more
+    /// signals; an empty `Vec` means "do nothing this bar".
     fn on_bar(
         &mut self,
         bar: &Bar,
@@ -126,9 +162,22 @@ pub trait Strategy {
         bars_history: &[Bar],
     ) -> Vec<StrategySignal>;
 
-    /// Called once after the last bar.
-    /// Use this for cleanup or final logging.
-    fn teardown(&mut self);
+    /// Drawings produced during the last `on_bar` call, drained by the Engine
+    /// after each strategy invocation. Default: no drawings.
+    fn take_drawings(&mut self) -> Vec<DrawingInstruction> {
+        Vec::new()
+    }
+
+    /// A structured strategy error recorded by the bridge, drained by the
+    /// Engine after each strategy call. `Some` means the last callback failed
+    /// and the Engine must treat the run as failed rather than silently
+    /// continuing with an empty decision. Default: no error.
+    fn take_strategy_error(&mut self) -> Option<String> {
+        None
+    }
+
+    /// Called once after the last bar. Use for cleanup or final logging.
+    fn teardown(&mut self) {}
 }
 
 // ────────────────────────────────────────────────
@@ -141,9 +190,7 @@ mod tests {
     use chrono::Utc;
     use observa_core::types::Direction;
 
-    /// A minimal test strategy that buys on
-    /// every single bar — used to verify the
-    /// trait interface works correctly
+    /// A minimal test strategy that buys on every single bar.
     struct AlwaysBuyStrategy {
         initialized: bool,
         torn_down: bool,
@@ -161,8 +208,8 @@ mod tests {
     }
 
     impl Strategy for AlwaysBuyStrategy {
-        fn initialize (&mut self) {
-            self.initialized = true;            
+        fn initialize(&mut self) {
+            self.initialized = true;
         }
 
         fn on_bar(
@@ -172,8 +219,9 @@ mod tests {
             _history: &[Bar],
         ) -> Vec<StrategySignal> {
             self.bars_seen += 1;
-            vec! [StrategySignal {
+            vec![StrategySignal {
                 direction: Direction::Buy,
+                order_type: OrderKind::Market,
                 size: 1.0,
                 intended_price: bar.close,
                 sl: Some(bar.close - 0.0020),
@@ -183,55 +231,59 @@ mod tests {
             }]
         }
 
-        fn teardown (&mut self) {
+        fn teardown(&mut self) {
             self.torn_down = true;
         }
     }
 
     fn test_bar() -> Bar {
-        Bar::new(
-            Utc::now(),
-            1.1376,
-            1.13787,
-            1.1376,
-            1.13786,
-            Some(278.19),
-        )
+        Bar::new(Utc::now(), 1.1376, 1.13787, 1.1376, 1.13786, Some(278.19))
     }
 
-    fn test_portfolio() -> PortfolioView {
-        PortfolioView::empty(10_000.0)
-    }
     #[test]
-    fn strategy_lifecycle_works_correctly () {
+    fn strategy_lifecycle_works_correctly() {
         let mut strategy = AlwaysBuyStrategy::new();
 
-        //Before initialize
         assert!(!strategy.initialized);
-
-        //Initialize
-        strategy.initialize();
+        strategy.initialize_with_params(None);
         assert!(strategy.initialized);
 
-        //on_bar returns a signal
         let bar = test_bar();
-        let portfolio = test_portfolio();
+        let portfolio = PortfolioView::empty(10_000.0);
         let signals = strategy.on_bar(&bar, &portfolio, &[]);
-
         assert_eq!(signals.len(), 1);
         assert_eq!(signals[0].direction, Direction::Buy);
-        assert_eq!(signals[0].intended_price, bar.close);
+        assert_eq!(signals[0].order_type, OrderKind::Market);
         assert_eq!(strategy.bars_seen, 1);
 
-        // Teardown
         strategy.teardown();
         assert!(strategy.torn_down);
-        
     }
+
+    #[test]
+    fn default_initialize_with_params_delegates_to_initialize() {
+        struct Noop;
+        impl Strategy for Noop {
+            fn on_bar(
+                &mut self,
+                _bar: &Bar,
+                _portfolio: &PortfolioView,
+                _history: &[Bar],
+            ) -> Vec<StrategySignal> {
+                vec![]
+            }
+        }
+        let mut s = Noop;
+        // Default hooks exist and are safe.
+        assert!(s.take_drawings().is_empty());
+        assert!(s.take_strategy_error().is_none());
+        s.initialize_with_params(Some(&BTreeMap::new()));
+        s.teardown();
+    }
+
     #[test]
     fn portfolio_view_empty_has_correct_defaults() {
         let portfolio = PortfolioView::empty(10_000.0);
-
         assert_eq!(portfolio.balance, 10_000.0);
         assert_eq!(portfolio.equity, 10_000.0);
         assert!(!portfolio.has_open_position);
@@ -239,15 +291,13 @@ mod tests {
         assert_eq!(portfolio.unrealised_pnl, 0.0);
     }
 
-     #[test]
+    #[test]
     fn strategy_receives_bar_history() {
         struct HistoryCheckStrategy {
             history_length_seen: usize,
         }
 
         impl Strategy for HistoryCheckStrategy {
-            fn initialize(&mut self) {}
-
             fn on_bar(
                 &mut self,
                 _bar: &Bar,
@@ -257,8 +307,6 @@ mod tests {
                 self.history_length_seen = history.len();
                 vec![]
             }
-
-            fn teardown(&mut self) {}
         }
 
         let mut strategy = HistoryCheckStrategy {
@@ -266,12 +314,9 @@ mod tests {
         };
 
         let bar = test_bar();
-        let portfolio = test_portfolio();
-
-        // Simulate 3 bars of history
+        let portfolio = PortfolioView::empty(10_000.0);
         let history = vec![test_bar(), test_bar(), test_bar()];
         strategy.on_bar(&bar, &portfolio, &history);
-
         assert_eq!(strategy.history_length_seen, 3);
     }
 
@@ -280,27 +325,18 @@ mod tests {
         struct DoNothingStrategy;
 
         impl Strategy for DoNothingStrategy {
-            fn initialize(&mut self) {}
-
             fn on_bar(
                 &mut self,
                 _bar: &Bar,
                 _portfolio: &PortfolioView,
                 _history: &[Bar],
             ) -> Vec<StrategySignal> {
-                vec![] // no signals this bar
+                vec![]
             }
-
-            fn teardown(&mut self) {}
         }
 
         let mut strategy = DoNothingStrategy;
-        let signals = strategy.on_bar(
-            &test_bar(),
-            &PortfolioView::empty(10_000.0),
-            &[],
-        );
-
+        let signals = strategy.on_bar(&test_bar(), &PortfolioView::empty(10_000.0), &[]);
         assert!(signals.is_empty());
     }
 }

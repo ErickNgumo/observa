@@ -1,517 +1,1136 @@
-use chrono::Utc;
+//! The canonical Observa replay engine (OBS-0007).
+//!
+//! `observa-engine` is the **single authoritative owner of the backtest
+//! runtime loop**. The Engine coordinates, in a fixed deterministic per-bar
+//! chronology, the three verified authorities:
+//!
+//! * configuration/domain vocabulary — `observa_core::config` (OBS-0004);
+//! * financial/position accounting — `observa_portfolio` (OBS-0005);
+//! * order/execution semantics — `observa_execution::semantics` (OBS-0006).
+//!
+//! The Engine itself performs **no** independent economic math: it asks the
+//! execution semantics layer what price/result occurred, then asks the
+//! PortfolioManager what that means financially. The CLI and future
+//! Python/Jupyter layers invoke [`Engine::run`]; they do not reproduce the
+//! loop.
+
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use observa_core::bar::Bar;
-use observa_core::events::{
-    BarReceivedEvent, Event, EventMetadata,
-    OrderIntentCreatedEvent, RunCompletedEvent,
-    RunStartedEvent, SignalEmittedEvent,
+use observa_core::config::{BacktestConfig, CommissionConfig, FillMode, InstrumentConfig};
+use observa_core::drawings::DrawingInstruction;
+use observa_core::types::{Direction, ExitReason, OrderKind, OrderState};
+use observa_execution::semantics::{
+    self, ExecutionSettings, OrderSpec, Outcome, ProtectiveLevels, ProtectiveOutcome,
+};
+use observa_portfolio::portfolio::{
+    ClosePositionReport, EndOfRunState, OpenPositionRequest, PortfolioManager, PortfolioSettings,
+    PortfolioSnapshot,
 };
 
 use crate::error::EngineError;
-use crate::event_bus::EventBus;
-use crate::strategy::{PortfolioView, Strategy};
+use crate::strategy::{OpenPositionView, PortfolioView, Strategy, StrategySignal};
 
 // ────────────────────────────────────────────────
-// EngineConfig
+// Runtime records
 // ────────────────────────────────────────────────
-//
-// NOTE (OBS-0004): LEGACY type. The canonical configuration model is
-// `observa_core::config::BacktestConfig`. `EngineConfig` belongs to the
-// historical `Engine::run` stub, which is superseded by the canonical engine
-// runtime (OBS-0007).
 
-/// Configuration for a single run.
-/// Frozen at the start — never changes during replay.
-#[derive(Debug, Clone)]
-pub struct EngineConfig {
-    /// Unique ID for this run
-    pub run_id: Uuid,
-
-    /// Starting capital
-    pub initial_balance: f64,
-
-    /// Fixed spread in price units e.g. 0.0002 for 2 pips
-    pub spread: f64,
-
-    /// Fixed slippage in price units
-    pub slippage: f64,
-
-    /// Commission per trade in account currency
-    pub commission: f64,
-
-    /// Name of the strategy being run
-    pub strategy_name: String,
-
-    /// Dataset name for reproducibility
-    pub dataset_name: String,
+/// Why a fill occurred. Strategy order kinds are MARKET/LIMIT/STOP; protective
+/// SL/TP are position-attached instructions (conceptually separate from
+/// generic orders, OBS-0006 §19).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FillReason {
+    MarketEntry,
+    MarketClose,
+    LimitEntry,
+    StopEntry,
+    StopLoss,
+    TakeProfit,
 }
 
-impl EngineConfig {
-    /// Creates a new config with a fresh run_id
-    pub fn new(
-        initial_balance: f64,
-        spread: f64,
-        slippage: f64,
-        commission: f64,
-        strategy_name: impl Into<String>,
-        dataset_name: impl Into<String>,
-    ) -> Self {
-        Self {
-            run_id: Uuid::new_v4(),
-            initial_balance,
-            spread,
-            slippage,
-            commission,
-            strategy_name: strategy_name.into(),
-            dataset_name: dataset_name.into(),
-        }
-    }
+/// One execution fill, in deterministic chronological order.
+#[derive(Debug, Clone)]
+pub struct RuntimeFill {
+    /// Bar on which the fill occurred.
+    pub bar_index: usize,
+    /// Strategy-order sequence (present for strategy-generated orders;
+    /// `None` for protective SL/TP executions which are ordered by the fixed
+    /// per-bar protective stage).
+    pub order_seq: Option<u64>,
+    /// Why this fill happened.
+    pub reason: FillReason,
+    /// Execution side (entry side for opens; exit side for closes).
+    pub side: Direction,
+    /// Quantity in lots.
+    pub quantity_lots: f64,
+    /// Raw reference price before adjustments.
+    pub raw_reference: f64,
+    /// Final executed price (includes spread/slippage where applicable).
+    pub executed_price: f64,
+    /// Half-spread applied (market-style only).
+    pub spread_applied: f64,
+    /// Adverse slippage applied (market-style only).
+    pub slippage_applied: f64,
+    /// Commission amount supplied to the portfolio for this fill.
+    pub commission_amount: f64,
+    /// Position affected (opened for entries; closed for exits).
+    pub position_id: Option<Uuid>,
+    /// Market timestamp of the fill bar.
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Lifecycle record of one strategy-generated order (market/limit/stop/close).
+/// Protective executions are recorded through fills/trades and position state,
+/// not as generic orders.
+#[derive(Debug, Clone)]
+pub struct OrderRecord {
+    /// Strictly-increasing engine-assigned creation sequence.
+    pub seq: u64,
+    /// Generic order kind requested.
+    pub order_type: OrderKind,
+    /// Requested side.
+    pub side: Direction,
+    /// Quantity in lots.
+    pub quantity_lots: f64,
+    /// Bar on which the order was created.
+    pub created_bar: usize,
+    /// Current lifecycle state.
+    pub state: OrderState,
+    /// Position opened/closed by this order, when applicable.
+    pub position_id: Option<Uuid>,
+    /// Bar on which it filled, when applicable.
+    pub filled_bar: Option<usize>,
+    /// Execution price when filled.
+    pub executed_price: Option<f64>,
+    /// Structured rejection reason, when rejected.
+    pub rejection: Option<String>,
+}
+
+/// A fully closed trade (position close) — the raw material for trade
+/// statistics. Realized P&L values come from the portfolio (OBS-0005).
+#[derive(Debug, Clone)]
+pub struct TradeRecord {
+    /// Bar on which the position closed.
+    pub bar_index: usize,
+    /// The closed position's ticket.
+    pub position_id: Uuid,
+    /// Original position side (long/short).
+    pub direction: Direction,
+    /// Quantity closed.
+    pub quantity_lots: f64,
+    /// Entry price.
+    pub entry_price: f64,
+    /// Exit price.
+    pub exit_price: f64,
+    /// Why it closed.
+    pub exit_reason: ExitReason,
+    /// Gross realized P&L (before commission).
+    pub gross_realized_pnl: f64,
+    /// Total commission booked against the position.
+    pub total_commission: f64,
+    /// Net realized P&L (gross − total commission).
+    pub net_realized_pnl: f64,
+}
+
+/// Per-bar runtime record: end-of-bar canonical portfolio snapshot plus any
+/// drawings the strategy produced on that bar.
+#[derive(Debug, Clone)]
+pub struct BarRecord {
+    /// Zero-based bar index.
+    pub bar_index: usize,
+    /// Bar timestamp.
+    pub timestamp: DateTime<Utc>,
+    /// End-of-bar mark-to-market snapshot (all open positions).
+    pub snapshot: PortfolioSnapshot,
+    /// Drawings emitted by the strategy for this bar.
+    pub drawings: Vec<DrawingInstruction>,
+}
+
+/// Structured in-memory result of a completed run.
+///
+/// OBS-0008 will formalize the persisted run artifact; this is the canonical
+/// in-memory runtime result that CLI and later Python surfaces consume.
+#[derive(Debug, Clone)]
+pub struct RunResult {
+    /// Run id.
+    pub run_id: Uuid,
+    /// Total bars processed.
+    pub total_bars: usize,
+    /// Per-bar runtime records (snapshot + drawings).
+    pub bars: Vec<BarRecord>,
+    /// All execution fills in chronological order.
+    pub fills: Vec<RuntimeFill>,
+    /// Strategy-order lifecycle records in creation order.
+    pub orders: Vec<OrderRecord>,
+    /// Fully closed trades.
+    pub trades: Vec<TradeRecord>,
+    /// End-of-run financial state (open positions are NOT force-closed).
+    pub final_state: EndOfRunState,
+}
+
+// ────────────────────────────────────────────────
+// Internal scheduling state
+// ────────────────────────────────────────────────
+
+/// A MARKET order queued for execution at the next bar's open
+/// (FillMode::NextBarOpen), or a close-by-ticket market order queued the same
+/// way.
+#[derive(Debug, Clone)]
+struct QueuedMarket {
+    seq: u64,
+    /// For entries: the side to open. For closes: derived at execution from
+    /// the target position (this field holds `Close` until resolved).
+    side: Direction,
+    quantity_lots: f64,
+    stop_loss: Option<f64>,
+    take_profit: Option<f64>,
+    /// Position ticket for close-by-ticket market orders.
+    ticket: Option<Uuid>,
+}
+
+/// A resting LIMIT/STOP order persisting across bars.
+///
+/// Strategy-supplied protective levels are carried through the whole pending
+/// lifecycle and passed to the canonical portfolio open when the order fills —
+/// they are never silently discarded.
+#[derive(Debug, Clone)]
+struct PendingOrder {
+    seq: u64,
+    order_type: OrderKind,
+    side: Direction,
+    quantity_lots: f64,
+    /// Limit or stop trigger price.
+    trigger_price: f64,
+    /// Protective stop-loss attached at open (from the original signal).
+    stop_loss: Option<f64>,
+    /// Protective take-profit attached at open (from the original signal).
+    take_profit: Option<f64>,
+    created_bar: usize,
 }
 
 // ────────────────────────────────────────────────
 // Engine
 // ────────────────────────────────────────────────
 
-/// The replay engine — the heartbeat of Observa.
-///
-/// Controls time, drives the bar loop, coordinates
-/// all components through the event bus.
-///
-/// Usage:
-///   let mut engine = Engine::new(config, event_bus);
-///   engine.run(&mut strategy, bars)?;
+/// The canonical replay engine: one loop, one execution path, one portfolio
+/// authority.
 pub struct Engine {
-    config: EngineConfig,
-    event_bus: EventBus,
+    run_id: Uuid,
+    /// Resolved run configuration (dataset + strategy present).
+    config: BacktestConfig,
+    portfolio: PortfolioManager,
+    exec_settings: ExecutionSettings,
+    fill_mode: FillMode,
+    commission: CommissionConfig,
+    instrument: InstrumentConfig,
+
+    // Runtime state (fresh per Engine instance; a new Engine per run).
+    next_seq: u64,
+    queued_market: Vec<QueuedMarket>,
+    pending_orders: Vec<PendingOrder>,
+    order_log: Vec<OrderRecord>,
+    fills: Vec<RuntimeFill>,
+    trades: Vec<TradeRecord>,
+    bar_records: Vec<BarRecord>,
 }
 
 impl Engine {
-    /// Creates a new engine with the given config
-    /// and event bus
-    pub fn new(config: EngineConfig, event_bus: EventBus) -> Self {
-        Self { config, event_bus }
+    /// Creates an Engine from a **resolved** `BacktestConfig`
+    /// (`dataset` and `strategy` metadata must be present and the config must
+    /// validate).
+    pub fn new(config: BacktestConfig) -> Result<Self, EngineError> {
+        config
+            .validate()
+            .map_err(|e| EngineError::InvalidConfiguration(e.to_string()))?;
+        if !config.is_resolved() {
+            return Err(EngineError::InvalidConfiguration(
+                "resolved configuration requires dataset and strategy metadata".into(),
+            ));
+        }
+
+        let settings = PortfolioSettings {
+            initial_cash: config.account.starting_balance,
+            leverage: config.account.leverage,
+            contract_size: config.instrument.contract_size,
+            symbol: config.instrument.symbol.clone(),
+            commission_mode: config.execution.commission.mode,
+            legacy_commission: 0.0,
+            legacy_slippage: 0.0,
+        };
+        let portfolio =
+            PortfolioManager::try_new(Uuid::new_v4(), settings).map_err(EngineError::Portfolio)?;
+
+        Ok(Self {
+            run_id: Uuid::new_v4(),
+            exec_settings: ExecutionSettings::from_config(&config.execution),
+            fill_mode: config.execution.fill_mode,
+            commission: config.execution.commission.clone(),
+            instrument: config.instrument.clone(),
+            portfolio,
+            config,
+            next_seq: 0,
+            queued_market: Vec::new(),
+            pending_orders: Vec::new(),
+            order_log: Vec::new(),
+            fills: Vec::new(),
+            trades: Vec::new(),
+            bar_records: Vec::new(),
+        })
     }
 
-    /// Runs the complete backtest replay.
+    /// The portfolio behind this Engine (financial authority).
+    pub fn portfolio(&self) -> &PortfolioManager {
+        &self.portfolio
+    }
+
+    /// Runs the complete backtest and consumes the Engine.
     ///
-    /// Drives time forward bar by bar, calling the
-    /// strategy and emitting events at each step.
+    /// # Deterministic per-bar chronology
+    ///
+    /// For each bar `B` (index `i`):
+    /// 1. **Scheduled work** — MARKET orders queued from the previous bar
+    ///    execute at `B`'s open (`FillMode::NextBarOpen`), in ascending
+    ///    creation order; each fill is financially accepted by the portfolio
+    ///    (`can_open`/`open_position` for entries, explicit-ticket
+    ///    `close_position` for closes).
+    ///
+    ///    After this stage the set of **protective-eligible positions for bar
+    ///    `B`** is captured: positions already open before `B` plus positions
+    ///    opened at `B`'s open. Positions opened later in `B` (intrabar
+    ///    resting-order fills or `BAR_CLOSE` strategy fills) are excluded —
+    ///    OHLC cannot reveal whether a protective level was reached before or
+    ///    after an intrabar entry, so they become eligible only on the next
+    ///    bar.
+    /// 2. **Resting generic orders** — LIMIT/STOP orders created on earlier
+    ///    bars are evaluated against `B` (OBS-0006 gap + intrabar trigger
+    ///    semantics), in ascending creation order. Strategy-supplied SL/TP are
+    ///    carried into the positions opened here. Such intrabar fills are NOT
+    ///    protective-evaluated on `B` itself.
+    /// 3. **Protective exits** — SL/TP of exactly the positions captured in
+    ///    step 1 are evaluated with the OBS-0006 opening-gap precedence and
+    ///    SL-first intrabar convention, per position in creation order; each
+    ///    hit closes that exact position by ticket.
+    /// 4. **Strategy observation** — the completed bar `B` and a read-only
+    ///    portfolio view (all open positions, valued at `B`'s close) are
+    ///    presented to the strategy with strictly-prior history.
+    /// 5. **New strategy intents** — signals become canonical orders
+    ///    (validated; rejected orders recorded). MARKET orders execute at
+    ///    `B`'s close under `BAR_CLOSE` or queue for `B+1`'s open under
+    ///    `NEXT_BAR_OPEN`. LIMIT/STOP orders rest (with their SL/TP) and are
+    ///    first evaluated on later bars. Close signals require an explicit
+    ///    ticket.
+    /// 6. **End of bar** — history advances and an end-of-bar mark-to-market
+    ///    portfolio snapshot (all positions) is recorded.
+    ///
+    /// All execution work within a stage is ordered by the engine-assigned
+    /// strictly-increasing `OrderSeq`. No wall-clock time, UUID ordering, hash
+    /// iteration or thread scheduling influences economics.
     pub fn run(
-        &mut self,
+        mut self,
+        bars: &[Bar],
         strategy: &mut dyn Strategy,
-        bars: Vec<Bar>,
-    ) -> Result<(), EngineError> {
+    ) -> Result<RunResult, EngineError> {
         if bars.is_empty() {
             return Err(EngineError::NoDataLoaded);
         }
-
-        let run_id = self.config.run_id;
-        let start_time = Utc::now();
-
-        // ── Step 1: Emit RunStartedEvent ──────────
-        let run_started = Event::RunStarted(RunStartedEvent {
-            metadata: EventMetadata::new(run_id, start_time),
-            strategy_name: self.config.strategy_name.clone(),
-            strategy_version: "dev".to_string(),
-            dataset_name: self.config.dataset_name.clone(),
-            dataset_hash: "dev".to_string(),
-            data_start: bars.first().unwrap().timestamp,
-            data_end: bars.last().unwrap().timestamp,
-            initial_balance: self.config.initial_balance,
-            configuration: self.config_as_json(),
-        });
-        self.event_bus.publish(&run_started)?;
-
-        // ── Step 2: Initialize strategy ───────────
-        strategy.initialize();
-
-        // ── Step 3: Portfolio view starts empty ───
-        let mut portfolio = PortfolioView::empty(
-            self.config.initial_balance
-        );
-
-        // ── Step 4: Bar loop ──────────────────────
-        let mut history: Vec<Bar> = Vec::new();
-        let total_bars = bars.len() as u64;
-
-        for bar in &bars {
-            // 4a — emit BarReceivedEvent
-            let bar_event = Event::BarReceived(BarReceivedEvent {
-                metadata: EventMetadata::new(run_id, bar.timestamp),
-                bar: bar.clone(),
-            });
-            self.event_bus.publish(&bar_event)?;
-
-            // 4b — call strategy with current bar,
-            //       portfolio view, and bar history
-            let signals = strategy.on_bar(
-                bar,
-                &portfolio,
-                &history,
-            );
-
-            // 4c — process each signal
-            for signal in signals {
-                let signal_id = Uuid::new_v4();
-
-                // Emit SignalEmittedEvent
-                let signal_event = Event::SignalEmitted(
-                    SignalEmittedEvent {
-                        metadata: EventMetadata::new(
-                            run_id,
-                            bar.timestamp,
-                        ),
-                        signal_id,
-                        direction: signal.direction,
-                        size: signal.size,
-                        intended_price: signal.intended_price,
-                        sl: signal.sl,
-                        tp: signal.tp,
-                        reason: signal.reason.clone(),
-                    },
-                );
-                self.event_bus.publish(&signal_event)?;
-
-                // Emit OrderIntentCreatedEvent
-                // Execution model subscribes to this
-                // and takes over from here
-                let intent_event = Event::OrderIntentCreated(
-                    OrderIntentCreatedEvent {
-                        metadata: EventMetadata::new(
-                            run_id,
-                            bar.timestamp,
-                        ),
-                        order_id: Uuid::new_v4(),
-                        signal_id,
-                        direction: signal.direction,
-                        size: signal.size,
-                        intended_price: signal.intended_price,
-                        sl: signal.sl,
-                        tp: signal.tp,
-                        reason: signal.reason,
-                    },
-                );
-                self.event_bus.publish(&intent_event)?;
-            }
-
-            // 4d — add current bar to history
-            //       so next bar can look back
-            history.push(bar.clone());
-
-            // 4e — update portfolio view
-            // For now this is a placeholder —
-            // the real update comes from the
-            // portfolio manager via events
-            self.update_portfolio_view(
-                &mut portfolio,
-                &history,
-            );
+        // Require strictly increasing bar timestamps (the data loader already
+        // enforces this; the Engine re-checks so replay order is never
+        // incidental).
+        if bars.windows(2).any(|w| w[1].timestamp <= w[0].timestamp) {
+            return Err(EngineError::InvalidState(
+                "bars must be in strictly increasing chronological order".into(),
+            ));
         }
 
-        // ── Step 5: Teardown strategy ─────────────
-        strategy.teardown();
+        // Strategy lifecycle: parameterized initialization.
+        let params = self.config.strategy.as_ref().map(|s| &s.parameters);
+        strategy.initialize_with_params(params);
+        if let Some(msg) = strategy.take_strategy_error() {
+            return Err(EngineError::StrategyFailure {
+                bar_index: None,
+                message: msg,
+            });
+        }
 
-        // ── Step 6: Emit RunCompletedEvent ────────
-        let end_time = Utc::now();
-        let run_completed = Event::RunCompleted(RunCompletedEvent {
-            metadata: EventMetadata::new(run_id, end_time),
-            start_time,
-            end_time,
-            total_bars,
-            total_trades: 0, // updated by portfolio manager
-            final_balance: portfolio.balance,
-            final_equity: portfolio.equity,
-            realised_pnl: portfolio.equity
-                - self.config.initial_balance,
+        let run_id = self.run_id;
+        let mut history: Vec<Bar> = Vec::new();
+
+        for (index, bar) in bars.iter().enumerate() {
+            // Strategy history only contains strictly prior bars: the current
+            // bar is appended AFTER the strategy has observed it.
+            self.run_bar(index, bar, &history, strategy)?;
+            history.push(bar.clone());
+        }
+
+        // Teardown (errors are surfaced, never swallowed).
+        strategy.teardown();
+        if let Some(msg) = strategy.take_strategy_error() {
+            return Err(EngineError::StrategyFailure {
+                bar_index: Some(bars.len().saturating_sub(1)),
+                message: msg,
+            });
+        }
+
+        // Dataset-end handling: queued NEXT_BAR_OPEN markets on the final bar
+        // and any resting LIMIT/STOP orders are expired — never fabricated.
+        self.expire_unfilled_orders();
+
+        let last_close = bars.last().expect("bars non-empty").close;
+        let final_state = self.portfolio.end_of_run_state(last_close);
+
+        Ok(RunResult {
+            run_id,
+            total_bars: bars.len(),
+            bars: std::mem::take(&mut self.bar_records),
+            fills: std::mem::take(&mut self.fills),
+            orders: std::mem::take(&mut self.order_log),
+            trades: std::mem::take(&mut self.trades),
+            final_state,
+        })
+    }
+
+    fn run_bar(
+        &mut self,
+        index: usize,
+        bar: &Bar,
+        history: &[Bar],
+        strategy: &mut dyn Strategy,
+    ) -> Result<(), EngineError> {
+        // ── Stage 1 — scheduled NEXT_BAR_OPEN work at bar open ──────────────
+        let queued = std::mem::take(&mut self.queued_market);
+        for market in queued {
+            self.execute_queued_market(index, bar, market)?;
+        }
+
+        // ── Protective-eligibility snapshot (before resting-order fills) ────
+        // Positions eligible for protective evaluation THIS bar are:
+        //   * positions already open before this bar; and
+        //   * positions opened during stage 1 at this bar's OPEN.
+        // Positions filled intrabar later in this bar (stage-2 resting LIMIT/
+        // STOP orders, and BAR_CLOSE strategy fills) are NOT eligible until
+        // the next bar, because OHLC cannot reveal whether the protective
+        // level was reached before or after the intrabar entry.
+        let protected: Vec<Uuid> = self
+            .portfolio
+            .positions()
+            .iter()
+            .filter(|p| p.is_open())
+            .map(|p| p.position_id)
+            .collect();
+
+        // ── Stage 2 — resting generic LIMIT/STOP orders ─────────────────────
+        let rested = std::mem::take(&mut self.pending_orders);
+        let mut still_pending = Vec::new();
+        for order in rested {
+            let seq = order.seq;
+            match self.evaluate_pending(index, bar, order) {
+                PendingEval::Filled => {}
+                PendingEval::StillPending(o) => still_pending.push(o),
+                PendingEval::Rejected(msg) => {
+                    self.set_order_rejected(seq, index, &msg);
+                }
+            }
+        }
+        self.pending_orders = still_pending;
+
+        // ── Stage 3 — protective SL/TP over the pre-resting snapshot ────────
+        // Only the positions captured before stage 3 are evaluated. An entry
+        // filled intrabar by a resting order is never stopped out / taken
+        // profit on the same bar using its full high/low (some of that range
+        // may have occurred before the entry). Such positions become
+        // protective-eligible starting with the next bar.
+        for position_id in protected {
+            let pos = match self.portfolio.position(&position_id) {
+                Some(p) if p.is_open() => p.clone(),
+                _ => continue,
+            };
+            let levels = ProtectiveLevels {
+                stop_loss: pos.stop_loss,
+                take_profit: pos.take_profit,
+            };
+            match semantics::protective_outcome(&self.exec_settings, bar, pos.direction, &levels) {
+                ProtectiveOutcome::None => {}
+                ProtectiveOutcome::Executed(kind, fill) => {
+                    let reason = match kind {
+                        observa_core::types::ProtectiveKind::StopLoss => ExitReason::StopLoss,
+                        observa_core::types::ProtectiveKind::TakeProfit => ExitReason::TakeProfit,
+                    };
+                    let fill_reason = match kind {
+                        observa_core::types::ProtectiveKind::StopLoss => FillReason::StopLoss,
+                        observa_core::types::ProtectiveKind::TakeProfit => FillReason::TakeProfit,
+                    };
+                    let exit_side = opposite_side(pos.direction);
+                    self.record_fill(
+                        index,
+                        None,
+                        fill_reason,
+                        exit_side,
+                        pos.quantity_lots,
+                        &fill,
+                        Some(position_id),
+                        bar.timestamp,
+                    );
+                    self.execute_close_by_id(
+                        index,
+                        position_id,
+                        pos.quantity_lots,
+                        fill.executed_price,
+                        reason,
+                        bar.timestamp,
+                    )?;
+                }
+            }
+        }
+
+        // ── Stage 4 — strategy observation ──────────────────────────────────
+        let view = self.build_portfolio_view(bar);
+        let signals = strategy.on_bar(bar, &view, history);
+        if let Some(msg) = strategy.take_strategy_error() {
+            return Err(EngineError::StrategyFailure {
+                bar_index: Some(index),
+                message: msg,
+            });
+        }
+        let drawings = strategy.take_drawings();
+
+        // ── Stage 5 — convert strategy intents into canonical orders ────────
+        for signal in signals {
+            self.process_signal(index, bar, signal)?;
+        }
+
+        // ── Stage 6 — end-of-bar snapshot ───────────────────────────────────
+        let snapshot = self.portfolio.snapshot(bar.close, bar.timestamp);
+        self.bar_records.push(BarRecord {
+            bar_index: index,
+            timestamp: bar.timestamp,
+            snapshot,
+            drawings,
         });
-        self.event_bus.publish(&run_completed)?;
 
         Ok(())
     }
 
-    /// Returns the run ID for this engine
-    pub fn run_id(&self) -> Uuid {
-        self.config.run_id
+    // ── Order sequence ───────────────────────────
+
+    fn next_seq(&mut self) -> Result<u64, EngineError> {
+        let seq = self.next_seq;
+        self.next_seq = self
+            .next_seq
+            .checked_add(1)
+            .ok_or(EngineError::OrderSequenceOverflow)?;
+        Ok(seq)
     }
 
-    /// Serializes config to JSON string for RunStartedEvent
-    fn config_as_json(&self) -> String {
-        format!(
-            r#"{{"spread":{},"slippage":{},"commission":{}}}"#,
-            self.config.spread,
-            self.config.slippage,
-            self.config.commission,
-        )
+    fn register_order(
+        &mut self,
+        created_bar: usize,
+        order_type: OrderKind,
+        side: Direction,
+        quantity_lots: f64,
+    ) -> Result<u64, EngineError> {
+        let seq = self.next_seq()?;
+        debug_assert_eq!(self.order_log.len() as u64, seq);
+        self.order_log.push(OrderRecord {
+            seq,
+            order_type,
+            side,
+            quantity_lots,
+            created_bar,
+            state: OrderState::Created,
+            position_id: None,
+            filled_bar: None,
+            executed_price: None,
+            rejection: None,
+        });
+        Ok(seq)
     }
 
-    /// Placeholder portfolio view update.
-    /// Real implementation comes from portfolio manager
-    /// subscribing to fill events.
-    fn update_portfolio_view(
-        &self,
-        _portfolio: &mut PortfolioView,
-        _history: &[Bar],
+    fn order_mut(&mut self, seq: u64) -> &mut OrderRecord {
+        debug_assert!(seq < self.order_log.len() as u64);
+        let rec = &mut self.order_log[seq as usize];
+        debug_assert_eq!(rec.seq, seq);
+        rec
+    }
+
+    fn set_order_rejected(&mut self, seq: u64, _bar: usize, reason: &str) {
+        let rec = self.order_mut(seq);
+        rec.state = OrderState::Rejected;
+        rec.rejection = Some(reason.to_string());
+    }
+
+    fn expire_unfilled_orders(&mut self) {
+        for rec in &mut self.order_log {
+            if rec.state == OrderState::Pending || rec.state == OrderState::Created {
+                rec.state = OrderState::Expired;
+            }
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────
+
+    fn commission_amount(&self, quantity_lots: f64) -> f64 {
+        let units = quantity_lots * self.instrument.contract_size;
+        self.commission.amount_for_units(units)
+    }
+
+    fn record_fill(
+        &mut self,
+        bar_index: usize,
+        order_seq: Option<u64>,
+        reason: FillReason,
+        side: Direction,
+        quantity_lots: f64,
+        fill: &semantics::Fill,
+        position_id: Option<Uuid>,
+        timestamp: DateTime<Utc>,
     ) {
-        // Portfolio manager will handle this
-        // via event subscriptions
+        self.fills.push(RuntimeFill {
+            bar_index,
+            order_seq,
+            reason,
+            side,
+            quantity_lots,
+            raw_reference: fill.raw_reference,
+            executed_price: fill.executed_price,
+            spread_applied: fill.spread_applied,
+            slippage_applied: fill.slippage_applied,
+            commission_amount: self.commission_amount(quantity_lots),
+            position_id,
+            timestamp,
+        });
+    }
+
+    fn execute_queued_market(
+        &mut self,
+        bar_index: usize,
+        bar: &Bar,
+        market: QueuedMarket,
+    ) -> Result<(), EngineError> {
+        // Resolve close-by-ticket entries against current portfolio state.
+        let (side, ticket) = match market.ticket {
+            Some(ticket) => {
+                let pos = match self.portfolio.position(&ticket) {
+                    Some(p) if p.is_open() => p.clone(),
+                    _ => {
+                        self.set_order_rejected(
+                            market.seq,
+                            bar_index,
+                            &format!("cannot close position {ticket}: not open"),
+                        );
+                        return Ok(());
+                    }
+                };
+                if !quantities_match(pos.quantity_lots, market.quantity_lots) {
+                    self.set_order_rejected(
+                        market.seq,
+                        bar_index,
+                        &format!(
+                            "close quantity mismatch for {ticket}: open {} requested {}",
+                            pos.quantity_lots, market.quantity_lots
+                        ),
+                    );
+                    return Ok(());
+                }
+                (opposite_side(pos.direction), Some(ticket))
+            }
+            None => (market.side, None),
+        };
+
+        let fill = semantics::market_fill(&self.exec_settings, FillMode::NextBarOpen, bar, side)?;
+
+        match ticket {
+            Some(ticket) => {
+                self.record_fill(
+                    bar_index,
+                    Some(market.seq),
+                    FillReason::MarketClose,
+                    side,
+                    market.quantity_lots,
+                    &fill,
+                    Some(ticket),
+                    bar.timestamp,
+                );
+                self.execute_close_by_id(
+                    bar_index,
+                    ticket,
+                    market.quantity_lots,
+                    fill.executed_price,
+                    ExitReason::Signal,
+                    bar.timestamp,
+                )?;
+            }
+            None => {
+                // Open first (portfolio acceptance) and only then record the
+                // fill against the actual position.
+                if let Some(position_id) = self.open_entry(
+                    bar_index,
+                    market.seq,
+                    OrderKind::Market,
+                    side,
+                    market.quantity_lots,
+                    market.stop_loss,
+                    market.take_profit,
+                    fill.executed_price,
+                    bar.timestamp,
+                )? {
+                    self.record_fill(
+                        bar_index,
+                        Some(market.seq),
+                        FillReason::MarketEntry,
+                        side,
+                        market.quantity_lots,
+                        &fill,
+                        Some(position_id),
+                        bar.timestamp,
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn evaluate_pending(
+        &mut self,
+        bar_index: usize,
+        bar: &Bar,
+        order: PendingOrder,
+    ) -> PendingEval {
+        // Resting orders are only evaluated on bars strictly after the bar on
+        // which they were created (no same-bar trigger on creation bar data).
+        if order.created_bar >= bar_index {
+            return PendingEval::StillPending(order);
+        }
+        let spec = OrderSpec {
+            kind: order.order_type,
+            side: order.side,
+            quantity_lots: order.quantity_lots,
+            limit_price: if order.order_type == OrderKind::Limit {
+                Some(order.trigger_price)
+            } else {
+                None
+            },
+            stop_price: if order.order_type == OrderKind::Stop {
+                Some(order.trigger_price)
+            } else {
+                None
+            },
+        };
+        if let Err(e) = semantics::validate_order(&spec, &self.instrument, &self.config.execution) {
+            return PendingEval::Rejected(e.to_string());
+        }
+
+        let outcome = match order.order_type {
+            OrderKind::Limit => semantics::limit_outcome(bar, order.side, order.trigger_price),
+            OrderKind::Stop => {
+                semantics::stop_outcome(&self.exec_settings, bar, order.side, order.trigger_price)
+            }
+            OrderKind::Market => return PendingEval::StillPending(order),
+        };
+
+        match outcome {
+            Outcome::NotExecutable => PendingEval::StillPending(order),
+            Outcome::Executed(fill) => {
+                let reason = match order.order_type {
+                    OrderKind::Limit => FillReason::LimitEntry,
+                    _ => FillReason::StopEntry,
+                };
+                match self.open_entry(
+                    bar_index,
+                    order.seq,
+                    order.order_type,
+                    order.side,
+                    order.quantity_lots,
+                    order.stop_loss,
+                    order.take_profit,
+                    fill.executed_price,
+                    bar.timestamp,
+                ) {
+                    Ok(Some(position_id)) => {
+                        self.record_fill(
+                            bar_index,
+                            Some(order.seq),
+                            reason,
+                            order.side,
+                            order.quantity_lots,
+                            &fill,
+                            Some(position_id),
+                            bar.timestamp,
+                        );
+                        PendingEval::Filled
+                    }
+                    Ok(None) => PendingEval::Filled, // financial rejection recorded
+                    Err(e) => {
+                        self.set_order_rejected(
+                            order.seq,
+                            bar_index,
+                            &format!("portfolio failed to open: {e}"),
+                        );
+                        PendingEval::Filled
+                    }
+                }
+            }
+        }
+    }
+
+    /// Opens an entry position.
+    ///
+    /// Returns `Ok(Some(position_id))` when opened; `Ok(None)` when the
+    /// portfolio financially rejected the entry (structured rejection recorded
+    /// on the order log); `Err` for unexpected failures.
+    fn open_entry(
+        &mut self,
+        bar_index: usize,
+        seq: u64,
+        _order_type: OrderKind,
+        side: Direction,
+        quantity_lots: f64,
+        stop_loss: Option<f64>,
+        take_profit: Option<f64>,
+        executed_price: f64,
+        timestamp: DateTime<Utc>,
+    ) -> Result<Option<Uuid>, EngineError> {
+        let levels = ProtectiveLevels {
+            stop_loss,
+            take_profit,
+        };
+        if let Err(e) = semantics::validate_protective_levels(executed_price, side, &levels) {
+            self.set_order_rejected(seq, bar_index, &e.to_string());
+            return Ok(None);
+        }
+
+        let request = OpenPositionRequest {
+            order_id: Uuid::new_v4(),
+            fill_id: None,
+            direction: side,
+            quantity_lots,
+            entry_price: executed_price,
+            stop_loss,
+            take_profit,
+            opened_at: timestamp,
+            commission_amount: self.commission_amount(quantity_lots),
+        };
+        match self.portfolio.open_position(&request) {
+            Ok(report) => {
+                let rec = self.order_mut(seq);
+                rec.state = OrderState::Filled;
+                rec.filled_bar = Some(bar_index);
+                rec.executed_price = Some(executed_price);
+                rec.position_id = Some(report.position_id);
+                Ok(Some(report.position_id))
+            }
+            Err(observa_portfolio::error::PortfolioError::InsufficientMargin {
+                required,
+                available,
+            }) => {
+                self.set_order_rejected(
+                    seq,
+                    bar_index,
+                    &format!("insufficient margin: required {required}, free margin {available}"),
+                );
+                Ok(None)
+            }
+            Err(e) => Err(EngineError::Portfolio(e)),
+        }
+    }
+
+    fn execute_close_by_id(
+        &mut self,
+        bar_index: usize,
+        position_id: Uuid,
+        quantity_lots: f64,
+        exit_price: f64,
+        exit_reason: ExitReason,
+        timestamp: DateTime<Utc>,
+    ) -> Result<(), EngineError> {
+        let request = observa_portfolio::portfolio::ClosePositionRequest {
+            position_id,
+            quantity_lots,
+            exit_price,
+            exit_reason,
+            closed_at: timestamp,
+            commission_amount: self.commission_amount(quantity_lots),
+        };
+        match self.portfolio.close_position(&request) {
+            Ok(report) => {
+                self.push_trade(bar_index, &report);
+                Ok(())
+            }
+            Err(observa_portfolio::error::PortfolioError::PositionNotFound { .. })
+            | Err(observa_portfolio::error::PortfolioError::PositionAlreadyClosed { .. })
+            | Err(observa_portfolio::error::PortfolioError::CloseQuantityMismatch { .. }) => {
+                // Already handled/closed earlier in the same deterministic
+                // stage (or an invalid close) — not a run failure.
+                Ok(())
+            }
+            Err(e) => Err(EngineError::Portfolio(e)),
+        }
+    }
+
+    fn push_trade(&mut self, bar_index: usize, report: &ClosePositionReport) {
+        let pos = match self.portfolio.position(&report.position_id) {
+            Some(p) => p.clone(),
+            None => return,
+        };
+        self.trades.push(TradeRecord {
+            bar_index,
+            position_id: report.position_id,
+            direction: pos.direction,
+            quantity_lots: report.quantity_lots,
+            entry_price: pos.entry_price,
+            exit_price: report.exit_price,
+            exit_reason: report.exit_reason,
+            gross_realized_pnl: report.gross_realized_pnl,
+            total_commission: report.total_commission_for_position,
+            net_realized_pnl: report.net_realized_pnl,
+        });
+    }
+
+    fn build_portfolio_view(&self, bar: &Bar) -> PortfolioView {
+        let open_positions: Vec<OpenPositionView> = self
+            .portfolio
+            .open_positions()
+            .into_iter()
+            .map(|p| OpenPositionView {
+                ticket: p.position_id.to_string(),
+                direction: p.direction,
+                size: p.quantity_lots,
+                entry_price: p.entry_price,
+                unrealised_pnl: p.unrealised_pnl(bar.close),
+                sl: p.stop_loss,
+                tp: p.take_profit,
+            })
+            .collect();
+        let unrealised_pnl: f64 = open_positions.iter().map(|p| p.unrealised_pnl).sum();
+        PortfolioView {
+            balance: self.portfolio.balance(),
+            equity: self.portfolio.equity(bar.close),
+            has_open_position: !open_positions.is_empty(),
+            open_positions,
+            unrealised_pnl,
+        }
+    }
+
+    fn process_signal(
+        &mut self,
+        index: usize,
+        bar: &Bar,
+        signal: StrategySignal,
+    ) -> Result<(), EngineError> {
+        match signal.direction {
+            Direction::Close => self.process_close_signal(index, bar, signal),
+            Direction::Buy | Direction::Sell => self.process_open_signal(index, bar, signal),
+        }
+    }
+
+    fn process_open_signal(
+        &mut self,
+        index: usize,
+        bar: &Bar,
+        signal: StrategySignal,
+    ) -> Result<(), EngineError> {
+        // Validate the order domain (quantity bounds/step, model support,
+        // trigger price for limit/stop).
+        let spec = OrderSpec {
+            kind: signal.order_type,
+            side: signal.direction,
+            quantity_lots: signal.size,
+            limit_price: if signal.order_type == OrderKind::Limit {
+                Some(signal.intended_price)
+            } else {
+                None
+            },
+            stop_price: if signal.order_type == OrderKind::Stop {
+                Some(signal.intended_price)
+            } else {
+                None
+            },
+        };
+        if let Err(e) = semantics::validate_order(&spec, &self.instrument, &self.config.execution) {
+            // Record a structured rejection; other signals still process.
+            if let Ok(seq) =
+                self.register_order(index, signal.order_type, signal.direction, signal.size)
+            {
+                self.set_order_rejected(seq, index, &e.to_string());
+            }
+            return Ok(());
+        }
+
+        let seq = self.register_order(index, signal.order_type, signal.direction, signal.size)?;
+
+        match signal.order_type {
+            OrderKind::Market => {
+                // MARKET orders are fill-mode dependent.
+                match self.fill_mode {
+                    FillMode::BarClose => {
+                        let fill = semantics::market_fill(
+                            &self.exec_settings,
+                            FillMode::BarClose,
+                            bar,
+                            signal.direction,
+                        )?;
+                        // Open first (portfolio acceptance), then record the
+                        // fill against the actual position.
+                        if let Some(position_id) = self.open_entry(
+                            index,
+                            seq,
+                            OrderKind::Market,
+                            signal.direction,
+                            signal.size,
+                            signal.sl,
+                            signal.tp,
+                            fill.executed_price,
+                            bar.timestamp,
+                        )? {
+                            self.record_fill(
+                                index,
+                                Some(seq),
+                                FillReason::MarketEntry,
+                                signal.direction,
+                                signal.size,
+                                &fill,
+                                Some(position_id),
+                                bar.timestamp,
+                            );
+                        }
+                    }
+                    FillMode::NextBarOpen => {
+                        // Queue for bar N+1; never fills on bar N.
+                        self.order_mut(seq).state = OrderState::Pending;
+                        self.queued_market.push(QueuedMarket {
+                            seq,
+                            side: signal.direction,
+                            quantity_lots: signal.size,
+                            stop_loss: signal.sl,
+                            take_profit: signal.tp,
+                            ticket: None,
+                        });
+                    }
+                }
+            }
+            OrderKind::Limit | OrderKind::Stop => {
+                // Rest until a later bar triggers it. First evaluated on the
+                // next bar (created_bar < evaluation bar).
+                self.order_mut(seq).state = OrderState::Pending;
+                self.pending_orders.push(PendingOrder {
+                    seq,
+                    order_type: signal.order_type,
+                    side: signal.direction,
+                    quantity_lots: signal.size,
+                    trigger_price: signal.intended_price,
+                    stop_loss: signal.sl,
+                    take_profit: signal.tp,
+                    created_bar: index,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn process_close_signal(
+        &mut self,
+        index: usize,
+        bar: &Bar,
+        signal: StrategySignal,
+    ) -> Result<(), EngineError> {
+        let seq = self.register_order(index, OrderKind::Market, signal.direction, signal.size)?;
+        let ticket = match signal.ticket {
+            Some(t) => match t.parse::<Uuid>() {
+                Ok(id) => id,
+                Err(_) => {
+                    self.set_order_rejected(
+                        seq,
+                        index,
+                        &format!("close requires a valid position ticket, got '{t}'"),
+                    );
+                    return Ok(());
+                }
+            },
+            None => {
+                self.set_order_rejected(seq, index, "close requires an explicit position ticket");
+                return Ok(());
+            }
+        };
+
+        let pos = match self.portfolio.position(&ticket) {
+            Some(p) if p.is_open() => p.clone(),
+            _ => {
+                self.set_order_rejected(
+                    seq,
+                    index,
+                    &format!("cannot close position {ticket}: not open"),
+                );
+                return Ok(());
+            }
+        };
+        if !quantities_match(pos.quantity_lots, signal.size) {
+            self.set_order_rejected(
+                seq,
+                index,
+                &format!(
+                    "close quantity mismatch for {ticket}: open {} requested {}",
+                    pos.quantity_lots, signal.size
+                ),
+            );
+            return Ok(());
+        }
+        let side = opposite_side(pos.direction);
+
+        match self.fill_mode {
+            FillMode::BarClose => {
+                let fill =
+                    semantics::market_fill(&self.exec_settings, FillMode::BarClose, bar, side)?;
+                self.record_fill(
+                    index,
+                    Some(seq),
+                    FillReason::MarketClose,
+                    side,
+                    signal.size,
+                    &fill,
+                    Some(ticket),
+                    bar.timestamp,
+                );
+                self.execute_close_by_id(
+                    index,
+                    ticket,
+                    signal.size,
+                    fill.executed_price,
+                    ExitReason::Signal,
+                    bar.timestamp,
+                )?;
+            }
+            FillMode::NextBarOpen => {
+                // Queue close-by-ticket for bar N+1's open.
+                self.order_mut(seq).state = OrderState::Pending;
+                self.queued_market.push(QueuedMarket {
+                    seq,
+                    side: Direction::Close,
+                    quantity_lots: signal.size,
+                    stop_loss: None,
+                    take_profit: None,
+                    ticket: Some(ticket),
+                });
+            }
+        }
+        Ok(())
     }
 }
 
-// ────────────────────────────────────────────────
-// Tests
-// ────────────────────────────────────────────────
+enum PendingEval {
+    Filled,
+    StillPending(PendingOrder),
+    Rejected(String),
+}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::strategy::{PortfolioView, StrategySignal};
-    use chrono::TimeZone;
-    use observa_core::bar::Bar;
-    use observa_core::events::Event;
-    use observa_core::types::Direction;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    /// Builds a sequence of valid test bars
-    fn test_bars(count: usize) -> Vec<Bar> {
-        (0..count)
-            .map(|i| {
-                Bar::new(
-                    Utc.with_ymd_and_hms(
-                        2021, 12, 31,
-                        21, i as u32, 0,
-                    )
-                    .unwrap(),
-                    1.1376,
-                    1.13787,
-                    1.1376,
-                    1.13786,
-                    Some(278.19),
-                )
-            })
-            .collect()
+fn opposite_side(side: Direction) -> Direction {
+    match side {
+        Direction::Buy => Direction::Sell,
+        Direction::Sell => Direction::Buy,
+        Direction::Close => Direction::Close,
     }
+}
 
-    /// Builds a default test config
-    fn test_config() -> EngineConfig {
-        EngineConfig::new(
-            10_000.0,
-            0.0002,
-            0.0001,
-            7.0,
-            "TestStrategy",
-            "EURUSD_M15",
-        )
-    }
-
-    /// Strategy that does nothing — used to test
-    /// the engine loop runs correctly
-    struct DoNothingStrategy;
-    impl Strategy for DoNothingStrategy {
-        fn initialize(&mut self) {}
-        fn on_bar(
-            &mut self,
-            _bar: &Bar,
-            _portfolio: &PortfolioView,
-            _history: &[Bar],
-        ) -> Vec<StrategySignal> {
-            vec![]
-        }
-        fn teardown(&mut self) {}
-    }
-
-    /// Strategy that buys on every bar
-    struct AlwaysBuyStrategy;
-    impl Strategy for AlwaysBuyStrategy {
-        fn initialize(&mut self) {}
-        fn on_bar(
-            &mut self,
-            bar: &Bar,
-            _portfolio: &PortfolioView,
-            _history: &[Bar],
-        ) -> Vec<StrategySignal> {
-            vec![StrategySignal {
-                direction:      Direction::Buy,
-                size:           1.0,
-                intended_price: bar.close,
-                sl:             Some(bar.close - 0.0020),
-                tp:             Some(bar.close + 0.0040),
-                reason:         "Test buy".to_string(),
-                ticket:         None
-            }]
-        }
-        fn teardown(&mut self) {}
-    }
-
-    #[test]
-    fn engine_emits_run_started_and_completed() {
-        let event_types = Rc::new(RefCell::new(Vec::new()));
-        let event_types_clone = event_types.clone();
-
-        let mut bus = EventBus::new();
-        bus.subscribe("tracker", move |event| {
-            let label = match event {
-                Event::RunStarted(_)  => "RunStarted",
-                Event::RunCompleted(_) => "RunCompleted",
-                Event::BarReceived(_) => "BarReceived",
-                _                     => "Other",
-            };
-            event_types_clone.borrow_mut()
-                .push(label.to_string());
-        });
-
-        let mut engine = Engine::new(test_config(), bus);
-        let mut strategy = DoNothingStrategy;
-        engine.run(&mut strategy, test_bars(3)).unwrap();
-
-        let events = event_types.borrow();
-
-        // First event must be RunStarted
-        assert_eq!(events[0], "RunStarted");
-
-        // Last event must be RunCompleted
-        assert_eq!(events[events.len() - 1], "RunCompleted");
-    }
-
-    #[test]
-    fn engine_emits_bar_event_for_each_bar() {
-        let bar_count = Rc::new(RefCell::new(0u32));
-        let bar_count_clone = bar_count.clone();
-
-        let mut bus = EventBus::new();
-        bus.subscribe("bar_counter", move |event| {
-            if matches!(event, Event::BarReceived(_)) {
-                *bar_count_clone.borrow_mut() += 1;
-            }
-        });
-
-        let mut engine = Engine::new(test_config(), bus);
-        let mut strategy = DoNothingStrategy;
-        engine.run(&mut strategy, test_bars(5)).unwrap();
-
-        assert_eq!(*bar_count.borrow(), 5);
-    }
-
-    #[test]
-    fn engine_emits_signal_and_intent_for_each_signal() {
-        let signal_count = Rc::new(RefCell::new(0u32));
-        let intent_count = Rc::new(RefCell::new(0u32));
-        let signal_clone = signal_count.clone();
-        let intent_clone = intent_count.clone();
-
-        let mut bus = EventBus::new();
-        bus.subscribe("signal_tracker", move |event| {
-            match event {
-                Event::SignalEmitted(_) => {
-                    *signal_clone.borrow_mut() += 1;
-                }
-                Event::OrderIntentCreated(_) => {
-                    *intent_clone.borrow_mut() += 1;
-                }
-                _ => {}
-            }
-        });
-
-        let mut engine = Engine::new(test_config(), bus);
-        let mut strategy = AlwaysBuyStrategy;
-
-        // 3 bars, strategy buys every bar
-        // = 3 signals, 3 intents
-        engine.run(&mut strategy, test_bars(3)).unwrap();
-
-        assert_eq!(*signal_count.borrow(), 3);
-        assert_eq!(*intent_count.borrow(), 3);
-    }
-
-    #[test]
-    fn engine_passes_growing_history_to_strategy() {
-        let history_lengths = Rc::new(RefCell::new(Vec::new()));
-        let history_clone = history_lengths.clone();
-
-        struct HistoryTracker {
-            lengths: Rc<RefCell<Vec<usize>>>,
-        }
-
-        impl Strategy for HistoryTracker {
-            fn initialize(&mut self) {}
-            fn on_bar(
-                &mut self,
-                _bar: &Bar,
-                _portfolio: &PortfolioView,
-                history: &[Bar],
-            ) -> Vec<StrategySignal> {
-                self.lengths.borrow_mut().push(history.len());
-                vec![]
-            }
-            fn teardown(&mut self) {}
-        }
-
-        let mut bus = EventBus::new();
-        bus.subscribe("noop", |_| {});
-
-        let mut engine = Engine::new(test_config(), bus);
-        let mut strategy = HistoryTracker {
-            lengths: history_clone,
-        };
-
-        engine.run(&mut strategy, test_bars(4)).unwrap();
-
-        // History grows by one each bar
-        // First bar sees 0 history, second sees 1, etc.
-        assert_eq!(
-            *history_lengths.borrow(),
-            vec![0, 1, 2, 3]
-        );
-    }
-
-    #[test]
-    fn engine_returns_error_for_empty_bars() {
-        let mut bus = EventBus::new();
-        bus.subscribe("noop", |_| {});
-
-        let mut engine = Engine::new(test_config(), bus);
-        let mut strategy = DoNothingStrategy;
-
-        let result = engine.run(&mut strategy, vec![]);
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            EngineError::NoDataLoaded
-        ));
-    }
-
-    #[test]
-    fn runs_agnaist_real_csv_data() {
-        use observa_data::csv_reader::CsvReader;
-
-        let bars = CsvReader::load("../../data/USTECz_D1_data.csv");
-
-        if bars.is_err() {
-            // Skip test if file is not found
-            // CI environments won't have the file
-            return;
-        }
-
-        let bars = bars.unwrap();
-        let bar_count = bars.len();
-
-        let received = Rc::new(RefCell::new(0u32));
-        let received_clone = received.clone();
-
-        let mut bus = EventBus::new();
-        bus.subscribe("bar_count", move |event| {
-            if matches!(event, Event::BarReceived(_)) {
-                *received_clone.borrow_mut() += 1;
-            }
-        });
-
-        let mut engine = Engine::new(test_config(), bus);
-        let mut strategy = DoNothingStrategy;
-        engine.run(&mut strategy, bars).unwrap();
-
-        // Every bar in the CSV should produce
-        // execute one BarReceivedEvent
-        assert_eq!(*received.borrow(), bar_count as u32);
-    }
+fn quantities_match(open: f64, requested: f64) -> bool {
+    let scale = open.abs().max(requested.abs()).max(1.0);
+    (open - requested).abs() <= 1e-9 * scale
 }

@@ -8,13 +8,14 @@ use tiny_http::{Header, Response, Server};
 mod config;
 use config::load_config;
 use observa_core::bar::Bar;
-use observa_core::config::CommissionMode;
-use observa_core::events::{Event, EventMetadata, OrderIntentCreatedEvent};
+use observa_core::config::{
+    AccountConfig, BacktestConfig, BarInterval, CommissionConfig, CommissionMode, DatasetConfig,
+    ExecutionConfig as CoreExecutionConfig, FillMode, InstrumentConfig, StrategyConfig,
+};
+use observa_core::types::ExitReason;
 use observa_data::csv_reader::CsvReader;
-use observa_engine::strategy::{PortfolioView, Strategy, OpenPositionView};
-use observa_execution::execution::{ExecutionConfig, ExecutionModel, FillResult, FillMode};
+use observa_engine::engine::Engine;
 use observa_metrics::metrics::MetricsEngine;
-use observa_portfolio::portfolio::{PortfolioManager, PortfolioSettings};
 use observa_python::strategy::{detect_strategy_class, PyStrategy};
 use uuid::Uuid;
 
@@ -26,18 +27,12 @@ use uuid::Uuid;
 struct CliArgs {
     /// Path to the Python strategy file
     strategy_file: PathBuf,
-
     /// Name of the strategy class inside the file
-    /// If None, auto-detected from the file
     class_name: Option<String>,
-
     /// Path to the CSV data file
-    data_file: PathBuf, 
-    
-    /// .yaml configuration file
-    /// optional (defaults to config.yaml in current dir)
+    data_file: PathBuf,
+    /// .yaml configuration file (defaults to config.yaml in the CWD)
     config_file: Option<PathBuf>,
-
     /// Port to serve the visualization on
     port: u16,
 }
@@ -45,24 +40,22 @@ struct CliArgs {
 impl CliArgs {
     fn parse() -> Result<Self, String> {
         let args: Vec<String> = std::env::args().collect();
-
-        // Minimum: observa-cli --strategy file.py --data file.csv
         if args.len() < 5 {
             return Err(Self::usage());
         }
-
-        // First arg after binary name must be "run"
         if args[1] != "run" {
             return Err(format!(
-                "Unknown command '{}'\n\n{}", args[1], Self::usage()
+                "Unknown command '{}'\n\n{}",
+                args[1],
+                Self::usage()
             ));
         }
 
         let mut strategy_file: Option<PathBuf> = None;
-        let mut class_name:    Option<String>  = None;
-        let mut data_file:     Option<PathBuf> = None;
-        let mut config_file: Option<PathBuf> = None;        
-        let mut port             = 7878_u16;
+        let mut class_name: Option<String> = None;
+        let mut data_file: Option<PathBuf> = None;
+        let mut config_file: Option<PathBuf> = None;
+        let mut port = 7878_u16;
 
         let mut i = 2;
         while i < args.len() {
@@ -85,9 +78,9 @@ impl CliArgs {
                 }
                 "--port" | "-p" => {
                     i += 1;
-                    port = args[i].parse().map_err(|_| {
-                        format!("Invalid port: {}", args[i])
-                    })?;
+                    port = args[i]
+                        .parse()
+                        .map_err(|_| format!("Invalid port: {}", args[i]))?;
                 }
                 "--help" | "-h" => {
                     println!("{}", Self::usage());
@@ -95,7 +88,9 @@ impl CliArgs {
                 }
                 unknown => {
                     return Err(format!(
-                        "Unknown argument: {}\n\n{}", unknown, Self::usage()
+                        "Unknown argument: {}\n\n{}",
+                        unknown,
+                        Self::usage()
                     ));
                 }
             }
@@ -103,20 +98,16 @@ impl CliArgs {
         }
 
         Ok(CliArgs {
-            strategy_file: strategy_file.ok_or(
-                "--strategy is required".to_string()
-            )?,
+            strategy_file: strategy_file.ok_or("--strategy is required".to_string())?,
             class_name,
-            data_file: data_file.ok_or(
-                "--data is required".to_string()
-            )?,  
-            config_file,          
+            data_file: data_file.ok_or("--data is required".to_string())?,
+            config_file,
             port,
         })
     }
 
     fn usage() -> String {
-    r#"
+        r#"
 Observa — Visual Backtesting Engine
 
 USAGE:
@@ -141,228 +132,275 @@ EXAMPLE:
     observa init
     observa run --strategy ema_crossover.py --data EURUSD_M15.csv
     observa run -s my_strategy.py -d EURUSD.csv --config my_config.yaml
-    "#.trim().to_string()
-}
+    "#
+        .trim()
+        .to_string()
+    }
 }
 
 // ────────────────────────────────────────────────
-// Backtest runner
+// Legacy config → canonical BacktestConfig mapping
 // ────────────────────────────────────────────────
 
-fn run_backtest(
-    bars: Vec<Bar>,
-    strategy: &mut PyStrategy,
-    execution_config: ExecutionConfig,
-    settings: PortfolioSettings,
+/// Maps the (legacy) CLI YAML configuration onto the canonical resolved
+/// `BacktestConfig` consumed by the Engine. Only input adaptation lives here —
+/// the CLI performs no backtest economics.
+fn build_canonical_config(
+    legacy: &config::ObservaConfig,
+    strategy_file: &std::path::Path,
+    class_name: &str,
+    bars: &[Bar],
+) -> Result<BacktestConfig, String> {
+    // Legacy flat commission is a per-trade fee charged once at close.
+    let commission_mode = CommissionMode::RoundTrip;
+    let flat_per_fill = legacy.execution.commission;
+
+    let quote_currency = if legacy.account.currency.trim().is_empty() {
+        "USD".to_string()
+    } else {
+        legacy.account.currency.trim().to_uppercase()
+    };
+    // MVP requires account == quote currency. Legacy configs quote in the
+    // account currency by construction; mismatch is rejected clearly.
+    let base_currency = derive_base_currency(&legacy.instrument.symbol);
+
+    let fill_mode = match legacy.execution.fill_mode.trim().to_lowercase().as_str() {
+        "bar_close" | "this_bar_close" => FillMode::BarClose,
+        _ => FillMode::NextBarOpen, // default
+    };
+
+    let dataset = DatasetConfig {
+        source: "csv".to_string(),
+        hash: None,
+        interval: detect_interval(bars),
+        start: bars.first().map(|b| b.timestamp),
+        end: bars.last().map(|b| b.timestamp),
+        bar_count: Some(bars.len() as u64),
+    };
+
+    let config = BacktestConfig {
+        version: 1,
+        account: AccountConfig {
+            starting_balance: legacy.account.initial_balance,
+            currency: quote_currency.clone(),
+            leverage: if legacy.instrument.margin_rate.is_finite()
+                && legacy.instrument.margin_rate > 0.0
+            {
+                1.0 / legacy.instrument.margin_rate
+            } else {
+                100.0
+            },
+        },
+        instrument: InstrumentConfig {
+            symbol: legacy.instrument.symbol.clone(),
+            base_currency,
+            quote_currency,
+            contract_size: legacy.instrument.contract_size,
+            min_quantity: legacy.execution.min_lot_size.max(0.0),
+            max_quantity: legacy
+                .execution
+                .max_lot_size
+                .max(legacy.execution.min_lot_size),
+            quantity_step: 0.01,
+            ..Default::default()
+        },
+        execution: CoreExecutionConfig {
+            fill_mode,
+            spread: legacy.execution.spread,
+            slippage: legacy.execution.slippage,
+            commission: CommissionConfig {
+                mode: commission_mode,
+                flat_per_fill,
+                rate_per_unit: 0.0,
+            },
+            ..Default::default()
+        },
+        dataset: Some(dataset),
+        strategy: Some(StrategyConfig {
+            name: class_name.to_string(),
+            source: Some(strategy_file.to_string_lossy().to_string()),
+            source_hash: None,
+            parameters: Default::default(),
+        }),
+    };
+
+    config.validate().map_err(|e| e.to_string())?;
+    if !config.is_resolved() {
+        return Err("internal: resolved configuration incomplete".to_string());
+    }
+    Ok(config)
+}
+
+/// Deterministic interval detection from the first two bars (presentation
+/// metadata; the loader already guarantees chronological order).
+fn detect_interval(bars: &[Bar]) -> BarInterval {
+    if bars.len() < 2 {
+        return BarInterval::Minute(15);
+    }
+    let secs = (bars[1].timestamp - bars[0].timestamp).num_seconds().max(1);
+    if secs % 604_800 == 0 {
+        BarInterval::Week
+    } else if secs % 86_400 == 0 {
+        BarInterval::Day
+    } else if secs % 3_600 == 0 {
+        BarInterval::Hour((secs / 3_600) as u32)
+    } else if secs % 60 == 0 {
+        BarInterval::Minute((secs / 60) as u32)
+    } else {
+        BarInterval::Minute(15)
+    }
+}
+
+fn derive_base_currency(symbol: &str) -> String {
+    // Deterministic best-effort for legacy configs (informational).
+    if symbol.len() >= 3 && symbol[..3].chars().all(|c| c.is_ascii_alphabetic()) {
+        symbol[..3].to_uppercase()
+    } else {
+        "XXX".to_string()
+    }
+}
+
+// ────────────────────────────────────────────────
+// Presentation (console summary + UI event synthesis)
+// ────────────────────────────────────────────────
+
+fn print_summary(result: &observa_engine::engine::RunResult, metrics: &MetricsReportView) {
+    println!();
+    println!("════════════════════════════════════════");
+    println!("  BACKTEST COMPLETE");
+    println!("════════════════════════════════════════");
+    println!("  Bars processed: {}", result.total_bars);
+    println!("  Total trades:   {}", result.trades.len());
+    println!("  Total Return:   {:.2}%", metrics.total_return_pct);
+    println!("  Max Drawdown:   {:.2}%", metrics.max_drawdown_pct);
+    println!("  Final Balance:  ${:.2}", result.final_state.final_balance);
+    println!("  Final Equity:   ${:.2}", result.final_state.final_equity);
+    println!(
+        "  Open Positions: {}",
+        result.final_state.open_positions_remaining
+    );
+    println!("════════════════════════════════════════");
+}
+
+struct MetricsReportView {
+    total_return_pct: f64,
+    max_drawdown_pct: f64,
+}
+
+/// Builds the event JSON stream presented to the replay UI. This is
+/// presentation only — the economics come entirely from the Engine result.
+fn build_ui_events(
+    result: &observa_engine::engine::RunResult,
+    bars: &[Bar],
+    metrics_report: &serde_json::Value,
 ) -> Vec<String> {
     let mut events: Vec<String> = Vec::new();
+    let run_id = result.run_id;
 
-    let run_id = Uuid::new_v4();
-    // Canonical financial/position accounting (OBS-0005). The legacy replay
-    // loop below still drives it through the thin legacy adapters until the
-    // canonical engine (OBS-0007) owns the loop.
-    let mut portfolio = match PortfolioManager::try_new(run_id, settings) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("  Invalid portfolio configuration: {}", e);
-            std::process::exit(1);
-        }
-    };
-    let execution = ExecutionModel::new(execution_config);
-    // 15-minute bars: 4 bars per hour × 6.5 trading hours × 252 days
-    // For EURUSD (forex, 24h market): 4 × 24 × 252 = 24,192
-    // For stocks (9:30-16:00 EST): 4 × 6.5 × 252 = 6,552
-    // We use forex here since the data is EURUSD
-    let initial_balance = portfolio.balance();
-    let mut metrics = MetricsEngine::new(initial_balance, 4.0 * 24.0 * 252.0);
-
-    strategy.initialize();
-
-    let mut history: Vec<Bar> = Vec::new();
-
-    let push = |event: &Event, store: &mut Vec<String>| {
-        if let Ok(json) = serde_json::to_string(event) {
-            store.push(json);
-        }
-    };
-
-    for bar in &bars {
-        // Check SL/TP
-        // Check SL/TP — now handles multiple positions
-        for pe in portfolio.check_sl_tp(bar) {
-            if let Some(closed) = pe.position_closed {
-                metrics.on_trade_closed(closed.pnl);
-                push(&Event::PositionClosed(closed), &mut events);
-            }
-            push(&Event::PortfolioSnapshot(pe.snapshot), &mut events);
-        }
-
-        // Emit bar event with current indicator state
-        // (indicators are managed inside the Python strategy
-        //  so we emit a basic bar event here)
+    for (i, bar_rec) in result.bars.iter().enumerate() {
+        let b = &bars[i];
         let bar_json = serde_json::json!({
             "event_type": "BarReceived",
-            "timestamp":  bar.timestamp,
-            "open":       bar.open,
-            "high":       bar.high,
-            "low":        bar.low,
-            "close":      bar.close,
-            "volume":     bar.volume,
+            "timestamp":  bar_rec.timestamp,
+            "open":       b.open,
+            "high":       b.high,
+            "low":        b.low,
+            "close":      b.close,
+            "volume":     b.volume,
             "ema_fast":   null,
             "ema_slow":   null,
         });
         events.push(bar_json.to_string());
 
-        // Build portfolio view with all open positions
-        let open_pos_views: Vec<OpenPositionView> = portfolio
-            .open_positions()
-            .iter()
-            .map(|p| OpenPositionView {
-                ticket:         p.position_id.to_string(),
-                direction:      p.direction,
-                size:           p.quantity_lots,
-                entry_price:    p.entry_price,
-                unrealised_pnl: p.unrealised_pnl(bar.close),
-                sl:             p.stop_loss,
-                tp:             p.take_profit,
-            })
-            .collect();
-
-        let unrealised = open_pos_views
-            .iter()
-            .map(|p| p.unrealised_pnl)
-            .sum::<f64>();
-
-        let portfolio_view = PortfolioView {
-            balance:           portfolio.balance(),
-            equity:            portfolio.equity(bar.close),
-            has_open_position: !open_pos_views.is_empty(),
-            open_positions:    open_pos_views,
-            unrealised_pnl:    unrealised,
-        };
-
-        // Call strategy
-        let signals = strategy.on_bar(bar, &portfolio_view, &history);
-
-        // Emit any drawings the strategy produced
-        // Collect drawings directly since we own the PyStrategy
-        if !strategy.pending_drawings.is_empty() {
-            let drawings = std::mem::take(&mut strategy.pending_drawings);
-            let drawing_json = serde_json::json!({
-                "event_type":    "DrawingsEmitted",
-                "event_id":      Uuid::new_v4().to_string(),
-                "run_id":        run_id.to_string(),
-                "timestamp":     bar.timestamp,
-                "bar_timestamp": bar.timestamp,
-                "drawings":      drawings,
-            });
-            events.push(drawing_json.to_string());
-        }
-                // Process signals
-        for signal in signals {
-            let signal_ticket = signal.ticket.clone();
-
-            let intent = OrderIntentCreatedEvent {
-                metadata:       EventMetadata::new(run_id, bar.timestamp),
-                order_id:       Uuid::new_v4(),
-                signal_id:      Uuid::new_v4(),
-                direction:      signal.direction,
-                size:           signal.size,
-                intended_price: if signal.intended_price == 0.0 {
-                    bar.close // default to bar close if not specified
-                } else {
-                    signal.intended_price
-                },
-                sl:             signal.sl,
-                tp:             signal.tp,
-                reason:         signal.reason.clone(),
-            };
-
-            match execution.process(&intent, bar) {
-                Ok(FillResult::Filled(fill)) => {
-                    push(&Event::OrderFilled(fill.clone()), &mut events);
-                    match portfolio.process_fill(&fill, signal_ticket) {
-                        Ok(pe) => {
-                            if let Some(opened) = pe.position_opened {
-                                push(&Event::PositionOpened(opened), &mut events);
-                            }
-                            if let Some(closed) = pe.position_closed {
-                                metrics.on_trade_closed(closed.pnl);
-                                push(&Event::PositionClosed(closed), &mut events);
-                            }
-                            
-                        }
-                        Err(e) => eprintln!("Portfolio error: {}", e),
+        for fill in result.fills.iter().filter(|f| f.bar_index == i) {
+            match fill.reason {
+                observa_engine::engine::FillReason::MarketClose
+                | observa_engine::engine::FillReason::StopLoss
+                | observa_engine::engine::FillReason::TakeProfit => {}
+                _ => {
+                    if let Some(pid) = fill.position_id {
+                        let opened = serde_json::json!({
+                            "event_type": "PositionOpened",
+                            "event_id": Uuid::new_v4().to_string(),
+                            "run_id": run_id.to_string(),
+                            "timestamp": bar_rec.timestamp,
+                            "position_id": pid.to_string(),
+                            "direction": format!("{:?}", fill.side),
+                            "size": fill.quantity_lots,
+                            "entry_price": fill.executed_price,
+                            "sl": null,
+                            "tp": null,
+                            "pnl": 0.0,
+                        });
+                        events.push(opened.to_string());
                     }
                 }
-                Ok(FillResult::Rejected(r)) => {
-                    push(&Event::OrderRejected(r), &mut events);
-                }
-                Err(e) => eprintln!("Execution error: {}", e),
             }
         }
 
-        history.push(bar.clone());
+        for trade in result.trades.iter().filter(|t| t.bar_index == i) {
+            let reason = match trade.exit_reason {
+                ExitReason::TakeProfit => "Take Profit",
+                ExitReason::StopLoss => "Stop Loss",
+                ExitReason::Signal => "Signal",
+            };
+            let closed = serde_json::json!({
+                "event_type": "PositionClosed",
+                "event_id": Uuid::new_v4().to_string(),
+                "run_id": run_id.to_string(),
+                "timestamp": bar_rec.timestamp,
+                "position_id": trade.position_id.to_string(),
+                "direction": format!("{:?}", trade.direction),
+                "size": trade.quantity_lots,
+                "entry_price": trade.entry_price,
+                "exit_price": trade.exit_price,
+                "exit_reason": reason,
+                "pnl": trade.net_realized_pnl,
+            });
+            events.push(closed.to_string());
+        }
 
-
-        // ── Emit per-bar portfolio snapshot ──────────
-        // The equity curve must be sampled at every bar using the canonical
-        // mark-to-market snapshot (all open positions; no first-position math).
-        let snap = portfolio.snapshot(bar.close, bar.timestamp);
-        let bar_snapshot = serde_json::json!({
-            "event_type":    "PortfolioSnapshot",
-            "event_id":      Uuid::new_v4().to_string(),
-            "run_id":        run_id.to_string(),
-            "timestamp":     bar.timestamp,
-            "balance":       snap.balance,
-            "equity":        snap.equity,
-            "margin":        snap.used_margin,
-            "free_margin":   snap.free_margin,
+        let snap = &bar_rec.snapshot;
+        let snapshot = serde_json::json!({
+            "event_type": "PortfolioSnapshot",
+            "event_id": Uuid::new_v4().to_string(),
+            "run_id": run_id.to_string(),
+            "timestamp": snap.timestamp,
+            "balance": snap.balance,
+            "equity": snap.equity,
+            "margin": snap.used_margin,
+            "free_margin": snap.free_margin,
             "unrealised_pnl": snap.unrealised_pnl,
-            "realised_pnl":  snap.realised_pnl,
+            "realised_pnl": snap.realised_pnl,
             "open_positions": snap.open_positions.len(),
         });
-        events.push(bar_snapshot.to_string());
+        events.push(snapshot.to_string());
 
-        // Feed the metrics engine every bar
-        metrics.on_snapshot(bar.timestamp, snap.equity);
-    
+        if !bar_rec.drawings.is_empty() {
+            let drawing_json = serde_json::json!({
+                "event_type": "DrawingsEmitted",
+                "event_id": Uuid::new_v4().to_string(),
+                "run_id": run_id.to_string(),
+                "timestamp": bar_rec.timestamp,
+                "bar_timestamp": bar_rec.timestamp,
+                "drawings": bar_rec.drawings,
+            });
+            events.push(drawing_json.to_string());
+        }
     }
 
-    strategy.teardown();
-
-    // Emit final metrics
-    let report = metrics.report();
-    println!();
-    println!("════════════════════════════════════════");
-    println!("  BACKTEST COMPLETE");
-    println!("════════════════════════════════════════");
-    println!("  Total Return:   {:.2}%", report.total_return_pct);
-    println!("  Max Drawdown:   {:.2}%", report.max_drawdown_pct);
-    println!("  Win Rate:       {:.1}%", report.win_rate_pct);
-    println!("  Profit Factor:  {:.2}",  report.profit_factor);
-    println!("  Total Trades:   {}",     report.total_trades);
-    println!("  Final Balance:  ${:.2}", report.total_return_pct / 100.0
-        * 10_000.0 + 10_000.0);
-    println!("════════════════════════════════════════");
-
-    let report_json = serde_json::json!({
-        "event_type": "MetricsReport",
-        "report": report,
-    });
-    events.push(report_json.to_string());
-
+    events.push(metrics_report.to_string());
     events
 }
 
 // ────────────────────────────────────────────────
-// HTTP Server — same as observa-server
+// HTTP server (unchanged presentation layer)
 // ────────────────────────────────────────────────
 
 fn serve(events: Vec<String>, port: u16) {
     let events_json = Arc::new(format!("[{}]", events.join(",")));
-    let addr        = format!("0.0.0.0:{}", port);
-    let server      = Server::http(&addr).expect("Failed to start server");
+    let addr = format!("0.0.0.0:{}", port);
+    let server = Server::http(&addr).expect("Failed to start server");
 
     println!();
     println!("  Open http://localhost:{} in your browser", port);
@@ -370,66 +408,47 @@ fn serve(events: Vec<String>, port: u16) {
     println!();
 
     for request in server.incoming_requests() {
-        let url         = request.url().to_string();
+        let url = request.url().to_string();
         let events_json = events_json.clone();
 
-        thread::spawn(move || {
-            match url.as_str() {
-                "/" => {
-                    let html = include_str!("../../../frontend/index.html");
-                    let response = Response::from_string(html)
-                        .with_header(
-                            Header::from_bytes("Content-Type",
-                                "text/html; charset=utf-8").unwrap()
-                        );
-                    request.respond(response).ok();
-                }
-
-                "/api/events" => {
-                    let response =
-                        Response::from_string((*events_json).clone())
-                            .with_header(
-                                Header::from_bytes("Content-Type",
-                                    "application/json").unwrap()
-                            )
-                            .with_header(
-                                Header::from_bytes(
-                                    "Access-Control-Allow-Origin", "*").unwrap()
-                            );
-                    request.respond(response).ok();
-                }
-
-                url if url.starts_with("/css/") || url.starts_with("/js/") => {
-                    let file_path = format!("frontend{}", url);
-                    match std::fs::read_to_string(&file_path) {
-                        Ok(contents) => {
-                            let content_type = if url.ends_with(".css") {
-                                "text/css"
-                            } else {
-                                "application/javascript"
-                            };
-                            let response = Response::from_string(contents)
-                                .with_header(
-                                    Header::from_bytes(
-                                        "Content-Type", content_type).unwrap()
-                                );
-                            request.respond(response).ok();
-                        }
-                        Err(_) => {
-                            request.respond(
-                                Response::from_string("Not found")
-                                    .with_status_code(404)
-                            ).ok();
-                        }
+        thread::spawn(move || match url.as_str() {
+            "/" => {
+                let html = include_str!("../../../frontend/index.html");
+                let response = Response::from_string(html).with_header(
+                    Header::from_bytes("Content-Type", "text/html; charset=utf-8").unwrap(),
+                );
+                request.respond(response).ok();
+            }
+            "/api/events" => {
+                let response = Response::from_string((*events_json).clone())
+                    .with_header(Header::from_bytes("Content-Type", "application/json").unwrap())
+                    .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap());
+                request.respond(response).ok();
+            }
+            url if url.starts_with("/css/") || url.starts_with("/js/") => {
+                let file_path = format!("frontend{}", url);
+                match std::fs::read_to_string(&file_path) {
+                    Ok(contents) => {
+                        let content_type = if url.ends_with(".css") {
+                            "text/css"
+                        } else {
+                            "application/javascript"
+                        };
+                        let response = Response::from_string(contents)
+                            .with_header(Header::from_bytes("Content-Type", content_type).unwrap());
+                        request.respond(response).ok();
+                    }
+                    Err(_) => {
+                        request
+                            .respond(Response::from_string("Not found").with_status_code(404))
+                            .ok();
                     }
                 }
-
-                _ => {
-                    request.respond(
-                        Response::from_string("Not found")
-                            .with_status_code(404)
-                    ).ok();
-                }
+            }
+            _ => {
+                request
+                    .respond(Response::from_string("Not found").with_status_code(404))
+                    .ok();
             }
         });
     }
@@ -442,18 +461,16 @@ fn serve(events: Vec<String>, port: u16) {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    // Handle "observa init" before full argument parsing
+    // Handle "observa init" before full argument parsing.
     if args.len() > 1 && args[1] == "init" {
         let content = config::generate_default_config();
-        std::fs::write("config.yaml", content)
-            .expect("Failed to write config.yaml");
+        std::fs::write("config.yaml", content).expect("Failed to write config.yaml");
         println!("Created config.yaml — edit it to match your setup.");
         std::process::exit(0);
     }
 
-
     let args = match CliArgs::parse() {
-        Ok(a)  => a,
+        Ok(a) => a,
         Err(e) => {
             eprintln!("Error: {}", e);
             std::process::exit(1);
@@ -465,7 +482,7 @@ fn main() {
     println!("╚══════════════════════════════════════╝");
     println!();
 
-    // ── Detect or use provided class name ─────
+    // ── Detect or use provided class name ──
     let class_name = match args.class_name {
         Some(name) => {
             println!("  Strategy class: {}", name);
@@ -480,34 +497,27 @@ fn main() {
                 }
                 Err(e) => {
                     eprintln!("  Error: {}", e);
-                    eprintln!(
-                        "  Tip: use --class <ClassName> to specify manually"
-                    );
+                    eprintln!("  Tip: use --class <ClassName> to specify manually");
                     std::process::exit(1);
                 }
             }
         }
     };
 
-    // ── Load Python strategy ───────────────────
-    println!("  Loading strategy: {}",
-        args.strategy_file.display());
-
-    let mut strategy = match PyStrategy::load(
-        &args.strategy_file,
-        &class_name,
-    ) {
-        Ok(s)  => s,
+    // ── Load Python strategy ──
+    println!("  Loading strategy: {}", args.strategy_file.display());
+    let mut strategy = match PyStrategy::load(&args.strategy_file, &class_name) {
+        Ok(s) => s,
         Err(e) => {
             eprintln!("  Failed to load strategy: {}", e);
             std::process::exit(1);
         }
     };
 
-    // ── Load market data ───────────────────────
+    // ── Load market data ──
     println!("  Loading data: {}", args.data_file.display());
     let bars = match CsvReader::load(&args.data_file) {
-        Ok(b)  => b,
+        Ok(b) => b,
         Err(e) => {
             eprintln!("  Failed to load data: {}", e);
             std::process::exit(1);
@@ -515,61 +525,71 @@ fn main() {
     };
     println!("  Loaded {} bars", bars.len());
 
-    // ── Run backtest ───────────────────────────
-    println!();
-    println!("  Running backtest...");
-
-
-
-    // Load config file — defaults if not found
-    let config_path = args.config_file
+    // ── Load configuration and resolve into the canonical model ──
+    let config_path = args
+        .config_file
         .unwrap_or_else(|| PathBuf::from("config.yaml"));
-    let config = load_config(&config_path);
+    let legacy = load_config(&config_path);
 
-    println!("  Spread:     {} pips", config.execution.spread);
-    println!("  Slippage:   {} pips", config.execution.slippage);
-    println!("  Commission: ${}", config.execution.commission);
-    println!("  Balance:    ${}", config.account.initial_balance);
+    println!("  Spread:     {}", legacy.execution.spread);
+    println!("  Slippage:   {}", legacy.execution.slippage);
+    println!("  Commission: ${}", legacy.execution.commission);
+    println!("  Balance:    ${}", legacy.account.initial_balance);
+    println!();
 
-    let execution_config = ExecutionConfig {
-        spread:            config.execution.spread,
-        slippage:          config.execution.slippage,
-        commission:        config.execution.commission,
-        min_stop_distance: config.execution.min_stop_distance,
-        min_lot_size:      config.execution.min_lot_size,
-        max_lot_size:      config.execution.max_lot_size,
-        fill_mode:         FillMode::NextBarOpen,
-    };
-    
-    // Build canonical portfolio settings from the (legacy) config.
-    // LEGACY MAPPING (OBS-0005, pre-OBS-0007): the old config expresses margin
-    // via `margin_rate` and commission as a flat per-trade fee; canonical
-    // accounting uses leverage + commission mode. The flat legacy fee is
-    // treated as a ROUND_TRIP charge (one charge at close), preserving the
-    // historical "$ per trade" behaviour of the legacy CLI.
-    let leverage = if config.instrument.margin_rate.is_finite()
-        && config.instrument.margin_rate > 0.0
-    {
-        1.0 / config.instrument.margin_rate
-    } else {
-        100.0
-    };
-    let settings = PortfolioSettings {
-        initial_cash:     config.account.initial_balance,
-        leverage,
-        contract_size:    config.instrument.contract_size,
-        symbol:           config.instrument.symbol.clone(),
-        commission_mode:  CommissionMode::RoundTrip,
-        legacy_commission: config.execution.commission,
-        legacy_slippage:  config.execution.slippage,
+    let config = match build_canonical_config(&legacy, &args.strategy_file, &class_name, &bars) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("  Invalid configuration: {}", e);
+            std::process::exit(1);
+        }
     };
 
-    println!("  Instrument: {}", config.instrument.symbol);
-    println!("  Contract:   {} units/lot", config.instrument.contract_size);
-    println!("  Leverage:   1:{}", leverage);
+    // ── Invoke the canonical Engine ──
+    println!("  Running backtest...");
+    let engine = match Engine::new(config) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("  Failed to construct engine: {}", e);
+            std::process::exit(1);
+        }
+    };
 
-    let events = run_backtest(bars, &mut strategy, execution_config, settings);
+    let result = match engine.run(&bars, &mut strategy) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("  Backtest failed: {}", e);
+            std::process::exit(1);
+        }
+    };
 
-    // ── Serve visualization ────────────────────
-    serve(events, args.port);
+    // ── Derive presentation metrics from the canonical result ──
+    let initial_balance = result
+        .bars
+        .first()
+        .map(|b| b.snapshot.balance)
+        .unwrap_or(legacy.account.initial_balance);
+    let mut metrics = MetricsEngine::new(initial_balance, 4.0 * 24.0 * 252.0);
+    for b in &result.bars {
+        metrics.on_snapshot(b.snapshot.timestamp, b.snapshot.equity);
+    }
+    for trade in &result.trades {
+        metrics.on_trade_closed(trade.net_realized_pnl);
+    }
+    let report = metrics.report();
+
+    let metrics_view = MetricsReportView {
+        total_return_pct: report.total_return_pct,
+        max_drawdown_pct: report.max_drawdown_pct,
+    };
+    print_summary(&result, &metrics_view);
+
+    let metrics_report = serde_json::json!({
+        "event_type": "MetricsReport",
+        "report": report,
+    });
+
+    // ── Serve the replay UI (presentation only) ──
+    let ui_events = build_ui_events(&result, &bars, &metrics_report);
+    serve(ui_events, args.port);
 }

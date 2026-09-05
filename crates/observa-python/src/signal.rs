@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use observa_core::types::Direction;
+use observa_core::types::{Direction, OrderKind};
 use observa_engine::strategy::StrategySignal;
 use crate::error::BridgeError;
 
@@ -84,12 +84,13 @@ pub fn signal_from_py(
 
     Ok(StrategySignal {
         direction,
+        order_type: OrderKind::Market,
         size,
         intended_price,
         sl,
         tp,
         reason,
-        ticket,        
+        ticket,
     })
 }
 

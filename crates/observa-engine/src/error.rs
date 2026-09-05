@@ -1,19 +1,45 @@
 use thiserror::Error;
 
+use observa_portfolio::error::PortfolioError;
+
+/// Structured errors raised by the canonical Engine runtime (OBS-0007).
+///
+/// The Engine coordinates configuration, strategy, execution semantics and
+/// portfolio authority. Failures are surfaced as structured variants rather
+/// than uncontrolled panics or silent fallbacks.
 #[derive(Debug, Error)]
 pub enum EngineError {
-    #[error("Event Bus failed to write to event log: {message}")]
-    EventLogWriteError { message: String },
+    /// The resolved configuration is invalid or incomplete.
+    #[error("invalid engine configuration: {0}")]
+    InvalidConfiguration(String),
 
-    #[error("Subscriber '{name}' panicked: {message}")]
-    SubscriberPanic { name: String, message: String },
-
-    #[error("No data loaded — call load_data() before run()")]
+    /// No market data was provided to the run.
+    #[error("no data loaded: the run requires at least one bar")]
     NoDataLoaded,
 
-    #[error("Engine is already running")]
-    AlreadyRunning,
+    /// A strategy lifecycle callback failed.
+    #[error("strategy failure: {message}")]
+    StrategyFailure {
+        /// Bar index at which the failure occurred, when known.
+        #[doc(hidden)]
+        bar_index: Option<usize>,
+        /// Structured message from the strategy bridge.
+        message: String,
+    },
 
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
+    /// The portfolio rejected or failed a financial operation.
+    #[error("portfolio error: {0}")]
+    Portfolio(#[from] PortfolioError),
+
+    /// An execution-domain error surfaced through the runtime.
+    #[error("execution error: {0}")]
+    Execution(#[from] observa_execution::semantics::ExecutionDomainError),
+
+    /// An order-sequence overflow (u64 counter exhausted).
+    #[error("order sequence overflow: cannot create more orders in this run")]
+    OrderSequenceOverflow,
+
+    /// Internal runtime state error.
+    #[error("invalid runtime state: {0}")]
+    InvalidState(String),
 }
