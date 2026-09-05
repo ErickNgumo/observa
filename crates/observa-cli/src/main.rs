@@ -12,14 +12,14 @@ use observa_core::config::{
     AccountConfig, BacktestConfig, BarInterval, CommissionConfig, CommissionMode, DatasetConfig,
     ExecutionConfig as CoreExecutionConfig, FillMode, InstrumentConfig, StrategyConfig,
 };
-use observa_core::types::ExitReason;
+use observa_core::drawings::DrawingInstruction;
 use observa_data::csv_reader::CsvReader;
 use observa_engine::engine::Engine;
 use observa_engine::persistence::{self, PersistenceError};
+use observa_engine::replay::{self as replay_mod, RunMeta};
 use observa_engine::runevents::EngineEventPayload;
 use observa_metrics::metrics::MetricsEngine;
 use observa_python::strategy::{detect_strategy_class, PyStrategy};
-use uuid::Uuid;
 
 // ────────────────────────────────────────────────
 // CLI Arguments
@@ -364,118 +364,142 @@ struct MetricsReportView {
     max_drawdown_pct: f64,
 }
 
-/// Builds the event JSON stream presented to the replay UI. This is
-/// presentation only — the economics come entirely from the Engine result.
-fn build_ui_events(
+/// Builds the canonical replay payload for the frontend from a completed run.
+/// This is a deterministic transformation of canonical events + bars; the
+/// frontend derives all displayed economics from this payload.
+fn replay_payload_for(
     result: &observa_engine::engine::RunResult,
     bars: &[Bar],
-    metrics_report: &serde_json::Value,
-) -> Vec<String> {
-    let mut events: Vec<String> = Vec::new();
-    let run_id = result.run_id;
+    metrics: &serde_json::Value,
+    symbol: &str,
+) -> serde_json::Value {
+    let drawings: Vec<Vec<DrawingInstruction>> =
+        result.bars.iter().map(|b| b.drawings.clone()).collect();
+    let meta = RunMeta {
+        status: "completed".to_string(),
+        total_bars: result.total_bars,
+        final_balance: Some(result.final_state.final_balance),
+        final_equity: Some(result.final_state.final_equity),
+        open_positions: Some(result.final_state.open_positions_remaining),
+        instrument_symbol: Some(symbol.to_string()),
+        ..Default::default()
+    };
+    replay_mod::replay_payload(bars, &result.events, &drawings, &meta, Some(metrics))
+}
 
-    for (i, bar_rec) in result.bars.iter().enumerate() {
-        let b = &bars[i];
-        let bar_json = serde_json::json!({
-            "event_type": "BarReceived",
-            "timestamp":  bar_rec.timestamp,
-            "open":       b.open,
-            "high":       b.high,
-            "low":        b.low,
-            "close":      b.close,
-            "volume":     b.volume,
-            "ema_fast":   null,
-            "ema_slow":   null,
-        });
-        events.push(bar_json.to_string());
+fn vec_of_empty_drawings(n: usize) -> Vec<Vec<DrawingInstruction>> {
+    (0..n).map(|_| Vec::new()).collect()
+}
 
-        for fill in result.fills.iter().filter(|f| f.bar_index == i) {
-            match fill.reason {
-                observa_engine::engine::FillReason::MarketClose
-                | observa_engine::engine::FillReason::StopLoss
-                | observa_engine::engine::FillReason::TakeProfit => {}
-                _ => {
-                    if let Some(pid) = fill.position_id {
-                        let opened = serde_json::json!({
-                            "event_type": "PositionOpened",
-                            "event_id": Uuid::new_v4().to_string(),
-                            "run_id": run_id.to_string(),
-                            "timestamp": bar_rec.timestamp,
-                            "position_id": pid.to_string(),
-                            "direction": format!("{:?}", fill.side),
-                            "size": fill.quantity_lots,
-                            "entry_price": fill.executed_price,
-                            "sl": null,
-                            "tp": null,
-                            "pnl": 0.0,
-                        });
-                        events.push(opened.to_string());
-                    }
-                }
+/// Best-effort recovery of the canonical dataset bars for a persisted run.
+///
+/// OHLC bars are intentionally not part of the OBS-0008 artifacts; the bars
+/// are reloaded from `run.json` `dataset.source` only when the file exists and
+/// its content hash matches the recorded canonical `dataset.sha256`. When the
+/// dataset cannot be recovered the replay still renders the canonical event /
+/// order / position / account state (minus the candle chart).
+fn recover_bars(run_json: &serde_json::Value) -> Vec<Bar> {
+    let sha = match run_json["dataset"]["sha256"].as_str() {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    let source = match run_json["dataset"]["source"].as_str() {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    if !source.to_lowercase().ends_with(".csv") {
+        return Vec::new();
+    }
+    match observa_data::csv_reader::CsvReader::load(source) {
+        Ok(bars) => match observa_engine::persistence::dataset_identity(&bars) {
+            Ok(identity) if identity.sha256 == sha => bars,
+            _ => {
+                eprintln!(
+                    "  Dataset file '{source}' does not match the recorded dataset hash; replaying without candles."
+                );
+                Vec::new()
             }
-        }
-
-        for trade in result.trades.iter().filter(|t| t.bar_index == i) {
-            let reason = match trade.exit_reason {
-                ExitReason::TakeProfit => "Take Profit",
-                ExitReason::StopLoss => "Stop Loss",
-                ExitReason::Signal => "Signal",
-            };
-            let closed = serde_json::json!({
-                "event_type": "PositionClosed",
-                "event_id": Uuid::new_v4().to_string(),
-                "run_id": run_id.to_string(),
-                "timestamp": bar_rec.timestamp,
-                "position_id": trade.position_id.to_string(),
-                "direction": format!("{:?}", trade.direction),
-                "size": trade.quantity_lots,
-                "entry_price": trade.entry_price,
-                "exit_price": trade.exit_price,
-                "exit_reason": reason,
-                "pnl": trade.net_realized_pnl,
-            });
-            events.push(closed.to_string());
-        }
-
-        let snap = &bar_rec.snapshot;
-        let snapshot = serde_json::json!({
-            "event_type": "PortfolioSnapshot",
-            "event_id": Uuid::new_v4().to_string(),
-            "run_id": run_id.to_string(),
-            "timestamp": snap.timestamp,
-            "balance": snap.balance,
-            "equity": snap.equity,
-            "margin": snap.used_margin,
-            "free_margin": snap.free_margin,
-            "unrealised_pnl": snap.unrealised_pnl,
-            "realised_pnl": snap.realised_pnl,
-            "open_positions": snap.open_positions.len(),
-        });
-        events.push(snapshot.to_string());
-
-        if !bar_rec.drawings.is_empty() {
-            let drawing_json = serde_json::json!({
-                "event_type": "DrawingsEmitted",
-                "event_id": Uuid::new_v4().to_string(),
-                "run_id": run_id.to_string(),
-                "timestamp": bar_rec.timestamp,
-                "bar_timestamp": bar_rec.timestamp,
-                "drawings": bar_rec.drawings,
-            });
-            events.push(drawing_json.to_string());
+        },
+        Err(e) => {
+            eprintln!(
+                "  Cannot reload dataset '{source}': {e}
+  Replaying without candles (event/order/account state only)."
+            );
+            Vec::new()
         }
     }
+}
 
-    events.push(metrics_report.to_string());
-    events
+/// `observa replay --dir <run-dir> [--port <p>]` — replays a persisted canonical
+/// run from its artifacts (run.json / events.jsonl / metrics.json).
+fn replay_command(args: &[String]) {
+    let mut dir: Option<std::path::PathBuf> = None;
+    let mut port = 7878_u16;
+    let mut i = 2;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--dir" | "-d" => {
+                i += 1;
+                dir = Some(std::path::PathBuf::from(&args[i]));
+            }
+            "--port" | "-p" => {
+                i += 1;
+                port = match args[i].parse() {
+                    Ok(p) => p,
+                    Err(_) => {
+                        eprintln!("Invalid port: {}", args[i]);
+                        std::process::exit(1);
+                    }
+                };
+            }
+            "--help" | "-h" => {
+                println!("USAGE: observa replay --dir <run-dir> [--port <port>]");
+                std::process::exit(0);
+            }
+            other => {
+                eprintln!("Unknown argument: {other}");
+                std::process::exit(1);
+            }
+        }
+        i += 1;
+    }
+    let dir = match dir {
+        Some(d) => d,
+        None => {
+            eprintln!("Error: --dir <run-dir> is required for `observa replay`");
+            std::process::exit(1);
+        }
+    };
+
+    let loaded = match replay_mod::load_persisted_run(&dir) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("Failed to load persisted run: {e}");
+            std::process::exit(1);
+        }
+    };
+    let meta = replay_mod::run_meta_from_run_json(&loaded.run_json);
+    let bars = recover_bars(&loaded.run_json);
+    let drawings = vec_of_empty_drawings(bars.len());
+    let payload = replay_mod::replay_payload(
+        &bars,
+        &loaded.events,
+        &drawings,
+        &meta,
+        loaded.metrics.as_ref(),
+    );
+    println!("  Replaying persisted run: {}", dir.display());
+    println!("  Status: {}", meta.status);
+    println!("  Events: {}", loaded.events.len());
+    serve_payload(&payload, port);
 }
 
 // ────────────────────────────────────────────────
-// HTTP server (unchanged presentation layer)
+// HTTP server (thin presentation layer — serves canonical replay payload)
 // ────────────────────────────────────────────────
 
-fn serve(events: Vec<String>, port: u16) {
-    let events_json = Arc::new(format!("[{}]", events.join(",")));
+fn serve_payload(payload: &serde_json::Value, port: u16) {
+    let body = Arc::new(payload.to_string());
     let addr = format!("0.0.0.0:{}", port);
     let server = Server::http(&addr).expect("Failed to start server");
 
@@ -486,7 +510,7 @@ fn serve(events: Vec<String>, port: u16) {
 
     for request in server.incoming_requests() {
         let url = request.url().to_string();
-        let events_json = events_json.clone();
+        let body = body.clone();
 
         thread::spawn(move || match url.as_str() {
             "/" => {
@@ -496,8 +520,8 @@ fn serve(events: Vec<String>, port: u16) {
                 );
                 request.respond(response).ok();
             }
-            "/api/events" => {
-                let response = Response::from_string((*events_json).clone())
+            "/api/replay" => {
+                let response = Response::from_string((*body).clone())
                     .with_header(Header::from_bytes("Content-Type", "application/json").unwrap())
                     .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap());
                 request.respond(response).ok();
@@ -538,11 +562,17 @@ fn serve(events: Vec<String>, port: u16) {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    // Handle "observa init" before full argument parsing.
+    // Handle "observa init" / "observa replay" before full argument parsing.
     if args.len() > 1 && args[1] == "init" {
         let content = config::generate_default_config();
         std::fs::write("config.yaml", content).expect("Failed to write config.yaml");
         println!("Created config.yaml — edit it to match your setup.");
+        std::process::exit(0);
+    }
+    if args.len() > 1 && args[1] == "replay" {
+        replay_command(&args);
+        // replay_command only returns on unrecoverable error (already printed);
+        // otherwise it blocks serving the replay until Ctrl+C.
         std::process::exit(0);
     }
 
@@ -713,12 +743,10 @@ fn main() {
     };
     print_summary(&result, &metrics_view);
 
-    let metrics_report = serde_json::json!({
-        "event_type": "MetricsReport",
-        "report": report,
-    });
-
-    // ── Serve the replay UI (presentation only) ──
-    let ui_events = build_ui_events(&result, &bars, &metrics_report);
-    serve(ui_events, args.port);
+    // ── Serve the replay UI (canonical events + bars + derived metrics) ──
+    let metrics_value =
+        observa_engine::persistence::derive_metrics_json(&result, 4.0 * 24.0 * 252.0);
+    let symbol = engine.config().instrument.symbol.clone();
+    let payload = replay_payload_for(&result, &bars, &metrics_value, &symbol);
+    serve_payload(&payload, args.port);
 }

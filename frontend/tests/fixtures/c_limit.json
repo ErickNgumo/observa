@@ -1,0 +1,140 @@
+{
+  "bars": [
+    {
+      "close": 1.0,
+      "high": 1.05,
+      "low": 1.0,
+      "open": 1.0,
+      "time": "2023-11-14T22:13:20+00:00",
+      "volume": null
+    },
+    {
+      "close": 0.95,
+      "high": 1.0,
+      "low": 0.9,
+      "open": 1.0,
+      "time": "2023-11-14T22:28:20+00:00",
+      "volume": null
+    }
+  ],
+  "events": [
+    {
+      "event_seq": 0,
+      "strategy_name": "Fixture",
+      "type": "run_started"
+    },
+    {
+      "event_seq": 1,
+      "type": "strategy_initialized"
+    },
+    {
+      "bar_index": 0,
+      "event_seq": 2,
+      "timestamp": "2023-11-14T22:13:20Z",
+      "type": "bar_processed"
+    },
+    {
+      "bar_index": 0,
+      "event_seq": 3,
+      "signal_count": 1,
+      "type": "strategy_decision"
+    },
+    {
+      "created_bar": 0,
+      "event_seq": 4,
+      "order_seq": 0,
+      "order_type": "limit",
+      "quantity_lots": 1.0,
+      "side": "Buy",
+      "type": "order_created"
+    },
+    {
+      "event_seq": 5,
+      "order_seq": 0,
+      "type": "order_pending"
+    },
+    {
+      "balance": 10000.0,
+      "bar_index": 0,
+      "commissions_paid": 0.0,
+      "equity": 10000.0,
+      "event_seq": 6,
+      "free_margin": 10000.0,
+      "open_positions": 0,
+      "realised_pnl": 0.0,
+      "timestamp": "2023-11-14T22:13:20Z",
+      "type": "portfolio_snapshot",
+      "unrealised_pnl": -0.0,
+      "used_margin": -0.0
+    },
+    {
+      "bar_index": 1,
+      "event_seq": 7,
+      "timestamp": "2023-11-14T22:28:20Z",
+      "type": "bar_processed"
+    },
+    {
+      "bar_index": 1,
+      "event_seq": 8,
+      "order_seq": 0,
+      "type": "order_triggered"
+    },
+    {
+      "bar_index": 1,
+      "commission_amount": 0.0,
+      "event_seq": 9,
+      "executed_price": 0.95,
+      "order_seq": 0,
+      "quantity_lots": 1.0,
+      "raw_reference": 0.95,
+      "side": "Buy",
+      "slippage_applied": 0.0,
+      "spread_applied": 0.0,
+      "timestamp": "2023-11-14T22:28:20Z",
+      "type": "order_filled"
+    },
+    {
+      "bar_index": 1,
+      "entry_price": 0.95,
+      "event_seq": 10,
+      "order_seq": 0,
+      "position_id": "ba271fc9-0ee7-41ba-bc66-93b061f13c97",
+      "quantity_lots": 1.0,
+      "side": "Buy",
+      "stop_loss": null,
+      "take_profit": null,
+      "timestamp": "2023-11-14T22:28:20Z",
+      "type": "position_opened"
+    },
+    {
+      "bar_index": 1,
+      "event_seq": 11,
+      "signal_count": 0,
+      "type": "strategy_decision"
+    },
+    {
+      "balance": 10000.0,
+      "bar_index": 1,
+      "commissions_paid": 0.0,
+      "equity": 10000.0,
+      "event_seq": 12,
+      "free_margin": 9050.0,
+      "open_positions": 1,
+      "realised_pnl": 0.0,
+      "timestamp": "2023-11-14T22:28:20Z",
+      "type": "portfolio_snapshot",
+      "unrealised_pnl": 0.0,
+      "used_margin": 950.0
+    },
+    {
+      "event_seq": 13,
+      "final_balance": 10000.0,
+      "final_equity": 10000.0,
+      "open_positions_remaining": 1,
+      "total_bars": 2,
+      "type": "run_completed"
+    }
+  ],
+  "fixture": "c_limit",
+  "status": "completed"
+}

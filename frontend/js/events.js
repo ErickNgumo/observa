@@ -1,370 +1,357 @@
 // ══════════════════════════════════════════════
-// EVENT LOADING + PROCESSING
-// Fetches the event log from the server and
-// dispatches each event to its handler as the
-// replay plays through it.
+// CANONICAL REPLAY DRIVER (OBS-0010)
+// Loads the canonical replay payload (/api/replay), derives the view from
+// canonical events (ObservaReplay) and renders bar-by-bar state:
+// candles, markers, positions, orders, account, equity/balance and the
+// current-bar event inspector. The frontend never computes economics.
 // ══════════════════════════════════════════════
 
+var exitReasonLabel = { StopLoss: 'Stop Loss', TakeProfit: 'Take Profit', Signal: 'Signal' };
+var exitReasonCode  = { StopLoss: 'SL', TakeProfit: 'TP', Signal: 'X' };
+
 function loadEvents() {
-  return fetch('/api/events')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      allEvents = data;
-      totalBars = allEvents.filter(function(e) {
-        return e.event_type === 'BarReceived';
-      }).length;
-      document.getElementById('stat-progress').textContent =
-        'Bar 0 / ' + totalBars;
-      console.log('Loaded ' + allEvents.length + ' events, ' + totalBars + ' bars');
+  return fetch('/api/replay')
+    .then(function (r) {
+      if (!r.ok) { throw new Error('HTTP ' + r.status); }
+      return r.json();
     })
-    .catch(function(err) {
-      console.error('Failed to load events:', err);
+    .then(function (data) {
+      payload      = data;
+      replayEvents = data.events || [];
+      replayBars   = data.bars || [];
+      totalBars    = replayBars.length;
+      replayIndex  = ObservaReplay.indexEvents(replayEvents);
+      updateProgressLabel();
+      if (payload.run && payload.run.status === 'failed') {
+        var meta = payload.run;
+        showRunFailed(meta.error_category || 'run_failed', meta.error_message || 'run failed', null);
+      }
+      renderToBar(-1);
+      console.log('Observa ready: ' + replayEvents.length + ' canonical events, ' + totalBars + ' bars');
+    })
+    .catch(function (err) {
+      showRunFailed('runtime', 'Failed to load replay payload: ' + err, null);
+      console.error('Failed to load replay payload:', err);
     });
 }
 
-// Routes a single event to the correct handler
-// based on its event_type field.
-function processEvent(ev) {
-  switch (ev.event_type) {
-    case 'BarReceived':       handleBar(ev);      break;
-    case 'DrawingsEmitted':   handleDrawings(ev); break;
-    case 'PositionOpened':    handleOpened(ev);   break;
-    case 'PositionClosed':    handleClosed(ev);   break;
-    case 'PortfolioSnapshot': handleSnapshot(ev); break;
-    case 'MetricsReport':     handleMetrics(ev);  break;
-  }
+// ── Navigation helpers ─────────────────────────
+
+function maxReplayBar() {
+  // Bars actually processed (bucketed). Failed runs may stop before the end
+  // of the dataset; we never invent events for unprocessed bars.
+  return replayIndex ? replayIndex.bars.length - 1 : -1;
 }
 
-// ── BarReceived ──────────────────────────────
-function handleBar(ev) {
-  var t = toUnix(ev.timestamp);
+function updateProgressLabel() {
+  var shown = currentBar >= 0 ? currentBar + 1 : 0;
+  var el = document.getElementById('stat-progress');
+  if (el) el.textContent = 'Bar ' + shown + ' / ' + totalBars;
+  var fill = document.getElementById('progress-fill');
+  if (fill) fill.style.width = (totalBars > 0 ? (shown / totalBars) * 100 : 0) + '%';
+}
 
-  candleData.push({
-    time:  t,
-    open:  ev.open,
-    high:  ev.high,
-    low:   ev.low,
-    close: ev.close
-  });
-  candleSeries.setData(candleData);
+function endEventOfBar(k) {
+  if (k < 0 || !replayIndex) return -1;
+  if (k >= replayIndex.endEventOfBar.length) k = replayIndex.endEventOfBar.length - 1;
+  return replayIndex.endEventOfBar[k];
+}
 
-  if (ev.ema_fast !== null && ev.ema_fast !== undefined) {
-    fastEmaData.push({ time: t, value: ev.ema_fast });
-    fastEmaSeries.setData(fastEmaData);
+// ── Deterministic rendering to bar k ───────────
+
+function renderToBar(k) {
+  if (!payload || !replayIndex) return;
+  var maxK = maxReplayBar();
+  if (k > maxK) k = maxK;
+  currentBar = k;
+
+  var endIdx = endEventOfBar(k);
+  var view = ObservaReplay.stateThrough(replayEvents, endIdx);
+  if (payload.run && payload.run.symbol) view.symbol = payload.run.symbol;
+  currentView = view;
+
+  // Finished only when we processed through a run_completed / run_failed tail.
+  finished = (k === maxK) && (!!view.completed || !!view.failed);
+
+  renderCandles(k, view);
+  renderMarkers(endIdx);
+  renderAccount(view);
+  renderPositions(view);
+  renderOrders(view);
+  renderBarEvents(k);
+  renderTradeLog(view);
+  renderCurves(endIdx, view);
+  updateProgressLabel();
+
+  if (view.failed) {
+    showRunFailed(view.failed.category, view.failed.message, k);
+  } else if (view.completed && finished) {
+    hideRunFailed();
+    if (payload.metrics) renderMetrics(payload.metrics);
+    setPlayButton('done');
   }
-  if (ev.ema_slow !== null && ev.ema_slow !== undefined) {
-    slowEmaData.push({ time: t, value: ev.ema_slow });
-    slowEmaSeries.setData(slowEmaData);
-  }
-
-  barsDrawn++;
-  var pct = totalBars > 0 ? (barsDrawn / totalBars) * 100 : 0;
-  document.getElementById('progress-fill').style.width = pct + '%';
-  document.getElementById('stat-progress').textContent =
-    'Bar ' + barsDrawn + ' / ' + totalBars;
-
-  // Keep the latest bar visible as replay progresses
   chart.timeScale().scrollToPosition(0, false);
 }
 
-// ── PositionOpened ───────────────────────────
-function handleOpened(ev) {
-  openTrade = {
-    direction:  ev.direction,
-    entryPrice: ev.entry_price,
-    entryTime:  toUnix(ev.timestamp),
-    sl:         ev.sl,
-    tp:         ev.tp
-  };
-
-  tradeMarkers.push({
-    time:     toUnix(ev.timestamp),
-    position: ev.direction === 'Buy' ? 'belowBar' : 'aboveBar',
-    color:    ev.direction === 'Buy' ? '#3fb950' : '#f85149',
-    shape:    ev.direction === 'Buy' ? 'arrowUp' : 'arrowDown',
-    text:     (ev.direction === 'Buy' ? 'B' : 'S') +
-              ' @ ' + Number(ev.entry_price).toFixed(5)
-  });
-  refreshMarkers();
-}
-
-// ── PositionClosed ───────────────────────────
-function handleClosed(ev) {
-  tradeCount++;
-  var pnl = ev.pnl;
-
-  tradeMarkers.push({
-    time:     toUnix(ev.timestamp),
-    position: ev.direction === 'Buy' ? 'aboveBar' : 'belowBar',
-    color:    pnl >= 0 ? '#3fb950' : '#f85149',
-    shape:    'circle',
-    text:     (pnl >= 0 ? '+' : '') + Math.round(pnl)
-  });
-  refreshMarkers();
-
-  if (showLines && openTrade) {
-    var LC   = LightweightCharts;
-    var line = chart.addSeries(LC.LineSeries, {
-      color:                  pnl >= 0
-                                ? 'rgba(63,185,80,0.5)'
-                                : 'rgba(248,81,73,0.5)',
-      lineWidth:              1,
-      lineStyle:              LC.LineStyle.Dashed,
-      priceLineVisible:       false,
-      lastValueVisible:       false,
-      crosshairMarkerVisible: false
+function renderCandles(k, view) {
+  candleData = [];
+  for (var i = 0; i <= k && i < replayBars.length; i++) {
+    var b = replayBars[i];
+    candleData.push({
+      time: toUnix(b.time), open: b.open, high: b.high, low: b.low, close: b.close
     });
-    line.setData([
-      { time: openTrade.entryTime,  value: openTrade.entryPrice },
-      { time: toUnix(ev.timestamp), value: ev.exit_price }
-    ]);
-    tradeLines.push(line);
   }
-
-  addTradeRow(ev, openTrade);
-  document.getElementById('stat-trades').textContent = tradeCount;
-  openTrade = null;
+  candleSeries.setData(candleData);
+  barsDrawn = candleData.length;
 }
 
-// ── PortfolioSnapshot ────────────────────────
-function handleSnapshot(ev) {
-  var bal = ev.balance;
-  var pnl = ev.realised_pnl;
-
-  document.getElementById('stat-balance').textContent = fmtNum(bal, 2);
-
-  var pnlEl = document.getElementById('stat-pnl');
-  pnlEl.textContent = (pnl >= 0 ? '+' : '') + fmtNum(pnl, 2);
-  pnlEl.style.color = pnl >= 0 ? '#3fb950' : '#f85149';
-
-  if (candleData.length > 0) {
-    var t = candleData[candleData.length - 1].time;
-    if (equityData.length === 0 ||
-        equityData[equityData.length - 1].time !== t) {
-      equityData.push({ time: t, value: ev.equity });
-      equitySeries.setData(equityData);
-    }
-  }
+function markerBarTime(barIndex) {
+  var b = replayBars[barIndex];
+  return b ? toUnix(b.time) : null;
 }
 
-// Indicator Drawing
-
-function handleDrawings(ev) {
-  if (!ev.drawings || ev.drawings.length === 0) return;
-
-  ev.drawings.forEach(function(d) {
-    var action = d.action || 'add';
-
-    if (action === 'remove') {
-      removeDrawing(d.id);
-      return;
+function renderMarkers(endIdx) {
+  tradeMarkers = [];
+  for (var i = 0; i <= endIdx && i < replayEvents.length; i++) {
+    var e = replayEvents[i];
+    if (e.type === 'position_opened') {
+      var t = markerBarTime(e.bar_index);
+      if (t === null) continue;
+      tradeMarkers.push({
+        time: t,
+        position: e.side === 'Buy' ? 'belowBar' : 'aboveBar',
+        color: e.side === 'Buy' ? '#3fb950' : '#f85149',
+        shape: e.side === 'Buy' ? 'arrowUp' : 'arrowDown',
+        text: (e.side === 'Buy' ? 'B' : 'S') + ' @ ' + Number(e.entry_price).toFixed(5)
+      });
+    } else if (e.type === 'position_closed') {
+      var ct = markerBarTime(e.bar_index);
+      if (ct === null) continue;
+      var pnl = e.net_realized_pnl;
+      var red = e.exit_reason === 'StopLoss' || pnl < 0;
+      tradeMarkers.push({
+        time: ct,
+        position: e.side === 'Buy' ? 'aboveBar' : 'belowBar',
+        color: red ? '#f85149' : '#3fb950',
+        shape: 'circle',
+        text: exitReasonCode[e.exit_reason] || 'X' + ' @ ' + Number(e.exit_price).toFixed(5)
+      });
     }
+  }
+  refreshMarkers();
+}
 
-    if (action === 'update') {
-      removeDrawing(d.id);
-      // Fall through to add the updated version
-    }
+function renderAccount(view) {
+  var balance = document.getElementById('stat-balance');
+  var equity = document.getElementById('stat-equity');
+  var open = document.getElementById('stat-open');
+  if (view.account) {
+    balance.textContent = fmtNum(view.account.balance, 2);
+    equity.textContent  = fmtNum(view.account.equity, 2);
+    open.textContent    = String(countOpen(view));
+  } else {
+    balance.textContent = '—';
+    equity.textContent  = '—';
+    open.textContent    = '—';
+  }
+  document.getElementById('stat-trades').textContent = view.closedTrades.length;
+  renderAccountPanel(view);
+}
 
-    // Add the drawing
-    addDrawing(d);
+function countOpen(view) {
+  var n = 0;
+  view.positions.forEach(function (p) { if (p.open) n++; });
+  return n;
+}
+
+function renderAccountPanel(view) {
+  var box = document.getElementById('account-figures');
+  if (!box) return;
+  var a = view.account;
+  var html = '';
+  function fig(label, value, cls) {
+    return '<div class="account-figure' + (cls ? ' ' + cls : '') + '"><span>' + label + '</span><strong>' + value + '</strong></div>';
+  }
+  if (!a) {
+    html = fig('Balance', '—') + fig('Equity', '—') + fig('Used margin', '—') + fig('Free margin', '—');
+  } else {
+    html = fig('Balance', '$' + fmtNum(a.balance, 2)) +
+           fig('Equity', '$' + fmtNum(a.equity, 2)) +
+           fig('Used margin', '$' + fmtNum(a.used_margin, 2)) +
+           fig('Free margin', '$' + fmtNum(a.free_margin, 2)) +
+           fig('Unrealised P&L', (a.unrealised_pnl >= 0 ? '+' : '') + '$' + fmtNum(a.unrealised_pnl, 2), a.unrealised_pnl >= 0 ? 'positive' : 'negative') +
+           fig('Realised P&L', (a.realised_pnl >= 0 ? '+' : '') + '$' + fmtNum(a.realised_pnl, 2), a.realised_pnl >= 0 ? 'positive' : 'negative');
+  }
+  box.innerHTML = html;
+}
+
+function positionDirBadge(side) {
+  return side === 'Buy' ? 'long' : 'short';
+}
+
+function renderPositions(view) {
+  var tbody = document.getElementById('positions-body');
+  if (!tbody) return;
+  var rows = [];
+  view.positions.forEach(function (p) {
+    var exitCell = p.open
+      ? '<span class="tag-open">open</span>'
+      : '<span class="tag-closed">closed · ' + (exitReasonLabel[p.exit.exit_reason] || p.exit.exit_reason) + '</span>';
+    rows.push(
+      '<tr class="' + (p.open ? 'row-open' : 'row-closed') + '">' +
+      '<td><span class="direction-badge ' + positionDirBadge(p.side) + '">' + p.side + '</span></td>' +
+      '<td>' + (p.symbol || (view.symbol || '—')) + '</td>' +
+      '<td class="mono">' + p.quantity_lots + '</td>' +
+      '<td class="mono">' + Number(p.entry_price).toFixed(5) + '</td>' +
+      '<td class="mono">' + (p.stop_loss == null ? '—' : Number(p.stop_loss).toFixed(5)) + '</td>' +
+      '<td class="mono">' + (p.take_profit == null ? '—' : Number(p.take_profit).toFixed(5)) + '</td>' +
+      '<td class="mono">' + p.position_id.slice(0, 8) + '</td>' +
+      '<td>' + exitCell + '</td>' +
+      '</tr>'
+    );
   });
+  tbody.innerHTML = rows.join('') || '<tr><td colspan="8" class="empty-note">No positions at this point</td></tr>';
 }
 
-function addDrawing(d) {
-  var LC = LightweightCharts;
-  var series = null;
-
-  switch (d.type) {
-
-    case 'rectangle': {
-      // Draw as two line series — top and bottom edges
-      // with a filled area between them using two series
-      var topSeries = chart.addSeries(LC.LineSeries, {
-        color:            d.border || d.color,
-        lineWidth:        1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
-      var botSeries = chart.addSeries(LC.LineSeries, {
-        color:            d.border || d.color,
-        lineWidth:        1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
-
-      var t1 = toUnix(d.time_start);
-      var t2 = d.time_end
-        ? toUnix(d.time_end)
-        : candleData.length > 0
-          ? candleData[candleData.length - 1].time
-          : t1;
-
-      topSeries.setData([
-        { time: t1, value: d.price_top },
-        { time: t2, value: d.price_top },
-      ]);
-      botSeries.setData([
-        { time: t1, value: d.price_bot },
-        { time: t2, value: d.price_bot },
-      ]);
-
-      activeDrawings[d.id] = [topSeries, botSeries];
-      break;
+function renderOrders(view) {
+  var tbody = document.getElementById('orders-body');
+  if (!tbody) return;
+  var ordered = [];
+  view.orders.forEach(function (o) { ordered.push(o); });
+  ordered.sort(function (a, b) { return a.seq - b.seq; });
+  var html = '';
+  ordered.forEach(function (o) {
+    var priceCell = o.executed_price != null ? Number(o.executed_price).toFixed(5)
+      : (o.order_type === 'market' ? '—' : 'pending');
+    var stateCell = '<span class="order-state order-' + o.state + '">' + o.state + '</span>';
+    if (o.state === 'rejected') {
+      stateCell += '<div class="reject-detail">' + (o.category || '') + (o.reason ? ': ' + o.reason : '') + '</div>';
     }
+    html += '<tr>' +
+      '<td class="mono">' + o.seq + '</td>' +
+      '<td>' + o.type + '</td>' +
+      '<td>' + o.side + '</td>' +
+      '<td class="mono">' + o.quantity_lots + '</td>' +
+      '<td class="mono">' + o.created_bar + '</td>' +
+      '<td class="mono">' + priceCell + '</td>' +
+      '<td>' + stateCell + '</td>' +
+      '</tr>';
+  });
+  tbody.innerHTML = html || '<tr><td colspan="7" class="empty-note">No orders at this point</td></tr>';
+}
 
-    case 'hline': {
-      series = chart.addSeries(LC.LineSeries, {
-        color:            d.color,
-        lineWidth:        d.width || 1,
-        lineStyle:        lineStyleCode(d.style),
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
-      var t = toUnix(d.time);
-      var endT = candleData.length > 0
-        ? candleData[candleData.length - 1].time
-        : t;
-      series.setData([
-        { time: t,    value: d.price },
-        { time: endT, value: d.price },
-      ]);
-      activeDrawings[d.id] = [series];
-      break;
-    }
+function shortPayload(e) {
+  var keys = Object.keys(e).filter(function (k) {
+    return k !== 'type' && k !== 'event_seq' && k !== 'timestamp' && k !== 'position_id' && k !== 'order_seq';
+  });
+  var parts = keys.map(function (k) {
+    var v = e[k];
+    if (typeof v === 'number') v = Number(v).toPrecision(8);
+    if (v === null) v = 'null';
+    return k + '=' + v;
+  });
+  var detail = parts.slice(0, 6).join(' ');
+  return detail ? ' · ' + detail : '';
+}
 
-    case 'line': {
-      series = chart.addSeries(LC.LineSeries, {
-        color:            d.color,
-        lineWidth:        d.width || 1,
-        lineStyle:        lineStyleCode(d.style),
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
-      series.setData([
-        { time: toUnix(d.x1), value: d.y1 },
-        { time: toUnix(d.x2), value: d.y2 },
-      ]);
-      activeDrawings[d.id] = [series];
-      break;
-    }
-
-    case 'label': {
-      // Labels are markers on the main candlestick series
-      var labelMarker = {
-        time:     toUnix(d.time),
-        position: d.position === 'below' ? 'belowBar' : 'aboveBar',
-        color:    d.color || '#e6edf3',
-        shape:    'circle',
-        text:     d.text,
-      };
-      tradeMarkers.push(labelMarker);
-      refreshMarkers();
-      // Store the marker index for potential removal
-      activeDrawings[d.id] = {
-        type:   'label',
-        marker: labelMarker,
-      };
-      break;
-    }
-
-    case 'region': {
-      // Region — shaded vertical band
-      // Implemented as a very wide rectangle at
-      // the price extremes of the current chart
-      series = chart.addSeries(LC.LineSeries, {
-        color:            d.color,
-        lineWidth:        1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
-      // We use a transparent line — the visual effect
-      // comes from the background color
-      // A proper region needs a custom primitive in v5
-      // For now we mark with vertical lines at start/end
-      var t1 = toUnix(d.time_start);
-      var t2 = toUnix(d.time_end);
-      LC.createSeriesMarkers(candleSeries, [
-        {
-          time:     t1,
-          position: 'aboveBar',
-          color:    d.color.slice(0, 7),
-          shape:    'arrowDown',
-          text:     d.label || '',
-        },
-        {
-          time:     t2,
-          position: 'aboveBar',
-          color:    d.color.slice(0, 7),
-          shape:    'arrowDown',
-          text:     '',
-        },
-      ]);
-      activeDrawings[d.id] = [series];
-      break;
-    }
-
-    case 'bar_color': {
-      // Store bar color overrides — applied on next render
-      if (!window._barColors) window._barColors = {};
-      window._barColors[d.time] = d.color;
-      activeDrawings[d.id] = { type: 'bar_color', time: d.time };
-      break;
-    }
+function renderBarEvents(k) {
+  var list = document.getElementById('bar-events');
+  if (!list) return;
+  var events = [];
+  if (k >= 0 && replayIndex) events = replayIndex.bars[k] || [];
+  var html = '';
+  for (var i = 0; i < events.length; i++) {
+    var e = events[i];
+    html += '<div class="canon-event" data-seq="' + e.event_seq + '">' +
+      '<span class="ce-seq mono">#' + e.event_seq + '</span>' +
+      '<span class="ce-type">' + e.type + '</span>' +
+      '<span class="ce-detail">' + shortPayload(e) + '</span>' +
+      '</div>';
+  }
+  if (!html) {
+    html = '<div class="empty-note">No canonical events on this bar' +
+      (k < 0 ? ' — press Play or Step to begin' : '') + '</div>';
+  }
+  list.innerHTML = html;
+  var decisionEl = document.getElementById('bar-decision');
+  if (decisionEl) {
+    var count = currentView ? currentView.decisionsByBar[k] : undefined;
+    decisionEl.textContent = count == null ? '—' : (count + (count === 1 ? ' signal' : ' signals'));
   }
 }
 
-function removeDrawing(id) {
-  var drawing = activeDrawings[id];
-  if (!drawing) return;
-
-  if (Array.isArray(drawing)) {
-    drawing.forEach(function(s) { chart.removeSeries(s); });
-  } else if (drawing.type === 'label') {
-    var idx = tradeMarkers.indexOf(drawing.marker);
-    if (idx !== -1) {
-      tradeMarkers.splice(idx, 1);
-      refreshMarkers();
-    }
-  } else if (drawing.type === 'bar_color') {
-    if (window._barColors) {
-      delete window._barColors[drawing.time];
-    }
+function renderTradeLog(view) {
+  var tbody = document.getElementById('trade-log-body');
+  if (!tbody) return;
+  var rows = '';
+  for (var i = 0; i < view.closedTrades.length; i++) {
+    var t = view.closedTrades[i];
+    var entryTime = t.opened_bar != null && replayBars[t.opened_bar]
+      ? new Date(toUnix(replayBars[t.opened_bar].time) * 1000).toISOString().slice(0, 16).replace('T', ' ')
+      : '-';
+    var entryTimeUnix = t.opened_bar != null && replayBars[t.opened_bar] ? toUnix(replayBars[t.opened_bar].time) : '';
+    var exitTimeUnix = t.closed_bar != null && replayBars[t.closed_bar] ? toUnix(replayBars[t.closed_bar].time) : '';
+    var entryPrice = Number(t.entry_price).toFixed(5);
+    var sl = t.stop_loss == null ? '-' : Number(t.stop_loss).toFixed(5);
+    var tp = t.take_profit == null ? '-' : Number(t.take_profit).toFixed(5);
+    var reason = exitReasonLabel[t.exit_reason] || t.exit_reason;
+    var pnl = t.net_realized_pnl;
+    rows +=
+      '<tr data-entry-time="' + entryTimeUnix + '" data-exit-time="' + exitTimeUnix + '">' +
+      '<td class="trade-number">' + (i + 1) + '</td>' +
+      '<td><span class="direction-badge ' + positionDirBadge(t.side) + '">' + t.side + '</span></td>' +
+      '<td>' + entryTime + '</td>' +
+      '<td>' + entryPrice + '</td>' +
+      '<td>' + Number(t.exit_price).toFixed(5) + '</td>' +
+      '<td>' + sl + '</td>' +
+      '<td>' + tp + '</td>' +
+      '<td class="trade-reason">' + reason + '</td>' +
+      '<td class="' + (pnl >= 0 ? 'pnl-positive' : 'pnl-negative') + '">' +
+        (pnl >= 0 ? '+' : '') + '$' + Number(pnl).toFixed(2) + '</td>' +
+      '</tr>';
   }
-
-  delete activeDrawings[id];
+  tbody.innerHTML = rows || '<tr><td colspan="9" class="empty-note">No closed trades yet</td></tr>';
 }
 
-function lineStyleCode(style) {
-  var LC = LightweightCharts;
-  switch (style) {
-    case 'dashed': return LC.LineStyle.Dashed;
-    case 'dotted': return LC.LineStyle.Dotted;
-    default:       return LC.LineStyle.Solid;
+function renderCurves(endIdx, view) {
+  equityData = [];
+  balanceData = [];
+  for (var i = 0; i <= endIdx && i < replayEvents.length; i++) {
+    var e = replayEvents[i];
+    if (e.type === 'portfolio_snapshot') {
+      var t = markerBarTime(e.bar_index);
+      if (t === null) continue;
+      equityData.push({ time: t, value: e.equity });
+      balanceData.push({ time: t, value: e.balance });
+    }
   }
+  equitySeries.setData(equityData);
+  if (balanceSeries) balanceSeries.setData(balanceData);
 }
 
-// ── MetricsReport ────────────────────────────
-function handleMetrics(ev) {
-  var r = ev.report;
-  lastMetricsReport = r;
+// ── Metrics + failure presentation ─────────────
 
+function renderMetrics(report) {
+  lastMetricsReport = report;
   var grid = document.getElementById('metrics-grid');
+  if (!grid || !report) return;
 
   function card(label, value, cls, detail, action) {
     var tag = action ? 'button' : 'div';
-    return '<' + tag + (action ? ' type="button" onclick="' + action + '"' : '') + ' class="metric-card ' + (cls || 'neutral') + (action ? ' inspectable' : '') + '">' +
+    return '<' + tag + (action ? ' type="button" onclick="' + action + '"' : '') +
+      ' class="metric-card ' + (cls || 'neutral') + (action ? ' inspectable' : '') + '">' +
       '<div class="metric-label">' + label + '</div>' +
       '<div class="metric-value ' + (cls || 'neutral') + '">' + value + '</div>' +
       (detail ? '<div class="metric-detail">' + detail + '</div>' : '') +
       '</' + tag + '>';
   }
-
   function group(title, description, cards, extraClass) {
     return '<section class="metric-group ' + (extraClass || '') + '">' +
       '<div class="metric-group-heading"><div><h3>' + title + '</h3><p>' + description + '</p></div></div>' +
       '<div class="metric-group-cards">' + cards + '</div></section>';
   }
 
+  var r = report;
   var html = '';
   html += group('Performance', 'Return quality and risk-adjusted outcome',
     card('Total Return', fmtNum(r.total_return_pct, 2) + '%', r.total_return_pct >= 0 ? 'positive' : 'negative') +
@@ -383,42 +370,44 @@ function handleMetrics(ev) {
     card('Avg Win', '$' + fmtNum(r.avg_win, 2), 'positive') +
     card('Avg Loss', '$' + fmtNum(r.avg_loss, 2), 'negative') +
     card('Expectancy', '$' + fmtNum(r.expectancy, 2), r.expectancy >= 0 ? 'positive' : 'negative'), 'trades-group');
-
   grid.innerHTML = html;
-
-  // Now that the equity curve is complete, draw the
-  // drawdown highlight on top of it.
   drawDrawdownHighlight(r);
 }
 
+function showRunFailed(category, message, barIndex) {
+  var banner = document.getElementById('run-banner');
+  if (!banner) return;
+  banner.style.display = 'block';
+  banner.innerHTML =
+    '<div class="run-banner-icon" aria-hidden="true">!</div>' +
+    '<div><strong>Run failed' + (barIndex != null ? ' after bar ' + barIndex : '') + '</strong>' +
+    '<span>' + escapeHtml(String(category || '')) + (message ? ' — ' + escapeHtml(String(message)) : '') + '</span></div>';
+  document.getElementById('btn-play').disabled = true;
+  document.getElementById('btn-step').disabled = true;
+}
 
-// ── Trade log row builder ────────────────────
-function addTradeRow(closeEv, entry) {
-  var tbody = document.getElementById('trade-log-body');
-  var pnl   = closeEv.pnl;
-  var row   = document.createElement('tr');
+function hideRunFailed() {
+  var banner = document.getElementById('run-banner');
+  if (!banner) return;
+  banner.style.display = 'none';
+  document.getElementById('btn-play').disabled = false;
+  document.getElementById('btn-step').disabled = false;
+}
 
-  var entryTime  = entry
-    ? new Date(entry.entryTime * 1000).toISOString().slice(0, 16).replace('T', ' ')
-    : '-';
-  var entryPrice = entry ? Number(entry.entryPrice).toFixed(5) : '-';
-  var sl = (entry && entry.sl != null) ? Number(entry.sl).toFixed(5) : '-';
-  var tp = (entry && entry.tp != null) ? Number(entry.tp).toFixed(5) : '-';
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
 
-  var dir = closeEv.direction;
-  row.innerHTML =
-    '<td class="trade-number">' + tradeCount + '</td>' +
-    '<td><span class="direction-badge ' + (dir === 'Buy' ? 'long' : 'short') + '">' + dir + '</span></td>' +
-    '<td>' + entryTime + '</td>' +
-    '<td>' + entryPrice + '</td>' +
-    '<td>' + Number(closeEv.exit_price).toFixed(5) + '</td>' +
-    '<td>' + sl + '</td>' +
-    '<td>' + tp + '</td>' +
-    '<td class="trade-reason">' + closeEv.exit_reason + '</td>' +
-    '<td class="' + (pnl >= 0 ? 'pnl-positive' : 'pnl-negative') + '">' +
-      (pnl >= 0 ? '+' : '') + '$' + Number(pnl).toFixed(2) +
-    '</td>';
-  row.setAttribute('data-entry-time', entry ? entry.entryTime : toUnix(closeEv.timestamp));
-  row.setAttribute('data-exit-time', toUnix(closeEv.timestamp));
-  tbody.appendChild(row);
+function setPlayButton(state) {
+  var btn = document.getElementById('btn-play');
+  if (state === 'playing') {
+    btn.textContent = '⏸ Pause'; btn.classList.add('active');
+  } else if (state === 'done') {
+    btn.textContent = '▶ Play'; btn.classList.remove('active');
+    btn.disabled = true;
+  } else {
+    btn.textContent = '▶ Play'; btn.classList.remove('active');
+  }
 }

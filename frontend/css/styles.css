@@ -212,3 +212,44 @@ body.is-inspecting #equity-context { box-shadow: inset 3px 0 var(--negative); }
 @media (max-width: 760px) { #toolbar { min-height: 56px; } .replay-settings .control-label, .theme-control .control-label, #btn-step, #btn-reset { display: none; } #status-bar { gap: 7px; } .replay-position { display: none; } .theme-control { padding-left: 8px; } #panel-resize-handle { height: 10px; } #bottom-panel { height: var(--panel-height, 42vh); } #bottom-panel.collapsed { height: 36px; } #panel-tabs { padding-inline: 8px; } .panel-tab { padding-inline: 8px; } #equity-context { padding-inline: 10px; } .equity-legend > span:last-child, #equity-inspector { display: none; } #metrics-panel { padding: 12px; } .metric-group-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } #investigation-banner { left: 8px; top: 8px; gap: 8px; } #investigation-banner button { padding-inline: 5px; } }
 
 @media (prefers-reduced-motion: reduce) { #bottom-panel, #panel-toggle, #panel-resize-handle::before, #panel-resize-handle span { transition-duration: 0s; } #investigation-banner { animation: none; } }
+
+/* ── OBS-0010 canonical replay additions ── */
+.mono { font-family: 'DM Mono', monospace; }
+#run-banner { margin: 8px 20px 0; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--negative) 55%, var(--border)); background: color-mix(in srgb, var(--negative) 12%, var(--surface)); color: var(--text); border-radius: 9px; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+#run-banner .run-banner-icon { width: 20px; height: 20px; border-radius: 50%; background: var(--negative); color: #fff; display: grid; place-items: center; font-weight: 800; }
+#run-banner div strong { display: block; font-size: 12px; }
+#run-banner div span { color: var(--muted); font-size: 11px; }
+
+#replay-panel { padding: 14px 20px 20px; overflow: auto; }
+.replay-heading { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.replay-subheading { font-size: 11px; color: var(--faint); margin: 12px 0 6px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.account-figures { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
+.account-figure { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 9px; padding: 8px 12px; min-width: 120px; }
+.account-figure span { display: block; color: var(--faint); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
+.account-figure strong { font-family: 'DM Mono', monospace; font-weight: 500; font-size: 14px; }
+.account-figure.positive strong { color: var(--positive); }
+.account-figure.negative strong { color: var(--negative); }
+.replay-table-wrap { margin: 8px 0; max-height: 150px; overflow: auto; }
+.replay-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.replay-table th { text-align: left; color: var(--faint); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; padding: 5px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+.replay-table td { padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+.row-closed { opacity: .6; }
+.tag-open { color: var(--positive); font-weight: 700; }
+.tag-closed { color: var(--muted); }
+.order-state { font-weight: 700; }
+.order-filled { color: var(--positive); }
+.order-rejected { color: var(--negative); }
+.order-expired { color: var(--faint); }
+.order-pending { color: var(--accent); }
+.order-triggered { color: var(--accent); }
+.reject-detail { color: var(--muted); font-size: 10px; }
+.bar-events { display: grid; gap: 2px; font-size: 11px; max-height: 200px; overflow: auto; }
+.canon-event { display: flex; gap: 10px; align-items: baseline; padding: 4px 8px; border-left: 2px solid var(--border); }
+.canon-event .ce-seq { color: var(--faint); width: 52px; flex-shrink: 0; font-size: 10px; }
+.canon-event .ce-type { color: var(--accent); font-weight: 700; width: 170px; flex-shrink: 0; }
+.canon-event .ce-detail { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.empty-note { color: var(--faint); padding: 8px; font-style: italic; }
+.direction-badge { padding: 1px 7px; border-radius: 5px; font-size: 10px; font-weight: 800; }
+.direction-badge.long { background: color-mix(in srgb, var(--positive) 18%, transparent); color: var(--positive); }
+.direction-badge.short { background: color-mix(in srgb, var(--negative) 18%, transparent); color: var(--negative); }
+#stat-equity, #stat-open { color: var(--text); }

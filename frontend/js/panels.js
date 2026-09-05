@@ -46,7 +46,7 @@ function initializeWorkspaceLayout() {
     if (saved && typeof saved === 'object') {
       workspaceState.collapsed = saved.collapsed === true;
       workspaceState.height = Number(saved.height) || workspaceState.height;
-      workspaceState.activeTab = ['equity', 'trades', 'metrics'].indexOf(saved.activeTab) !== -1 ? saved.activeTab : workspaceState.activeTab;
+      workspaceState.activeTab = ['equity', 'trades', 'metrics', 'replay'].indexOf(saved.activeTab) !== -1 ? saved.activeTab : workspaceState.activeTab;
     }
   } catch (e) {}
 
@@ -71,14 +71,20 @@ function initializeWorkspaceLayout() {
 }
 
 function showPanel(tab, persist) {
-  document.getElementById('equity-panel').style.display  = tab === 'equity'  ? 'flex' : 'none';
-  document.getElementById('trade-log').style.display     = tab === 'trades'  ? 'block' : 'none';
-  document.getElementById('metrics-panel').style.display  = tab === 'metrics' ? 'block' : 'none';
-
+  var panels = {
+    equity:  'equity-panel',
+    trades:  'trade-log',
+    metrics: 'metrics-panel',
+    replay:  'replay-panel'
+  };
+  Object.keys(panels).forEach(function (key) {
+    var el = document.getElementById(panels[key]);
+    if (el) el.style.display = (key === tab) ? (key === 'equity' ? 'flex' : 'block') : 'none';
+  });
   var tabs = document.querySelectorAll('.panel-tab');
-  tabs[0].classList.toggle('active', tab === 'equity');
-  tabs[1].classList.toggle('active', tab === 'trades');
-  tabs[2].classList.toggle('active', tab === 'metrics');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.toggle('active', tabs[i].getAttribute('data-panel') === tab);
+  }
   workspaceState.activeTab = tab;
   if (persist !== false) saveWorkspaceState();
   requestAnimationFrame(resizeCharts);

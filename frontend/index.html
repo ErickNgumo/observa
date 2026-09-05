@@ -19,9 +19,11 @@
     </div>
 
     <div class="toolbar-group playback-controls" aria-label="Replay controls">
+      <button class="toolbar-btn subtle-action" id="btn-prev" onclick="previousReplayBar()" title="Previous bar" aria-label="Previous bar">&#9198;</button>
       <button class="toolbar-btn primary-action" id="btn-play" onclick="togglePlay()"><span class="button-icon">&#9654;</span> Play</button>
       <button class="toolbar-btn" id="btn-step" onclick="stepOnce()"><span class="button-icon">&#9654;|</span> Step</button>
       <button class="toolbar-btn subtle-action" id="btn-reset" onclick="resetReplay()">&#8635; Reset</button>
+      <button class="toolbar-btn subtle-action" id="btn-end" onclick="jumpToEndReplay()" title="Jump to end" aria-label="Jump to end">&#9197;</button>
     </div>
 
     <div class="toolbar-group replay-settings">
@@ -39,8 +41,9 @@
 
     <div id="status-bar" aria-label="Backtest status">
       <span class="instrument-chip" id="stat-pair">EURUSD M15</span>
-      <span class="status-metric"><em>Balance</em>$<span id="stat-balance">10,000.00</span></span>
-      <span class="status-metric"><em>PnL</em>$<span id="stat-pnl">0.00</span></span>
+      <span class="status-metric"><em>Balance</em>$<span id="stat-balance">—</span></span>
+      <span class="status-metric"><em>Equity</em>$<span id="stat-equity">—</span></span>
+      <span class="status-metric"><em>Open</em><span id="stat-open">—</span></span>
       <span class="status-metric"><em>Trades</em><span id="stat-trades">0</span></span>
       <span class="replay-position" id="stat-progress">Bar 0 / 0</span>
     </div>
@@ -66,6 +69,8 @@
 
   <div id="progress-bar"><div id="progress-fill"></div></div>
 
+  <div id="run-banner" role="alert" style="display:none"></div>
+
   <div id="chart-container">
     <div id="chart"></div>
   </div>
@@ -76,9 +81,10 @@
 
   <section id="bottom-panel" aria-label="Analysis workspace">
     <div id="panel-tabs">
-      <button class="panel-tab active" onclick="showPanel('equity')">Equity Curve</button>
-      <button class="panel-tab" onclick="showPanel('trades')">Trade Log</button>
-      <button class="panel-tab" onclick="showPanel('metrics')">Metrics</button>
+      <button class="panel-tab active" data-panel="equity" onclick="showPanel('equity')">Equity Curve</button>
+      <button class="panel-tab" data-panel="trades" onclick="showPanel('trades')">Trade Log</button>
+      <button class="panel-tab" data-panel="replay" onclick="showPanel('replay')">Replay State</button>
+      <button class="panel-tab" data-panel="metrics" onclick="showPanel('metrics')">Metrics</button>
       <button id="panel-toggle" onclick="togglePanel()" aria-label="Collapse analysis panel" aria-expanded="true">&#9660;</button>
     </div>
     <div id="panel-content">
@@ -117,6 +123,28 @@
       <div id="metrics-panel">
         <div id="metrics-grid"></div>
       </div>
+
+      <div id="replay-panel">
+        <div class="replay-heading">
+          <span class="eyebrow">Canonical state at the selected bar</span>
+          <span class="analysis-title">Account · Positions · Orders · Events</span>
+        </div>
+        <div id="account-figures" class="account-figures"></div>
+        <div class="replay-subheading">Bar decision <span id="bar-decision" class="mono">—</span></div>
+        <div class="replay-table-wrap">
+          <table class="replay-table">
+            <thead><tr><th>Side</th><th>Symbol</th><th>Qty</th><th>Entry</th><th>SL</th><th>TP</th><th>ID</th><th>Status</th></tr></thead>
+            <tbody id="positions-body"></tbody>
+          </table>
+        </div>
+        <div class="replay-table-wrap">
+          <table class="replay-table">
+            <thead><tr><th>Seq</th><th>Type</th><th>Side</th><th>Qty</th><th>Bar</th><th>Price</th><th>State</th></tr></thead>
+            <tbody id="orders-body"></tbody>
+          </table>
+        </div>
+        <div id="bar-events" class="bar-events"></div>
+      </div>
     </div>
   </section>
 
@@ -125,6 +153,7 @@
   <script src="/js/helpers.js"></script>
   <script src="/js/themes.js"></script>
   <script src="/js/charts.js"></script>
+  <script src="/js/replay-core.js"></script>
   <script src="/js/events.js"></script>
   <script src="/js/investigation.js"></script>
   <script src="/js/drawdown.js"></script>

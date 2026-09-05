@@ -1,0 +1,199 @@
+{
+  "bars": [
+    {
+      "close": 1.0,
+      "high": 1.0,
+      "low": 1.0,
+      "open": 1.0,
+      "time": "2023-11-14T22:13:20+00:00",
+      "volume": null
+    },
+    {
+      "close": 1.0,
+      "high": 1.0,
+      "low": 1.0,
+      "open": 1.0,
+      "time": "2023-11-14T22:28:20+00:00",
+      "volume": null
+    },
+    {
+      "close": 1.0,
+      "high": 1.0,
+      "low": 1.0,
+      "open": 1.0,
+      "time": "2023-11-14T22:43:20+00:00",
+      "volume": null
+    }
+  ],
+  "events": [
+    {
+      "event_seq": 0,
+      "strategy_name": "Fixture",
+      "type": "run_started"
+    },
+    {
+      "event_seq": 1,
+      "type": "strategy_initialized"
+    },
+    {
+      "bar_index": 0,
+      "event_seq": 2,
+      "timestamp": "2023-11-14T22:13:20Z",
+      "type": "bar_processed"
+    },
+    {
+      "bar_index": 0,
+      "event_seq": 3,
+      "signal_count": 1,
+      "type": "strategy_decision"
+    },
+    {
+      "created_bar": 0,
+      "event_seq": 4,
+      "order_seq": 0,
+      "order_type": "market",
+      "quantity_lots": 1.0,
+      "side": "Buy",
+      "type": "order_created"
+    },
+    {
+      "bar_index": 0,
+      "commission_amount": 0.0,
+      "event_seq": 5,
+      "executed_price": 1.0,
+      "order_seq": 0,
+      "quantity_lots": 1.0,
+      "raw_reference": 1.0,
+      "side": "Buy",
+      "slippage_applied": 0.0,
+      "spread_applied": 0.0,
+      "timestamp": "2023-11-14T22:13:20Z",
+      "type": "order_filled"
+    },
+    {
+      "bar_index": 0,
+      "entry_price": 1.0,
+      "event_seq": 6,
+      "order_seq": 0,
+      "position_id": "736c735b-f950-4b61-8b7e-f16b51f3a981",
+      "quantity_lots": 1.0,
+      "side": "Buy",
+      "stop_loss": null,
+      "take_profit": null,
+      "timestamp": "2023-11-14T22:13:20Z",
+      "type": "position_opened"
+    },
+    {
+      "balance": 10000.0,
+      "bar_index": 0,
+      "commissions_paid": 0.0,
+      "equity": 10000.0,
+      "event_seq": 7,
+      "free_margin": 9000.0,
+      "open_positions": 1,
+      "realised_pnl": 0.0,
+      "timestamp": "2023-11-14T22:13:20Z",
+      "type": "portfolio_snapshot",
+      "unrealised_pnl": 0.0,
+      "used_margin": 1000.0
+    },
+    {
+      "bar_index": 1,
+      "event_seq": 8,
+      "timestamp": "2023-11-14T22:28:20Z",
+      "type": "bar_processed"
+    },
+    {
+      "bar_index": 1,
+      "event_seq": 9,
+      "signal_count": 1,
+      "type": "strategy_decision"
+    },
+    {
+      "created_bar": 1,
+      "event_seq": 10,
+      "order_seq": 1,
+      "order_type": "market",
+      "quantity_lots": 1.0,
+      "side": "Sell",
+      "type": "order_created"
+    },
+    {
+      "bar_index": 1,
+      "commission_amount": 0.0,
+      "event_seq": 11,
+      "executed_price": 1.0,
+      "order_seq": 1,
+      "quantity_lots": 1.0,
+      "raw_reference": 1.0,
+      "side": "Sell",
+      "slippage_applied": 0.0,
+      "spread_applied": 0.0,
+      "timestamp": "2023-11-14T22:28:20Z",
+      "type": "order_filled"
+    },
+    {
+      "bar_index": 1,
+      "entry_price": 1.0,
+      "event_seq": 12,
+      "order_seq": 1,
+      "position_id": "2f2378f0-84c7-440b-867a-b9684c18c3ac",
+      "quantity_lots": 1.0,
+      "side": "Sell",
+      "stop_loss": null,
+      "take_profit": null,
+      "timestamp": "2023-11-14T22:28:20Z",
+      "type": "position_opened"
+    },
+    {
+      "balance": 10000.0,
+      "bar_index": 1,
+      "commissions_paid": 0.0,
+      "equity": 10000.0,
+      "event_seq": 13,
+      "free_margin": 8000.0,
+      "open_positions": 2,
+      "realised_pnl": 0.0,
+      "timestamp": "2023-11-14T22:28:20Z",
+      "type": "portfolio_snapshot",
+      "unrealised_pnl": 0.0,
+      "used_margin": 2000.0
+    },
+    {
+      "bar_index": 2,
+      "event_seq": 14,
+      "timestamp": "2023-11-14T22:43:20Z",
+      "type": "bar_processed"
+    },
+    {
+      "bar_index": 2,
+      "event_seq": 15,
+      "signal_count": 0,
+      "type": "strategy_decision"
+    },
+    {
+      "balance": 10000.0,
+      "bar_index": 2,
+      "commissions_paid": 0.0,
+      "equity": 10000.0,
+      "event_seq": 16,
+      "free_margin": 8000.0,
+      "open_positions": 2,
+      "realised_pnl": 0.0,
+      "timestamp": "2023-11-14T22:43:20Z",
+      "type": "portfolio_snapshot",
+      "unrealised_pnl": 0.0,
+      "used_margin": 2000.0
+    },
+    {
+      "event_seq": 17,
+      "final_balance": 10000.0,
+      "final_equity": 10000.0,
+      "open_positions_remaining": 2,
+      "total_bars": 3,
+      "type": "run_completed"
+    }
+  ],
+  "fixture": "f_hedge",
+  "status": "completed"
+}

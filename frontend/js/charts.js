@@ -85,6 +85,15 @@ function initCharts() {
     priceLineVisible: false
   });
 
+  // Balance (realised cash) — canonical snapshots, distinct from equity.
+  balanceSeries = equityChart.addSeries(LC.LineSeries, {
+    color:            activeTheme.muted,
+    lineWidth:        1,
+    lineStyle:        LC.LineStyle.Dashed,
+    priceLineVisible: false,
+    lastValueVisible: false
+  });
+
   // Keep the selected equity observation visible while investigating the curve.
   equityChart.subscribeCrosshairMove(function(param) {
     var inspector = document.getElementById('equity-inspector');
@@ -96,7 +105,7 @@ function initCharts() {
     }
     var timestamp = typeof param.time === 'number' ? param.time : param.time.timestamp;
     var time = timestamp ? new Date(timestamp * 1000).toISOString().slice(0, 16).replace('T', ' ') : '—';
-    inspector.innerHTML = '<span>' + time + '</span><strong>Balance $' + fmtNum(point.value, 2) + '</strong>';
+    inspector.innerHTML = '<span>' + time + '</span><strong>Equity $' + fmtNum(point.value, 2) + '</strong>';
   });
 
   // Resize both charts whenever the window resizes

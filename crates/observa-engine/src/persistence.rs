@@ -151,7 +151,7 @@ fn derive_metrics(result: &RunResult, bars_per_year: f64) -> MetricsReport {
 /// Serializes a `MetricsReport` to JSON, mapping any non-finite value to
 /// `null` (e.g. profit factor when there are no losing trades) instead of
 /// emitting invalid JSON or inventing zero.
-fn metrics_json(result: &RunResult, bars_per_year: f64) -> Result<Value, PersistenceError> {
+pub fn derive_metrics_json(result: &RunResult, bars_per_year: f64) -> Value {
     let report = derive_metrics(result, bars_per_year);
     let num = |v: f64| -> Value {
         if v.is_finite() {
@@ -188,7 +188,7 @@ fn metrics_json(result: &RunResult, bars_per_year: f64) -> Result<Value, Persist
         "final_equity": result.final_state.final_equity,
         "open_positions_remaining": result.final_state.open_positions_remaining,
     });
-    Ok(val)
+    val
 }
 
 /// Writes the canonical artifacts of a completed run into `output_dir`
@@ -208,7 +208,7 @@ pub fn persist_completed_run(
 
     let dataset = dataset_identity(bars)?;
     let strategy_sha = strategy_identity(config)?;
-    let metrics = metrics_json(result, bars_per_year)?;
+    let metrics = derive_metrics_json(result, bars_per_year);
 
     let run_json = json!({
         "run_schema_version": RUN_SCHEMA_VERSION,

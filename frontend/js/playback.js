@@ -1,35 +1,65 @@
 // ══════════════════════════════════════════════
-// PLAYBACK CONTROLS
-// Play, pause, step, reset, and speed control
-// for the event replay.
+// PLAYBACK CONTROLS (OBS-0010)
+// Play, pause, step, previous, reset, jump-to-end and speed control.
+// Navigation is bar-granular and deterministic: every move re-derives the
+// view from the canonical event stream up to the selected bar.
 // ══════════════════════════════════════════════
 
+function maxReplayBarGlobal() {
+  return maxReplayBar();
+}
+
+function atEnd() {
+  return currentBar >= maxReplayBarGlobal() && finished;
+}
+
+function nextReplayBar() {
+  if (!replayIndex || finished) return;
+  var maxK = maxReplayBarGlobal();
+  var next = currentBar + 1;
+  if (next > maxK) return; // already at final processed bar
+  renderToBar(next);
+  if (finished) { stopPlayback(); setPlayButton('done'); }
+}
+
+function previousReplayBar() {
+  stopPlayback();
+  isPlaying = false;
+  setPlayButton('idle');
+  document.getElementById('btn-play').disabled = false;
+  document.getElementById('btn-step').disabled = false;
+  renderToBar(currentBar - 1);
+}
+
+function jumpToEndReplay() {
+  stopPlayback();
+  isPlaying = false;
+  renderToBar(maxReplayBarGlobal());
+  if (finished) setPlayButton('done');
+}
+
 function togglePlay() {
+  if (finished) { resetReplay(); return; }
   isPlaying = !isPlaying;
-  var btn = document.getElementById('btn-play');
   if (isPlaying) {
-    btn.textContent = '⏸ Pause';
-    btn.classList.add('active');
+    if (currentBar < 0) renderToBar(0); // start at first bar
+    setPlayButton('playing');
     startPlayback();
   } else {
-    btn.textContent = '▶ Play';
-    btn.classList.remove('active');
     stopPlayback();
+    setPlayButton('idle');
   }
 }
 
 function startPlayback() {
-  if (currentIndex >= allEvents.length) return;
-  playTimer = setInterval(function() {
-    if (currentIndex >= allEvents.length) {
+  if (finished) return;
+  playTimer = setInterval(function () {
+    if (finished || currentBar >= maxReplayBarGlobal()) {
       stopPlayback();
-      document.getElementById('btn-play').textContent = '▶ Play';
-      document.getElementById('btn-play').classList.remove('active');
-      isPlaying = false;
+      if (currentBar < 0) renderToBar(0);
       return;
     }
-    processEvent(allEvents[currentIndex]);
-    currentIndex++;
+    nextReplayBar();
   }, playSpeed);
 }
 
@@ -39,26 +69,25 @@ function stopPlayback() {
 
 function stepOnce() {
   if (isPlaying) togglePlay();
-  if (currentIndex < allEvents.length) {
-    processEvent(allEvents[currentIndex]);
-    currentIndex++;
+  if (finished) return;
+  if (currentBar < 0) {
+    renderToBar(0);
+  } else {
+    nextReplayBar();
   }
 }
 
 function resetReplay() {
   stopPlayback();
-  isPlaying    = false;
-  currentIndex = 0;
-  tradeCount   = 0;
-  openTrade    = null;
-  barsDrawn    = 0;
-  candleData   = [];
-  fastEmaData  = [];
-  slowEmaData  = [];
-  equityData   = [];
+  isPlaying = false;
+  currentBar = -1;
+  finished = false;
+  currentView = null;
+  candleData = [];
+  equityData = [];
+  balanceData = [];
   tradeMarkers = [];
-
-  tradeLines.forEach(function(l) { chart.removeSeries(l); });
+  tradeLines.forEach(function (l) { chart.removeSeries(l); });
   tradeLines = [];
 
   clearDrawdownHighlight();
@@ -67,21 +96,19 @@ function resetReplay() {
   fastEmaSeries.setData([]);
   slowEmaSeries.setData([]);
   equitySeries.setData([]);
+  if (balanceSeries) balanceSeries.setData([]);
   markerPlugin.setMarkers([]);
-  // Clear all active drawings
-  Object.keys(activeDrawings).forEach(function(id) {
-    removeDrawing(id);
-  });
-  activeDrawings = {};
 
-  document.getElementById('btn-play').textContent = '▶ Play';
-  document.getElementById('btn-play').classList.remove('active');
-  document.getElementById('stat-balance').textContent  = '10,000.00';
-  document.getElementById('stat-pnl').textContent      = '0.00';
-  document.getElementById('stat-trades').textContent   = '0';
-  document.getElementById('progress-fill').style.width = '0%';
-  document.getElementById('stat-progress').textContent = 'Bar 0 / ' + totalBars;
-  document.getElementById('trade-log-body').innerHTML  = '';
+  document.getElementById('btn-play').disabled = false;
+  document.getElementById('btn-step').disabled = false;
+  setPlayButton('idle');
+  document.getElementById('stat-balance').textContent = '—';
+  document.getElementById('stat-equity').textContent = '—';
+  document.getElementById('stat-open').textContent = '—';
+  document.getElementById('stat-trades').textContent = '0';
+  updateProgressLabel();
+  hideRunFailed();
+  renderToBar(-1);
 }
 
 function updateSpeed() {

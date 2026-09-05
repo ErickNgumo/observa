@@ -1,0 +1,40 @@
+{
+  "bars": [
+    {
+      "close": 1.0,
+      "high": 1.0,
+      "low": 1.0,
+      "open": 1.0,
+      "time": "2023-11-14T22:13:20+00:00",
+      "volume": null
+    },
+    {
+      "close": 1.0,
+      "high": 1.0,
+      "low": 1.0,
+      "open": 1.0,
+      "time": "2023-11-14T22:28:20+00:00",
+      "volume": null
+    }
+  ],
+  "events": [
+    {
+      "event_seq": 0,
+      "strategy_name": "Fixture",
+      "type": "run_started"
+    },
+    {
+      "event_seq": 1,
+      "message": "scripted failure in fixture L",
+      "type": "strategy_error"
+    },
+    {
+      "category": "strategy",
+      "event_seq": 2,
+      "message": "scripted failure in fixture L",
+      "type": "run_failed"
+    }
+  ],
+  "fixture": "l_failed",
+  "status": "failed"
+}

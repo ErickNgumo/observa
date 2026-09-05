@@ -13,6 +13,7 @@
 pub mod engine;
 pub mod error;
 pub mod persistence;
+pub mod replay;
 pub mod runevents;
 pub mod sha256;
 pub mod strategy;
