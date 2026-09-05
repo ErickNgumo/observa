@@ -1,5 +1,15 @@
 use serde::{Deserialize, Serialize};
 
+// ────────────────────────────────────────────────
+// LEGACY configuration types
+// ────────────────────────────────────────────────
+//
+// NOTE (OBS-0004): the canonical, authoritative configuration model is
+// `observa_core::config::BacktestConfig`. The types below are the historical
+// CLI configuration representation and are retained ONLY as a temporary
+// compatibility loader until the CLI is refactored to the canonical model in
+// OBS-0007. New components must not use them.
+
 /// User-facing configuration file (config.yaml)
 /// All fields are optional - defaults are provided
 #[derive(Debug, Serialize, Deserialize)]

@@ -15,6 +15,11 @@ use crate::strategy::{PortfolioView, Strategy};
 // ────────────────────────────────────────────────
 // EngineConfig
 // ────────────────────────────────────────────────
+//
+// NOTE (OBS-0004): LEGACY type. The canonical configuration model is
+// `observa_core::config::BacktestConfig`. `EngineConfig` belongs to the
+// historical `Engine::run` stub, which is superseded by the canonical engine
+// runtime (OBS-0007).
 
 /// Configuration for a single run.
 /// Frozen at the start — never changes during replay.

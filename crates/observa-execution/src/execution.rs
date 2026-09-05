@@ -14,6 +14,11 @@ use crate::error::ExecutionError;
 // ────────────────────────────────────────────────
 // FillMode
 // ────────────────────────────────────────────────
+//
+// NOTE (OBS-0004): LEGACY type. The canonical fill-mode model is
+// `observa_core::config::FillMode` (BAR_CLOSE / NEXT_BAR_OPEN). This enum is
+// the historical execution-crate representation and is scheduled for removal
+// when the execution model is rebuilt in OBS-0006.
 
 /// Controls when and at what price a market order fills.
 #[derive(Debug, Clone, Copy)]
@@ -30,6 +35,11 @@ pub enum FillMode {
 // ────────────────────────────────────────────────
 // ExecutionConfig
 // ────────────────────────────────────────────────
+//
+// NOTE (OBS-0004): LEGACY type. The canonical execution configuration lives
+// in `observa_core::config::ExecutionConfig`. This struct is the historical
+// execution-crate representation consumed by the pre-OBS-0007 CLI and is
+// scheduled for removal in OBS-0006.
 
 ///Configuration of the execution model.
 /// All values are fixed for MVP - dynamic models come later.

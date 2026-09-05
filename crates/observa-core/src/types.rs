@@ -262,3 +262,167 @@ mod tests {
         assert!(message.contains("500"));
     }
 }
+
+// ────────────────────────────────────────────────
+// Order domain — canonical MVP representation
+// ────────────────────────────────────────────────
+//
+// Order KIND and order STATE are deliberately separate concepts:
+//   * `OrderKind` is the type of order a strategy (or protective rule) emits:
+//     MARKET, LIMIT or STOP. A LIMIT order is a *kind*, not a "pending" state.
+//   * `OrderState` is the position of an order within its lifecycle.
+// These types are the domain representation that the order/execution model
+// (OBS-0006) consumes. They carry no execution logic.
+//
+// Protective SL/TP are conceptually distinct from generic strategy order
+// kinds: a protective stop-loss behaves like a market-style exit and a
+// protective take-profit behaves like a limit-style exit, but both are tied
+// to an already-open position rather than being freely placed orders.
+
+/// The MVP order kinds a strategy (or a protective rule) may produce.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderKind {
+    /// Executes at the next permitted market price (per fill mode).
+    Market,
+    /// Price-constrained order: never fills worse than its limit price.
+    Limit,
+    /// Waits until the price trades through its stop level, then behaves
+    /// as a market order.
+    Stop,
+}
+
+impl std::fmt::Display for OrderKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            OrderKind::Market => "market",
+            OrderKind::Limit => "limit",
+            OrderKind::Stop => "stop",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+/// The lifecycle states an order can occupy.
+///
+/// Not every order passes through every state: a MARKET order normally goes
+/// `Created → Filled` (or `Created → Rejected`), while resting LIMIT/STOP
+/// orders go `Created → Pending → Triggered → Filled`. Dataset-end expiry is
+/// the only expiry mechanism in the MVP; time-based order expiration is out
+/// of scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderState {
+    /// The order has been accepted by the engine and is being processed.
+    Created,
+    /// The order is resting and waiting for its trigger/market conditions.
+    Pending,
+    /// The order's trigger condition has been met (STOP orders, and LIMIT
+    /// orders that became marketable); execution follows.
+    Triggered,
+    /// The order has executed and produced a fill.
+    Filled,
+    /// The order was refused by validation (quantity, price, margin,
+    /// position reference, ...).
+    Rejected,
+    /// The order reached the end of the dataset without filling.
+    Expired,
+}
+
+impl std::fmt::Display for OrderState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            OrderState::Created => "created",
+            OrderState::Pending => "pending",
+            OrderState::Triggered => "triggered",
+            OrderState::Filled => "filled",
+            OrderState::Rejected => "rejected",
+            OrderState::Expired => "expired",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+/// The two protective order roles attachable to an open position.
+///
+/// These are conceptually separate from generic strategy `OrderKind`s: an SL
+/// behaves as a market-style exit (receives slippage; fills at the bar open
+/// when the market gaps through the level), while a TP behaves as a limit-style
+/// exit (price constrained; no slippage). Their execution details belong to
+/// the order/execution model (OBS-0006).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtectiveKind {
+    /// Protective stop-loss attached to an open position.
+    StopLoss,
+    /// Protective take-profit attached to an open position.
+    TakeProfit,
+}
+
+impl std::fmt::Display for ProtectiveKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            ProtectiveKind::StopLoss => "stop_loss",
+            ProtectiveKind::TakeProfit => "take_profit",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+#[cfg(test)]
+mod order_domain_tests {
+    use super::*;
+
+    #[test]
+    fn order_kind_and_state_are_separate_concepts() {
+        // A LIMIT order is a kind; Pending is a state it can be in.
+        let kind = OrderKind::Limit;
+        let state = OrderState::Pending;
+        assert_eq!(kind.to_string(), "limit");
+        assert_eq!(state.to_string(), "pending");
+        // Kind and state must not be interchangeable.
+        assert_ne!(format!("{kind:?}"), format!("{state:?}"));
+    }
+
+    #[test]
+    fn order_kinds_cover_mvp_orders() {
+        assert_eq!(format!("{:?}", OrderKind::Market), "Market");
+        let all = [OrderKind::Market, OrderKind::Limit, OrderKind::Stop];
+        assert_eq!(all.len(), 3);
+    }
+
+    #[test]
+    fn order_states_cover_lifecycle() {
+        assert_eq!(format!("{:?}", OrderState::Created), "Created");
+        let all = [
+            OrderState::Created,
+            OrderState::Pending,
+            OrderState::Triggered,
+            OrderState::Filled,
+            OrderState::Rejected,
+            OrderState::Expired,
+        ];
+        assert_eq!(all.len(), 6);
+    }
+
+    #[test]
+    fn protective_kinds_distinct_from_strategy_order_kinds() {
+        // SL/TP are protective roles, not generic strategy orders.
+        let sl = ProtectiveKind::StopLoss;
+        let tp = ProtectiveKind::TakeProfit;
+        assert_eq!(sl.to_string(), "stop_loss");
+        assert_eq!(tp.to_string(), "take_profit");
+        // The generic kinds do not include protective roles.
+        assert!(!matches!(OrderKind::Market, OrderKind::Limit));
+    }
+
+    #[test]
+    fn order_enums_serialize_lowercase() {
+        let kind_json = serde_json::to_string(&OrderKind::Stop).unwrap();
+        assert_eq!(kind_json, r#""stop""#);
+        let state_json = serde_json::to_string(&OrderState::Triggered).unwrap();
+        assert_eq!(state_json, r#""triggered""#);
+        let prot_json = serde_json::to_string(&ProtectiveKind::TakeProfit).unwrap();
+        assert_eq!(prot_json, r#""take_profit""#);
+    }
+}

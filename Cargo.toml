@@ -6,10 +6,13 @@ members = [
     "crates/observa-execution",
     "crates/observa-portfolio",
     "crates/observa-python",
-    "crates/observa-runner", 
-    "crates/observa-server",
     "crates/observa-metrics",
-    "crates/observa-python", "crates/observa-cli",
+    "crates/observa-cli",
+    # Legacy prototype binaries (observa-runner, observa-server) are excluded
+    # from workspace members because they no longer compile against the current
+    # portfolio/strategy APIs and broke `cargo build/test --workspace`.
+    # They are retired in OBS-0007; the directories are intentionally left in
+    # place until then.
 ]
 resolver = "2"
 

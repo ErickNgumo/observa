@@ -4,7 +4,9 @@
 //! Everything else depends on this.
 
 pub mod bar;
-pub mod events;
-pub mod types;
-pub mod instrument;
+pub mod config;
 pub mod drawings;
+pub mod events;
+pub mod instrument;
+pub mod types;
+pub mod units;
