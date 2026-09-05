@@ -18,3 +18,6 @@ classifiers = [
 [tool.maturin]
 module-name = "observa._observa"
 python-source = "python"
+
+[project.scripts]
+observa = "observa.cli:main"

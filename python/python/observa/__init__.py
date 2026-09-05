@@ -83,6 +83,7 @@ class Config:
     slippage: float = 0.0001
     commission: float = 0.0
     commission_mode: str = PER_SIDE
+    commission_rate_per_unit: float = 0.0
     interval: str = "1d"
 
     strategy_name: Optional[str] = None
@@ -177,11 +178,52 @@ def run(
         cfg = config.to_dict()
     else:
         cfg = dict(config)
+    if output is not None:
+        # Persistence remains create-only for the run directory itself; only
+        # ensure its parent exists so a fresh user does not hit an opaque
+        # filesystem error.
+        import os
+
+        parent = os.path.dirname(os.path.abspath(output))
+        if parent:
+            os.makedirs(parent, exist_ok=True)
     return _run(strategy, data, cfg, output, bars_per_year)
 
 
+def sample_data_path() -> str:
+    """Absolute path to the bundled deterministic sample dataset (CSV)."""
+    return str(resources.files("observa") / "samples" / "sample_m15.csv")
+
+
+def sample_strategy_path() -> str:
+    """Absolute path to the bundled sample strategy module (Python)."""
+    return str(resources.files("observa") / "samples" / "sample_strategy.py")
+
+
+def replay(run_dir: str, port: int = 7878):
+    """Launches the local canonical replay server for a persisted run.
+
+    ``run_dir`` must contain the artifacts produced by ``run(..., output=...)``
+    or by the CLI. Blocks until the server is stopped (Ctrl+C); open
+    http://localhost:<port> in a browser.
+    """
+    from .replay import serve
+
+    serve(run_dir, port)
+
+
+def _install_resources() -> None:
+    global resources
+    from importlib import resources  # noqa: F401
+
+
+_install_resources()
+
 __all__ = [
     "run",
+    "replay",
+    "sample_data_path",
+    "sample_strategy_path",
     "RunResult",
     "Config",
     "Strategy",

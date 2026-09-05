@@ -514,7 +514,7 @@ fn serve_payload(payload: &serde_json::Value, port: u16) {
 
         thread::spawn(move || match url.as_str() {
             "/" => {
-                let html = include_str!("../../../frontend/index.html");
+                let html = include_str!("../../../python/python/observa/static/index.html");
                 let response = Response::from_string(html).with_header(
                     Header::from_bytes("Content-Type", "text/html; charset=utf-8").unwrap(),
                 );
@@ -526,8 +526,11 @@ fn serve_payload(payload: &serde_json::Value, port: u16) {
                     .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap());
                 request.respond(response).ok();
             }
-            url if url.starts_with("/css/") || url.starts_with("/js/") => {
-                let file_path = format!("frontend{}", url);
+            url if url.starts_with("/css/")
+                || url.starts_with("/js/")
+                || url.starts_with("/vendor/") =>
+            {
+                let file_path = format!("python/python/observa/static{}", url);
                 match std::fs::read_to_string(&file_path) {
                     Ok(contents) => {
                         let content_type = if url.ends_with(".css") {

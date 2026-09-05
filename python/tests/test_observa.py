@@ -423,6 +423,43 @@ def test_persistence_and_no_overwrite():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_commission_rate_per_unit_maps_to_canonical():
+    import json
+    import os
+
+    data = bars(
+        ("2023-11-14T22:13:20Z", 1.0, 1.0, 1.0, 1.0),
+        ("2023-11-14T22:28:20Z", 1.0, 1.0, 1.0, 1.0),
+    )
+
+    class S:
+        def __init__(self):
+            self.sent = False
+
+        def initialize(self, params=None):
+            pass
+
+        def on_bar(self, bar, portfolio, history):
+            if not self.sent:
+                self.sent = True
+                return [{"direction": "buy", "size": 1.0}]
+            return []
+
+        def teardown(self):
+            pass
+
+    tmp = tempfile.mkdtemp(prefix="obs-rate-")
+    try:
+        out = os.path.join(tmp, "run")
+        cfg = zero_cost(commission_mode="per_side", commission_rate_per_unit=0.00005)
+        observa.run(S(), data, config=cfg, output=out)
+        run = json.load(open(os.path.join(out, "run.json")))
+        assert run["config"]["execution"]["commission"]["rate_per_unit"] == 0.00005
+        assert run["config"]["execution"]["commission"]["mode"] == "PER_SIDE"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

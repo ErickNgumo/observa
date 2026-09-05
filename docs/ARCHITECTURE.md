@@ -1,5 +1,39 @@
 # Observa Architecture
 
+> Status: current as of the MVP release candidate (OBS-0011). The repository
+> is the source of truth; this document describes the canonical runtime.
+
+## 0. Canonical pipeline (what a run actually is)
+
+```text
+Python API / CLI (user surfaces)
+        ↓
+Canonical Engine (single replay loop)
+        ↓
+OBS-0006 Execution semantics ─┐
+OBS-0005 Portfolio authority ─┴─ (no other component computes economics)
+        ↓
+Canonical events (EventSeq)   ← authoritative history
+        ↓
+Persistence (run.json / events.jsonl / metrics.json)
+        ↓
+Replay adapter → frontend (a view of canonical events; never an authority)
+```
+
+Key ownership rules (verified by integration QA):
+
+* **One engine.** The canonical Rust Engine is the only backtest loop for the
+  Python package, the CLI, and the replay.
+* **One history.** The canonical ordered event stream is the source of truth;
+  the frontend never reconstructs fills, P&L, SL/TP outcomes, or position
+  pairing.
+* **Metrics are derived**, never authoritative. Balance/equity come from the
+  Engine result.
+* **Python specifies intent**; execution/portfolio/event semantics are Rust.
+* **Replay is a view.** It consumes canonical events through a pure reducer.
+
+# Observa Architecture
+
 ## 1. Architectural style
 
 Observa is designed as an event-sourced, component-isolated system.

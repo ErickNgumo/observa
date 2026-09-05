@@ -14,6 +14,7 @@ use pyo3::types::{PyDict, PyList, PyString};
 use serde_json::{json, Value};
 
 use observa_core::bar::Bar;
+use observa_core::drawings::DrawingInstruction;
 use observa_core::config::{
     AccountConfig, BacktestConfig, BarInterval, CommissionConfig, CommissionMode, DatasetConfig,
     ExecutionConfig, FillMode, InstrumentConfig, OrderModelConfig, StrategyConfig,
@@ -22,6 +23,7 @@ use observa_core::types::{Direction, OrderKind};
 use observa_data::csv_reader::CsvReader;
 use observa_engine::engine::{Engine, RunResult as EngineRunResult};
 use observa_engine::persistence::{self, PersistenceError};
+use observa_engine::replay::{self as replay_mod, RunMeta};
 use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
 use observa_metrics::metrics::MetricsEngine;
 
@@ -967,10 +969,60 @@ fn run(
     }
 }
 
+/// Loads a persisted canonical run directory and returns the replay payload
+/// consumed by the frontend (canonical events + bars when recoverable).
+#[pyfunction]
+#[pyo3(name = "replay_payload")]
+fn replay_payload_fn(py: Python<'_>, dir_path: &str) -> PyResult<PyObject> {
+    let dir = std::path::PathBuf::from(dir_path);
+    let loaded = replay_mod::load_persisted_run(&dir).map_err(|e| {
+        PyRuntimeError::new_err(format!("cannot load persisted run '{dir_path}': {e}"))
+    })?;
+    let meta = replay_mod::run_meta_from_run_json(&loaded.run_json);
+
+    // Recover canonical bars only when the recorded dataset source still
+    // exists and matches the persisted dataset hash.
+    let bars = recover_persisted_bars(&loaded.run_json);
+
+    let drawings: Vec<Vec<DrawingInstruction>> =
+        (0..bars.len()).map(|_| Vec::new()).collect();
+    let payload = replay_mod::replay_payload(
+        &bars,
+        &loaded.events,
+        &drawings,
+        &meta,
+        loaded.metrics.as_ref(),
+    );
+    value_to_py(py, &payload)
+}
+
+/// Best-effort recovery of dataset bars for a persisted run (see CLI).
+fn recover_persisted_bars(run_json: &serde_json::Value) -> Vec<Bar> {
+    let sha = match run_json["dataset"]["sha256"].as_str() {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    let source = match run_json["dataset"]["source"].as_str() {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    if !source.to_lowercase().ends_with(".csv") {
+        return Vec::new();
+    }
+    match CsvReader::load(source) {
+        Ok(bars) => match persistence::dataset_identity(&bars) {
+            Ok(identity) if identity.sha256 == sha => bars,
+            _ => Vec::new(),
+        },
+        Err(_) => Vec::new(),
+    }
+}
+
 /// Native extension module.
 #[pymodule]
 fn _observa(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run, m)?)?;
+    m.add_function(wrap_pyfunction!(replay_payload_fn, m)?)?;
     m.add_class::<RunResult>()?;
     Ok(())
 }

@@ -8,7 +8,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const Replay = require('../js/replay-core.js');
+const Replay = require('../python/observa/static/js/replay-core.js');
 
 const FIX = path.join(__dirname, 'fixtures');
 

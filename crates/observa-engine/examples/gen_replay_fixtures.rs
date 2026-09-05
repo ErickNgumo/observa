@@ -153,7 +153,7 @@ fn main() {
     let outdir = std::env::args()
         .nth(1)
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from("frontend/tests/fixtures"));
+        .unwrap_or_else(|| std::path::PathBuf::from("python/tests/fixtures"));
     std::fs::create_dir_all(&outdir).unwrap();
     run_all(&outdir);
 }

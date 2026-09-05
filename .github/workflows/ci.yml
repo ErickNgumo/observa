@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Rust tests + build
+        run: |
+          cargo test --workspace
+          cargo build --workspace
+      - name: Frontend replay tests
+        run: node python/tests/replay.test.js
+      - name: Build wheel
+        run: |
+          python -m pip install maturin
+          cd python && maturin build --release
+      - name: Fresh-env Python package tests
+        run: |
+          python -m venv .ci-venv
+          .ci-venv/bin/pip install python/target/wheels/*.whl
+          .ci-venv/bin/python python/tests/test_observa.py
+      - name: Quickstart smoke (installed wheel)
+        run: |
+          mkdir -p .ci-out && cd .ci-out
+          ../.ci-venv/bin/python ../examples/python_quickstart.py
