@@ -8,13 +8,13 @@ use tiny_http::{Header, Response, Server};
 mod config;
 use config::load_config;
 use observa_core::bar::Bar;
+use observa_core::config::CommissionMode;
 use observa_core::events::{Event, EventMetadata, OrderIntentCreatedEvent};
-use observa_core::instrument::InstrumentSpec;
 use observa_data::csv_reader::CsvReader;
 use observa_engine::strategy::{PortfolioView, Strategy, OpenPositionView};
 use observa_execution::execution::{ExecutionConfig, ExecutionModel, FillResult, FillMode};
 use observa_metrics::metrics::MetricsEngine;
-use observa_portfolio::portfolio::PortfolioManager;
+use observa_portfolio::portfolio::{PortfolioManager, PortfolioSettings};
 use observa_python::strategy::{detect_strategy_class, PyStrategy};
 use uuid::Uuid;
 
@@ -152,20 +152,29 @@ EXAMPLE:
 fn run_backtest(
     bars: Vec<Bar>,
     strategy: &mut PyStrategy,
-    initial_balance: f64,
     execution_config: ExecutionConfig,
-    instrument_spec: InstrumentSpec,
+    settings: PortfolioSettings,
 ) -> Vec<String> {
     let mut events: Vec<String> = Vec::new();
 
-    let run_id        = Uuid::new_v4();
-    let mut portfolio = PortfolioManager::new(run_id, initial_balance, execution_config.commission, execution_config.slippage,instrument_spec);
-    let execution     = ExecutionModel::new(execution_config);
+    let run_id = Uuid::new_v4();
+    // Canonical financial/position accounting (OBS-0005). The legacy replay
+    // loop below still drives it through the thin legacy adapters until the
+    // canonical engine (OBS-0007) owns the loop.
+    let mut portfolio = match PortfolioManager::try_new(run_id, settings) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("  Invalid portfolio configuration: {}", e);
+            std::process::exit(1);
+        }
+    };
+    let execution = ExecutionModel::new(execution_config);
     // 15-minute bars: 4 bars per hour × 6.5 trading hours × 252 days
     // For EURUSD (forex, 24h market): 4 × 24 × 252 = 24,192
     // For stocks (9:30-16:00 EST): 4 × 6.5 × 252 = 6,552
     // We use forex here since the data is EURUSD
-    let mut metrics   = MetricsEngine::new(initial_balance, 4.0 * 24.0 * 252.0);
+    let initial_balance = portfolio.balance();
+    let mut metrics = MetricsEngine::new(initial_balance, 4.0 * 24.0 * 252.0);
 
     strategy.initialize();
 
@@ -204,15 +213,6 @@ fn run_backtest(
         });
         events.push(bar_json.to_string());
 
-        // Build portfolio view
-        let open_pos       = portfolio.open_position();
-
-        let unrealised = open_pos
-            .map(|p| p.unrealised_pnl(bar.close))
-            .unwrap_or(0.0);
-
-        
-
         // Build portfolio view with all open positions
         let open_pos_views: Vec<OpenPositionView> = portfolio
             .open_positions()
@@ -220,11 +220,11 @@ fn run_backtest(
             .map(|p| OpenPositionView {
                 ticket:         p.position_id.to_string(),
                 direction:      p.direction,
-                size:           p.size,
+                size:           p.quantity_lots,
                 entry_price:    p.entry_price,
                 unrealised_pnl: p.unrealised_pnl(bar.close),
-                sl:             p.sl,
-                tp:             p.tp,
+                sl:             p.stop_loss,
+                tp:             p.take_profit,
             })
             .collect();
 
@@ -233,14 +233,12 @@ fn run_backtest(
             .map(|p| p.unrealised_pnl)
             .sum::<f64>();
 
-        let first_pos = open_pos_views.first();
-
         let portfolio_view = PortfolioView {
-            balance:              portfolio.balance(),
-            equity:               portfolio.balance() + unrealised,
-            has_open_position:    !open_pos_views.is_empty(),
-            open_positions:       open_pos_views,
-            unrealised_pnl:       unrealised,            
+            balance:           portfolio.balance(),
+            equity:            portfolio.equity(bar.close),
+            has_open_position: !open_pos_views.is_empty(),
+            open_positions:    open_pos_views,
+            unrealised_pnl:    unrealised,
         };
 
         // Call strategy
@@ -280,7 +278,7 @@ fn run_backtest(
                 reason:         signal.reason.clone(),
             };
 
-            match execution.process(&intent, bar, portfolio.balance()) {
+            match execution.process(&intent, bar) {
                 Ok(FillResult::Filled(fill)) => {
                     push(&Event::OrderFilled(fill.clone()), &mut events);
                     match portfolio.process_fill(&fill, signal_ticket) {
@@ -308,34 +306,26 @@ fn run_backtest(
 
 
         // ── Emit per-bar portfolio snapshot ──────────
-        // This is the key fix for Sharpe correctness.
-        // The equity curve must be sampled at every bar,
-        // not just when trades close.
-        // Without this, return periods are unequal in length
-        // which violates Sharpe ratio assumptions.
-        let unrealised = portfolio
-            .open_position()
-            .map(|p| p.unrealised_pnl(bar.close))
-            .unwrap_or(0.0);
-
-        let bar_equity   = portfolio.balance() + unrealised;
+        // The equity curve must be sampled at every bar using the canonical
+        // mark-to-market snapshot (all open positions; no first-position math).
+        let snap = portfolio.snapshot(bar.close, bar.timestamp);
         let bar_snapshot = serde_json::json!({
             "event_type":    "PortfolioSnapshot",
             "event_id":      Uuid::new_v4().to_string(),
             "run_id":        run_id.to_string(),
             "timestamp":     bar.timestamp,
-            "balance":       portfolio.balance(),
-            "equity":        bar_equity,
-            "margin":        0.0,
-            "free_margin":   bar_equity,
-            "unrealised_pnl": unrealised,
-            "realised_pnl":  portfolio.realised_pnl(),
-            "open_positions": if portfolio.open_position().is_some() { 1 } else { 0 },
+            "balance":       snap.balance,
+            "equity":        snap.equity,
+            "margin":        snap.used_margin,
+            "free_margin":   snap.free_margin,
+            "unrealised_pnl": snap.unrealised_pnl,
+            "realised_pnl":  snap.realised_pnl,
+            "open_positions": snap.open_positions.len(),
         });
         events.push(bar_snapshot.to_string());
 
         // Feed the metrics engine every bar
-        metrics.on_snapshot(bar.timestamp, bar_equity);
+        metrics.on_snapshot(bar.timestamp, snap.equity);
     
     }
 
@@ -551,27 +541,34 @@ fn main() {
         fill_mode:         FillMode::NextBarOpen,
     };
     
-    // Build instrument spec from config
-    let instrument = InstrumentSpec {
-        symbol:         config.instrument.symbol.clone(),
-        contract_size:  config.instrument.contract_size,
-        pip_value:      config.instrument.pip_value,
-        price_decimals: config.instrument.price_decimals,
-        margin_rate:    config.instrument.margin_rate,
+    // Build canonical portfolio settings from the (legacy) config.
+    // LEGACY MAPPING (OBS-0005, pre-OBS-0007): the old config expresses margin
+    // via `margin_rate` and commission as a flat per-trade fee; canonical
+    // accounting uses leverage + commission mode. The flat legacy fee is
+    // treated as a ROUND_TRIP charge (one charge at close), preserving the
+    // historical "$ per trade" behaviour of the legacy CLI.
+    let leverage = if config.instrument.margin_rate.is_finite()
+        && config.instrument.margin_rate > 0.0
+    {
+        1.0 / config.instrument.margin_rate
+    } else {
+        100.0
+    };
+    let settings = PortfolioSettings {
+        initial_cash:     config.account.initial_balance,
+        leverage,
+        contract_size:    config.instrument.contract_size,
+        symbol:           config.instrument.symbol.clone(),
+        commission_mode:  CommissionMode::RoundTrip,
+        legacy_commission: config.execution.commission,
+        legacy_slippage:  config.execution.slippage,
     };
 
-    println!("  Instrument: {}", instrument.symbol);
-    println!("  Contract:   {} units/lot", instrument.contract_size);
-    
-    let initial_balance = config.account.initial_balance;
+    println!("  Instrument: {}", config.instrument.symbol);
+    println!("  Contract:   {} units/lot", config.instrument.contract_size);
+    println!("  Leverage:   1:{}", leverage);
 
-    let events = run_backtest(
-        bars,
-        &mut strategy,
-        initial_balance,
-        execution_config,
-        instrument
-    );
+    let events = run_backtest(bars, &mut strategy, execution_config, settings);
 
     // ── Serve visualization ────────────────────
     serve(events, args.port);

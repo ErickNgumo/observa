@@ -51,11 +51,16 @@ class EMACrossover:
                 'reason':    f'EMA{self.fast_period} crossed above EMA{self.slow_period}',
             }]
 
-        # Exit
+        # Exit — close the exact position by ticket (explicit closes only;
+        # no implicit/FIFO position selection is allowed).
         if crossed_down and portfolio['has_open_position']:
+            positions = portfolio['open_positions']
+            if not positions:
+                return []
             return [{
                 'direction': 'close',
-                'size':      1.0,
+                'ticket':    positions[0]['ticket'],
+                'size':      positions[0]['size'],
                 'reason':    f'EMA{self.fast_period} crossed below EMA{self.slow_period}',
             }]
 

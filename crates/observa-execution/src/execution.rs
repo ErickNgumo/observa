@@ -124,7 +124,6 @@ impl ExecutionModel {
         &self,
         intent: &OrderIntentCreatedEvent,
         fill_bar: &Bar,
-        account_balance: f64,
     ) -> Result<FillResult, ExecutionError> {
 
         // Step 1 — calculate fill price first
@@ -146,11 +145,14 @@ impl ExecutionModel {
         // This is correct because the trader's SL/TP distances
         // must be valid relative to the actual fill price,
         // not the intended price before market impact
-        if let Some(rejection) = self.validate_after_fill(
-            intent,
-            executed_price,
-            account_balance,
-        ) {
+        //
+        // NOTE (OBS-0005): the execution layer performs NO margin acceptance.
+        // Margin capacity is evaluated exclusively by the canonical portfolio
+        // model (`observa_portfolio::portfolio::can_open` / `free_margin`),
+        // which is the single financial authority. Any order that passes the
+        // validation rules here is returned as a fill; the portfolio decides
+        // whether it can actually be opened.
+        if let Some(rejection) = self.validate_after_fill(intent, executed_price) {
             return Ok(FillResult::Rejected(rejection));
         }
 
@@ -179,11 +181,14 @@ impl ExecutionModel {
 
     /// Validates an order intent.
     /// Returns Some(rejection) if invalid, None if valid.
+    ///
+    /// Validation covers order-domain rules only (quantity bounds, protective
+    /// distance). Margin acceptance is deliberately NOT performed here — it is
+    /// the exclusive responsibility of the canonical portfolio model (OBS-0005).
     fn validate_after_fill(
         &self,
         intent: &OrderIntentCreatedEvent,
         executed_price: f64,  // ← actual fill price after slippage
-        account_balance: f64,
     ) -> Option<OrderRejectedEvent> {
         let run_id = intent.metadata.run_id;
         let now    = Utc::now();
@@ -254,27 +259,6 @@ impl ExecutionModel {
             }
         }
 
-        // Rule 4 — sufficient capital
-        let required_margin = executed_price
-            * intent.size
-            * 1000.0  // contract size placeholder
-            * 0.01; // 1% margin requirement
-
-        if required_margin > account_balance {
-            let reason = RejectionReason::InsufficientCapital {
-                required:  required_margin,
-                available: account_balance,
-            };
-            let detail = reason.to_string();
-            return Some(OrderRejectedEvent {
-                metadata:         EventMetadata::new(run_id, now),
-                order_id:         intent.order_id,
-                signal_id:        intent.signal_id,
-                rejection_reason: reason,
-                rejection_detail: detail,
-            });
-        }
-
         None
     }
 }
@@ -339,7 +323,7 @@ mod tests {
         );
         let bar = test_bar();
 
-        let result = model.process(&intent, &bar, 10_000.0)
+        let result = model.process(&intent, &bar)
             .unwrap();
 
         match result {
@@ -369,7 +353,7 @@ mod tests {
 
         let bar = test_bar();
 
-        let result = model.process(&intent, &bar, 10_000.0)
+        let result = model.process(&intent, &bar)
             .unwrap();
 
         match result {
@@ -397,7 +381,7 @@ mod tests {
             Some(1.1420)
         );
 
-        let result = model.process(&intent, &test_bar(), 10_000.0)
+        let result = model.process(&intent, &test_bar())
             .unwrap();
 
         assert!(matches!(result, FillResult::Rejected(_)));
@@ -419,7 +403,7 @@ mod tests {
             Some(1.1420),
         );
 
-        let result = model.process(&intent, &test_bar(), 10_000.0)
+        let result = model.process(&intent, &test_bar())
             .unwrap();
 
         assert!(matches!(result, FillResult::Rejected(_)));
@@ -432,25 +416,41 @@ mod tests {
     }
 
     #[test]
-    fn order_rejected_when_insufficient_capital() {
+    fn execution_has_no_margin_authority() {
+        // Regression test for the OBS-0005 QA blocker: the execution layer
+        // must NOT independently reject an order based on the obsolete
+        // `price × size × 1000 × 0.01` margin formula. Margin acceptance is
+        // the exclusive responsibility of the canonical portfolio model
+        // (`PortfolioManager::can_open`).
+        //
+        // QA counter-example (equity-style instrument) that the old formula
+        // wrongly rejected while the canonical model accepts:
+        //   contract_size = 1, leverage = 4, balance = 20,000,
+        //   quantity = 100, price = 182.50
+        //   canonical margin = 100 × 1 × 182.50 / 4 = 4,562.50  → ACCEPT
+        //   legacy formula    = 182.50 × 100 × 1000 × 0.01 = 182,500 → REJECT
+        //
+        // Execution holds no contract/leverage/balance knowledge, so a large
+        // in-bounds order must simply produce a fill here; whether the account
+        // can support it is decided by the portfolio.
         let model = ExecutionModel::new(test_config());
         let intent = test_intent(
             Direction::Buy,
-            100.0,  //100 lots - needs huge margin
+            100.0, // at the max-lot bound; the old rule would have rejected it
             Some(1.1350),
             Some(1.1420),
         );
 
-        // Only $10 in account - nowhere near enough
-        let result = model.process(&intent, &test_bar(), 1.0)
-            .unwrap();
+        let result = model.process(&intent, &test_bar()).unwrap();
 
-        assert!(matches!(result, FillResult::Rejected(_)));
+        assert!(matches!(result, FillResult::Filled(_)));
+        // The obsolete rejection reason must never be produced by execution.
         if let FillResult::Rejected(r) = result {
-            assert!(matches!(
+            assert!(!matches!(
                 r.rejection_reason,
                 RejectionReason::InsufficientCapital { .. }
             ));
+            panic!("expected fill, got rejection: {}", r.rejection_detail);
         }
     }
 
@@ -467,7 +467,7 @@ mod tests {
             Some(1.1420),
         );
         if let FillResult::Filled(fill) = model
-            .process(&buy_intent, &bar, 10_000.0).unwrap()
+            .process(&buy_intent, &bar).unwrap()
         {
             assert!(fill.executed_price > bar.open);
         }
@@ -480,7 +480,7 @@ mod tests {
             Some(1.1350),
         );
         if let FillResult::Filled(fill) = model
-            .process(&sell_intent, &bar, 10_000.0).unwrap()
+            .process(&sell_intent, &bar).unwrap()
         {
             assert!(fill.executed_price < bar.open);
         }
