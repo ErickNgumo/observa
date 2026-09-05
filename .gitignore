@@ -25,3 +25,13 @@ setup_observa.sh
 
 frontend/FRONTEND_CONTEXT.md
 frontend/FRONTEND_VISION.MD
+
+# Python packaging
+dist/
+*.whl
+*.egg-info/
+.venv-build/
+python/target/
+
+# Cargo home used for wheel builds inside the sandbox
+.cargo-home/

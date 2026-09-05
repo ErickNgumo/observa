@@ -1,6 +1,9 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
+use std::collections::BTreeMap;
 use std::path::Path;
+
+use serde_json::Value;
 
 use observa_core::bar::Bar;
 use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
@@ -41,43 +44,25 @@ impl PyStrategy {
     /// * `file_path` — path to the .py file
     /// * `class_name` — name of the Strategy subclass
     ///                  inside the file (e.g. "EMACrossover")
-    pub fn load(
-        file_path: &Path,
-        class_name: &str,
-    ) -> Result<Self, BridgeError> {
+    pub fn load(file_path: &Path, class_name: &str) -> Result<Self, BridgeError> {
         let path_str = file_path.to_string_lossy().to_string();
         let source = std::fs::read_to_string(file_path)
-            .map_err(|e| BridgeError::FileLoadError(
-                path_str.clone(),
-                e.to_string(),
-            ))?;
+            .map_err(|e| BridgeError::FileLoadError(path_str.clone(), e.to_string()))?;
 
         Python::with_gil(|py| {
             // Load the file as a Python module
-            let module = PyModule::from_code_bound(
-                py,
-                &source,
-                &path_str,
-                "user_strategy",
-            ).map_err(|e| BridgeError::FileLoadError(
-                path_str.clone(),
-                e.to_string(),
-            ))?;
+            let module = PyModule::from_code_bound(py, &source, &path_str, "user_strategy")
+                .map_err(|e| BridgeError::FileLoadError(path_str.clone(), e.to_string()))?;
 
             // Find the strategy class by name
             let class = module
                 .getattr(class_name)
-                .map_err(|_| BridgeError::ClassNotFound(
-                    class_name.to_string()
-                ))?;
+                .map_err(|_| BridgeError::ClassNotFound(class_name.to_string()))?;
 
             // Instantiate the class — calls __init__
             let instance = class
                 .call0()
-                .map_err(|e| BridgeError::MethodCallError(
-                    "__init__".to_string(),
-                    e.to_string(),
-                ))?
+                .map_err(|e| BridgeError::MethodCallError("__init__".to_string(), e.to_string()))?
                 .into();
 
             Ok(PyStrategy {
@@ -91,16 +76,11 @@ impl PyStrategy {
 
     /// Helper — calls a method on the Python instance
     /// with no arguments.
-    fn call_method0(&self, method: &str)
-        -> Result<(), BridgeError>
-    {
+    fn call_method0(&self, method: &str) -> Result<(), BridgeError> {
         Python::with_gil(|py| {
             self.instance
                 .call_method0(py, method)
-                .map_err(|e| BridgeError::MethodCallError(
-                    method.to_string(),
-                    e.to_string(),
-                ))?;
+                .map_err(|e| BridgeError::MethodCallError(method.to_string(), e.to_string()))?;
             Ok(())
         })
     }
@@ -111,9 +91,24 @@ impl PyStrategy {
 // ────────────────────────────────────────────────
 
 impl Strategy for PyStrategy {
-    /// Calls initialize() on the Python strategy.
-    fn initialize(&mut self) {
-        if let Err(e) = self.call_method0("initialize") {
+    /// Calls `initialize(self, params)` on the Python strategy, forwarding the
+    /// resolved canonical strategy parameters as a dict (empty dict when no
+    /// parameters are configured — never silently dropped).
+    fn initialize_with_params(&mut self, params: Option<&BTreeMap<String, Value>>) {
+        let result = Python::with_gil(|py| {
+            let dict = PyDict::new_bound(py);
+            if let Some(p) = params {
+                for (k, v) in p {
+                    if let Ok(pyval) = json_value_to_py(py, v) {
+                        dict.set_item(k, pyval).ok();
+                    }
+                }
+            }
+            self.instance
+                .call_method1(py, "initialize", (dict,))
+                .map(|_| ())
+        });
+        if let Err(e) = result {
             eprintln!(
                 "[PyStrategy] initialize() failed on '{}': {}",
                 self.class_name, e
@@ -134,14 +129,14 @@ impl Strategy for PyStrategy {
     ) -> Vec<StrategySignal> {
         Python::with_gil(|py| {
             let py_bar = match bar_to_py(py, bar) {
-                Ok(d)  => d,
+                Ok(d) => d,
                 Err(e) => {
                     self.last_error = Some(format!("bar conversion failed: {e}"));
                     return vec![];
                 }
             };
             let py_portfolio = match portfolio_to_py(py, portfolio) {
-                Ok(d)  => d,
+                Ok(d) => d,
                 Err(e) => {
                     self.last_error = Some(format!("portfolio conversion failed: {e}"));
                     return vec![];
@@ -154,28 +149,30 @@ impl Strategy for PyStrategy {
                 }
             }
 
-            let result = match self.instance.call_method1(
-                py, "on_bar", (py_bar, py_portfolio, py_history),
-            ) {
-                Ok(r)  => r,
-                Err(e) => {
-                    eprintln!("[PyStrategy] on_bar() failed: {}", e);
-                    self.last_error = Some(format!("on_bar() failed: {e}"));
-                    return vec![];
-                }
-            };
+            let result =
+                match self
+                    .instance
+                    .call_method1(py, "on_bar", (py_bar, py_portfolio, py_history))
+                {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("[PyStrategy] on_bar() failed: {}", e);
+                        self.last_error = Some(format!("on_bar() failed: {e}"));
+                        return vec![];
+                    }
+                };
 
             // Handle both return styles:
             // Old: return [signal_dict, ...]
             // New: return {'signals': [...], 'drawings': [...]}
-            let (signal_list, _drawing_list) = if let Ok(dict) =
-                result.downcast_bound::<PyDict>(py)
+            let (signal_list, _drawing_list) = if let Ok(dict) = result.downcast_bound::<PyDict>(py)
             {
-                let signals = dict.get_item("signals")
-                    .ok().flatten()
+                let signals = dict
+                    .get_item("signals")
+                    .ok()
+                    .flatten()
                     .and_then(|v| v.downcast::<PyList>().ok().map(|l| l.to_owned()));
-                let drawings = dict.get_item("drawings")
-                    .ok().flatten();
+                let drawings = dict.get_item("drawings").ok().flatten();
 
                 // Store drawings for the caller to retrieve
                 if let Some(d) = drawings {
@@ -192,7 +189,8 @@ impl Strategy for PyStrategy {
                 (signals, ())
             } else {
                 // Old style — plain list
-                let list = result.downcast_bound::<PyList>(py)
+                let list = result
+                    .downcast_bound::<PyList>(py)
                     .ok()
                     .map(|l| l.to_owned());
                 (list, ())
@@ -200,20 +198,18 @@ impl Strategy for PyStrategy {
 
             let signal_list = match signal_list {
                 Some(l) => l,
-                None    => return vec![],
+                None => return vec![],
             };
 
             let mut parse_error: Option<String> = None;
             let signals = signal_list
                 .iter()
-                .filter_map(|item| {
-                    match signal_from_py(py, &item) {
-                        Ok(s) => Some(s),
-                        Err(e) => {
-                            eprintln!("[PyStrategy] signal: {}", e);
-                            parse_error = Some(format!("signal parse failed: {e}"));
-                            None
-                        }
+                .filter_map(|item| match signal_from_py(py, &item) {
+                    Ok(s) => Some(s),
+                    Err(e) => {
+                        eprintln!("[PyStrategy] signal: {}", e);
+                        parse_error = Some(format!("signal parse failed: {e}"));
+                        None
                     }
                 })
                 .collect();
@@ -225,9 +221,7 @@ impl Strategy for PyStrategy {
     }
 
     /// Drains drawings produced by the last strategy callback.
-    fn take_drawings(
-        &mut self,
-    ) -> Vec<observa_core::drawings::DrawingInstruction> {
+    fn take_drawings(&mut self) -> Vec<observa_core::drawings::DrawingInstruction> {
         std::mem::take(&mut self.pending_drawings)
     }
 
@@ -259,14 +253,10 @@ impl Strategy for PyStrategy {
 /// This lets users run without specifying --class:
 ///   observa run --strategy my_file.py
 ///   (class name detected automatically)
-pub fn detect_strategy_class(
-    file_path: &Path,
-) -> Result<String, BridgeError> {
-    let source = std::fs::read_to_string(file_path)
-        .map_err(|e| BridgeError::FileLoadError(
-            file_path.to_string_lossy().to_string(),
-            e.to_string(),
-        ))?;
+pub fn detect_strategy_class(file_path: &Path) -> Result<String, BridgeError> {
+    let source = std::fs::read_to_string(file_path).map_err(|e| {
+        BridgeError::FileLoadError(file_path.to_string_lossy().to_string(), e.to_string())
+    })?;
 
     // Strategy 1
     // Simple heuristic — find "class Foo(Strategy):"
@@ -306,7 +296,8 @@ pub fn detect_strategy_class(
             }
             // Start with tracking new class
             let after_class = &trimmed["class ".len()..];
-            let end = after_class.find(|c| c == '(' || c == ':')
+            let end = after_class
+                .find(|c| c == '(' || c == ':')
                 .unwrap_or(after_class.len());
             current_class = Some(after_class[..end].trim().to_string());
             has_initialize = false;
@@ -316,9 +307,15 @@ pub fn detect_strategy_class(
 
         // TRack method definitions inside current class
         if current_class.is_some() {
-            if trimmed.starts_with("def initialize") { has_initialize = true; }
-            if trimmed.starts_with("def on_bar")      { has_on_bar     = true; }
-            if trimmed.starts_with("def teardown")   {has_teardown    = true; }
+            if trimmed.starts_with("def initialize") {
+                has_initialize = true;
+            }
+            if trimmed.starts_with("def on_bar") {
+                has_on_bar = true;
+            }
+            if trimmed.starts_with("def teardown") {
+                has_teardown = true;
+            }
         }
     }
 
@@ -331,8 +328,46 @@ pub fn detect_strategy_class(
 
     Err(BridgeError::ClassNotFound(
         "no Strategy class found — class must have \
-         initialize(), on_bar(), and teardown() methods".to_string()
+         initialize(), on_bar(), and teardown() methods"
+            .to_string(),
     ))
+}
+
+/// Converts a serde_json value into a Python object (used for forwarding
+/// canonical strategy parameters into the Python strategy lifecycle).
+fn json_value_to_py(py: Python<'_>, value: &Value) -> PyResult<PyObject> {
+    match value {
+        Value::Null => Ok(py.None()),
+        Value::Bool(b) => Ok(b.into_py(py)),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(i.into_py(py))
+            } else if let Some(u) = n.as_u64() {
+                Ok(u.into_py(py))
+            } else if let Some(f) = n.as_f64() {
+                Ok(f.into_py(py))
+            } else {
+                Err(pyo3::exceptions::PyValueError::new_err(
+                    "unrepresentable number",
+                ))
+            }
+        }
+        Value::String(s) => Ok(s.into_py(py)),
+        Value::Array(items) => {
+            let list = PyList::empty_bound(py);
+            for item in items {
+                list.append(json_value_to_py(py, item)?)?;
+            }
+            Ok(list.into_py(py))
+        }
+        Value::Object(map) => {
+            let dict = PyDict::new_bound(py);
+            for (k, v) in map {
+                dict.set_item(k, json_value_to_py(py, v)?)?;
+            }
+            Ok(dict.into_py(py))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -353,7 +388,11 @@ mod tests {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(file, "class EMACrossover:").unwrap();
         writeln!(file, "    def initialize(self): pass").unwrap();
-        writeln!(file, "    def on_bar(self, bar, portfolio, history): return []").unwrap();
+        writeln!(
+            file,
+            "    def on_bar(self, bar, portfolio, history): return []"
+        )
+        .unwrap();
         writeln!(file, "    def teardown(self): pass").unwrap();
 
         let name = detect_strategy_class(file.path()).unwrap();
@@ -393,22 +432,20 @@ class MinimalStrategy:
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(strategy_code.as_bytes()).unwrap();
 
-        let mut strategy = PyStrategy::load(
-            file.path(),
-            "MinimalStrategy",
-        ).unwrap();
+        let mut strategy = PyStrategy::load(file.path(), "MinimalStrategy").unwrap();
 
         // Should not panic
-        strategy.initialize();
+        strategy.initialize_with_params(None);
 
         let bar = observa_core::bar::Bar::new(
             chrono::Utc::now(),
-            1.1376, 1.13787, 1.1376, 1.13786,
+            1.1376,
+            1.13787,
+            1.1376,
+            1.13786,
             Some(278.19),
         );
-        let portfolio = observa_engine::strategy::PortfolioView::empty(
-            10_000.0
-        );
+        let portfolio = observa_engine::strategy::PortfolioView::empty(10_000.0);
         let signals = strategy.on_bar(&bar, &portfolio, &[]);
         assert!(signals.is_empty());
 

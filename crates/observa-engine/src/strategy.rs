@@ -12,6 +12,8 @@ use observa_core::types::{Direction, OrderKind};
 pub struct OpenPositionView {
     /// Unique ticket ID — use this to close the position.
     pub ticket: String,
+    /// Instrument symbol (single-instrument MVP).
+    pub symbol: String,
     /// Buy or Sell.
     pub direction: Direction,
     /// Position quantity in lots.
@@ -105,6 +107,10 @@ pub struct PortfolioView {
     pub open_positions: Vec<OpenPositionView>,
     /// Current unrealised PnL across all open positions.
     pub unrealised_pnl: f64,
+    /// Margin in use by open positions at the valuation price.
+    pub used_margin: f64,
+    /// `equity − used_margin`.
+    pub free_margin: f64,
 }
 
 impl PortfolioView {
@@ -116,6 +122,8 @@ impl PortfolioView {
             has_open_position: false,
             open_positions: Vec::new(),
             unrealised_pnl: 0.0,
+            used_margin: 0.0,
+            free_margin: initial_balance,
         }
     }
 }

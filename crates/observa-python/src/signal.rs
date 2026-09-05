@@ -1,8 +1,8 @@
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use crate::error::BridgeError;
 use observa_core::types::{Direction, OrderKind};
 use observa_engine::strategy::StrategySignal;
-use crate::error::BridgeError;
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 /// Converts a Python signal dict into a Rust StrategySignal.
 ///
@@ -15,57 +15,69 @@ use crate::error::BridgeError;
 ///     "tp":        1.1420,   # optional
 ///     "reason":    "EMA crossover",  # optional
 ///   }
-pub fn signal_from_py(
-    py: Python,
-    obj: &Bound<PyAny>,
-) -> Result<StrategySignal, BridgeError> {
+pub fn signal_from_py(py: Python, obj: &Bound<PyAny>) -> Result<StrategySignal, BridgeError> {
     // The signal must be a dict
-    let dict = obj.downcast::<PyDict>().map_err(|_| {
-        BridgeError::InvalidSignal(
-            "signal must be a dict".to_string()
-        )
-    })?;
+    let dict = obj
+        .downcast::<PyDict>()
+        .map_err(|_| BridgeError::InvalidSignal("signal must be a dict".to_string()))?;
 
     // direction is required
     let direction_str: String = dict
         .get_item("direction")
         .map_err(|e| BridgeError::InvalidSignal(e.to_string()))?
-        .ok_or_else(|| BridgeError::InvalidSignal(
-            "'direction' key is required".to_string()
-        ))?
+        .ok_or_else(|| BridgeError::InvalidSignal("'direction' key is required".to_string()))?
         .extract()
         .map_err(|e| BridgeError::InvalidSignal(e.to_string()))?;
 
     let direction = match direction_str.to_lowercase().as_str() {
-        "buy"   => Direction::Buy,
-        "sell"  => Direction::Sell,
+        "buy" => Direction::Buy,
+        "sell" => Direction::Sell,
         "close" => Direction::Close,
-        other   => return Err(BridgeError::InvalidSignal(
-            format!("unknown direction '{}' — use 'buy', 'sell', or 'close'", other)
-        )),
+        other => {
+            return Err(BridgeError::InvalidSignal(format!(
+                "unknown direction '{}' — use 'buy', 'sell', or 'close'",
+                other
+            )))
+        }
     };
 
     // size is required
     let size: f64 = dict
         .get_item("size")
         .map_err(|e| BridgeError::InvalidSignal(e.to_string()))?
-        .ok_or_else(|| BridgeError::InvalidSignal(
-            "'size' key is required".to_string()
-        ))?
+        .ok_or_else(|| BridgeError::InvalidSignal("'size' key is required".to_string()))?
         .extract()
         .map_err(|e| BridgeError::InvalidSignal(e.to_string()))?;
 
     // price is optional — defaults to 0.0
     // (engine uses current bar close if 0.0)
-    let intended_price: f64 = extract_optional_f64(
-        dict, "price", py
-    )?.unwrap_or(0.0);
+    let intended_price: f64 = extract_optional_f64(dict, "price", py)?.unwrap_or(0.0);
 
     // sl and tp are optional
     let sl = extract_optional_f64(dict, "sl", py)?;
     let tp = extract_optional_f64(dict, "tp", py)?;
 
-    
+    // order type is optional — defaults to market. LIMIT/STOP carry their
+    // trigger price in `price` (intended_price).
+    let order_type = match dict
+        .get_item("order_type")
+        .ok()
+        .flatten()
+        .and_then(|v| v.extract::<String>().ok())
+        .unwrap_or_else(|| "market".to_string())
+        .to_lowercase()
+        .as_str()
+    {
+        "market" => OrderKind::Market,
+        "limit" => OrderKind::Limit,
+        "stop" => OrderKind::Stop,
+        other => {
+            return Err(BridgeError::InvalidSignal(format!(
+                "unknown order_type '{other}' — use 'market', 'limit', or 'stop'"
+            )))
+        }
+    };
+
     // reason is optional
     let reason: String = dict
         .get_item("reason")
@@ -75,16 +87,17 @@ pub fn signal_from_py(
         .unwrap_or_else(|| "Python strategy signal".to_string());
 
     // position ticket
-    let ticket: Option<String> = dict
-    .get_item("ticket")
-    .ok()
-    .flatten()
-    .and_then(|v| if v.is_none() { None } else { v.extract::<String>().ok() });
-
+    let ticket: Option<String> = dict.get_item("ticket").ok().flatten().and_then(|v| {
+        if v.is_none() {
+            None
+        } else {
+            v.extract::<String>().ok()
+        }
+    });
 
     Ok(StrategySignal {
         direction,
-        order_type: OrderKind::Market,
+        order_type,
         size,
         intended_price,
         sl,
@@ -108,21 +121,19 @@ fn extract_optional_f64(
             } else {
                 val.extract::<f64>()
                     .map(Some)
-                    .map_err(|e| BridgeError::InvalidSignal(
-                        format!("field '{}': {}", key, e)
-                    ))
+                    .map_err(|e| BridgeError::InvalidSignal(format!("field '{}': {}", key, e)))
             }
         }
         Ok(None) => Ok(None),
-        Err(e)   => Err(BridgeError::InvalidSignal(e.to_string())),
+        Err(e) => Err(BridgeError::InvalidSignal(e.to_string())),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pyo3::Python;
     use pyo3::types::PyDict;
+    use pyo3::Python;
 
     #[test]
     fn buy_signal_parses_correctly() {
@@ -130,20 +141,18 @@ mod tests {
         Python::with_gil(|py| {
             let dict = PyDict::new_bound(py);
             dict.set_item("direction", "buy").unwrap();
-            dict.set_item("size",      1.0).unwrap();
-            dict.set_item("price",     1.1376).unwrap();
-            dict.set_item("sl",        1.1350).unwrap();
-            dict.set_item("tp",        1.1420).unwrap();
-            dict.set_item("reason",    "test").unwrap();
+            dict.set_item("size", 1.0).unwrap();
+            dict.set_item("price", 1.1376).unwrap();
+            dict.set_item("sl", 1.1350).unwrap();
+            dict.set_item("tp", 1.1420).unwrap();
+            dict.set_item("reason", "test").unwrap();
 
-            let signal = signal_from_py(
-                py, dict.as_any()
-            ).unwrap();
+            let signal = signal_from_py(py, dict.as_any()).unwrap();
 
             assert_eq!(signal.direction, Direction::Buy);
             assert_eq!(signal.size, 1.0);
-            assert_eq!(signal.sl,   Some(1.1350));
-            assert_eq!(signal.tp,   Some(1.1420));
+            assert_eq!(signal.sl, Some(1.1350));
+            assert_eq!(signal.tp, Some(1.1420));
         });
     }
 
@@ -155,9 +164,7 @@ mod tests {
             dict.set_item("direction", "close").unwrap();
             dict.set_item("size", 1.0).unwrap();
 
-            let signal = signal_from_py(
-                py, dict.as_any()
-            ).unwrap();
+            let signal = signal_from_py(py, dict.as_any()).unwrap();
             assert_eq!(signal.direction, Direction::Close);
         });
     }
@@ -180,6 +187,43 @@ mod tests {
             let dict = PyDict::new_bound(py);
             dict.set_item("direction", "long").unwrap();
             dict.set_item("size", 1.0).unwrap();
+            let result = signal_from_py(py, dict.as_any());
+            assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    fn limit_and_stop_order_types_parse() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            let limit = PyDict::new_bound(py);
+            limit.set_item("direction", "buy").unwrap();
+            limit.set_item("size", 1.0).unwrap();
+            limit.set_item("order_type", "limit").unwrap();
+            limit.set_item("price", 1.05).unwrap();
+            let s = signal_from_py(py, limit.as_any()).unwrap();
+            assert_eq!(s.order_type, OrderKind::Limit);
+            assert_eq!(s.intended_price, 1.05);
+
+            let stop = PyDict::new_bound(py);
+            stop.set_item("direction", "sell").unwrap();
+            stop.set_item("size", 0.5).unwrap();
+            stop.set_item("order_type", "stop").unwrap();
+            stop.set_item("price", 1.10).unwrap();
+            let s = signal_from_py(py, stop.as_any()).unwrap();
+            assert_eq!(s.order_type, OrderKind::Stop);
+            assert_eq!(s.intended_price, 1.10);
+        });
+    }
+
+    #[test]
+    fn unknown_order_type_returns_error() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            let dict = PyDict::new_bound(py);
+            dict.set_item("direction", "buy").unwrap();
+            dict.set_item("size", 1.0).unwrap();
+            dict.set_item("order_type", "market_if_touched").unwrap();
             let result = signal_from_py(py, dict.as_any());
             assert!(result.is_err());
         });

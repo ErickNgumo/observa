@@ -1153,6 +1153,7 @@ impl Engine {
             .into_iter()
             .map(|p| OpenPositionView {
                 ticket: p.position_id.to_string(),
+                symbol: self.instrument.symbol.clone(),
                 direction: p.direction,
                 size: p.quantity_lots,
                 entry_price: p.entry_price,
@@ -1168,6 +1169,8 @@ impl Engine {
             has_open_position: !open_positions.is_empty(),
             open_positions,
             unrealised_pnl,
+            used_margin: self.portfolio.used_margin(bar.close),
+            free_margin: self.portfolio.free_margin(bar.close),
         }
     }
 

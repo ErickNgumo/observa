@@ -1,0 +1,23 @@
+[package]
+name = "observa-python-ext"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "_observa"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22.6", features = ["extension-module", "abi3-py310"] }
+chrono = { version = "0.4", features = ["serde"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+observa-core = { path = "../crates/observa-core" }
+observa-data = { path = "../crates/observa-data" }
+observa-engine = { path = "../crates/observa-engine" }
+observa-metrics = { path = "../crates/observa-metrics" }
+
+# Standalone maturin project: detach from the parent Rust workspace so the
+# Python extension links against the stable ABI (abi3) and does not inherit the
+# CLI's `pyo3/auto-initialize` embedding feature.
+[workspace]
