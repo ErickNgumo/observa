@@ -836,6 +836,197 @@ fn failed_run_keeps_partial_history_and_persists_failure_artifacts() {
     assert_eq!(fabricated, 0);
 }
 
+// ── 10. Queued / resting order lifecycle events ──
+
+/// Buys (market) once on bar 0; NEXT_BAR_OPEN queues it for bar 1's open.
+struct BuyOnceMarket {
+    sent: bool,
+}
+
+impl Strategy for BuyOnceMarket {
+    fn on_bar(
+        &mut self,
+        bar: &Bar,
+        _view: &PortfolioView,
+        _history: &[Bar],
+    ) -> Vec<StrategySignal> {
+        if !self.sent {
+            self.sent = true;
+            return vec![buy_signal(bar, 1.0)];
+        }
+        vec![]
+    }
+}
+
+/// Sends one resting LIMIT order on bar 0 at `price`.
+struct LimitOnce {
+    price: f64,
+    sent: bool,
+}
+
+impl Strategy for LimitOnce {
+    fn on_bar(
+        &mut self,
+        bar: &Bar,
+        _view: &PortfolioView,
+        _history: &[Bar],
+    ) -> Vec<StrategySignal> {
+        if !self.sent {
+            self.sent = true;
+            return vec![StrategySignal {
+                direction: Direction::Buy,
+                order_type: OrderKind::Limit,
+                size: 1.0,
+                intended_price: self.price,
+                sl: None,
+                tp: None,
+                reason: "limit".to_string(),
+                ticket: None,
+            }];
+        }
+        vec![]
+    }
+}
+
+#[test]
+fn queued_market_order_lifecycle_events() {
+    // NEXT_BAR_OPEN buy on bar0 queues (order_pending); bar1's open fills it.
+    let bars = vec![bar(0, 1.0, 1.25, 1.0, 1.0), bar(1, 1.25, 1.5, 1.25, 1.5)];
+    let config = base_config(FillMode::NextBarOpen);
+    let result = run_once(&bars, &config, &mut BuyOnceMarket { sent: false });
+
+    let types: Vec<&str> = result
+        .events
+        .iter()
+        .map(|e| event_tag(&e.payload))
+        .collect();
+    assert_eq!(
+        types,
+        vec![
+            "run_started",
+            "strategy_initialized",
+            "bar_processed",
+            "strategy_decision",
+            "order_created",
+            "order_pending",
+            "portfolio_snapshot",
+            "bar_processed",
+            "order_filled",
+            "position_opened",
+            "strategy_decision",
+            "portfolio_snapshot",
+            "run_completed",
+        ],
+        "actual: {types:?}"
+    );
+    // The pending event carries the created order's seq.
+    let pending_seqs: Vec<u64> = result
+        .events
+        .iter()
+        .filter_map(|e| match &e.payload {
+            EngineEventPayload::OrderPending { order_seq } => Some(*order_seq),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(pending_seqs, vec![0]);
+}
+
+#[test]
+fn resting_limit_trigger_emits_trigger_before_fill() {
+    // Limit buy at 1.25 created on bar0; bar1's low 1.0 reaches it.
+    let bars = vec![bar(0, 1.0, 1.5, 1.0, 1.25), bar(1, 1.25, 1.5, 1.0, 1.25)];
+    let config = base_config(FillMode::NextBarOpen);
+    let result = run_once(
+        &bars,
+        &config,
+        &mut LimitOnce {
+            price: 1.25,
+            sent: false,
+        },
+    );
+
+    let types: Vec<&str> = result
+        .events
+        .iter()
+        .map(|e| event_tag(&e.payload))
+        .collect();
+    // Between bar1's bar_processed and strategy_decision the resting order
+    // triggers and fills (stage 2 precedes stage 4).
+    assert_eq!(
+        types,
+        vec![
+            "run_started",
+            "strategy_initialized",
+            "bar_processed",
+            "strategy_decision",
+            "order_created",
+            "order_pending",
+            "portfolio_snapshot",
+            "bar_processed",
+            "order_triggered",
+            "order_filled",
+            "position_opened",
+            "strategy_decision",
+            "portfolio_snapshot",
+            "run_completed",
+        ],
+        "actual: {types:?}"
+    );
+    // Trigger and fill share the resting order's seq.
+    let triggered = result
+        .events
+        .iter()
+        .find_map(|e| match &e.payload {
+            EngineEventPayload::OrderTriggered { order_seq, .. } => Some(*order_seq),
+            _ => None,
+        })
+        .unwrap();
+    let filled = result
+        .events
+        .iter()
+        .find_map(|e| match &e.payload {
+            EngineEventPayload::OrderFilled { order_seq, .. } => Some(*order_seq),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(triggered, 0);
+    assert_eq!(filled, 0);
+}
+
+#[test]
+fn unfilled_resting_order_expires_at_dataset_end() {
+    // Limit buy far below every bar low: never triggered, expires at the end.
+    let bars = vec![bar(0, 1.0, 1.5, 1.0, 1.25), bar(1, 1.25, 1.5, 1.0, 1.25)];
+    let config = base_config(FillMode::NextBarOpen);
+    let result = run_once(
+        &bars,
+        &config,
+        &mut LimitOnce {
+            price: 0.5,
+            sent: false,
+        },
+    );
+
+    let types: Vec<&str> = result
+        .events
+        .iter()
+        .map(|e| event_tag(&e.payload))
+        .collect();
+    // No trigger/fill anywhere; the order expires after the last snapshot and
+    // before run_completed.
+    assert!(!types.contains(&"order_triggered"));
+    assert!(!types.contains(&"order_filled"));
+    assert!(!types.contains(&"position_opened"));
+    assert_eq!(types[types.len() - 2], "order_expired");
+    assert_eq!(types[types.len() - 1], "run_completed");
+    assert_eq!(result.orders.len(), 1);
+    assert_eq!(
+        result.orders[0].state,
+        OrderState::Expired,
+        "unfilled order must expire, not stay pending"
+    );
+}
+
 // ── 9. Single-run guard ─────────────────────────
 
 #[test]
