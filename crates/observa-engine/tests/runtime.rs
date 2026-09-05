@@ -144,7 +144,7 @@ fn no_trade_run_replays_fully() {
         bar(0, 1.10, 1.11, 1.09, 1.105),
         bar(1, 1.10, 1.11, 1.09, 1.10),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let mut s = Noop;
     let result = engine.run(&bars, &mut s).unwrap();
     assert_eq!(result.total_bars, 2);
@@ -163,7 +163,7 @@ fn bar_close_market_fills_from_observed_bar_close() {
         bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
         bar(1, 1.1010, 1.1020, 1.1000, 1.1010),
     ];
-    let engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
     let mut s = OnceOnBar::new(0, vec![buy_signal(&bar(0, 1.1, 1.101, 1.099, 1.1000))]);
     let result = engine.run(&bars, &mut s).unwrap();
     assert_eq!(result.fills.len(), 1);
@@ -184,7 +184,7 @@ fn next_bar_open_fills_from_next_bar_open_not_signal() {
         bar(0, 1.0000, 1.1500, 0.9900, 1.1000),
         bar(1, 1.2500, 1.2600, 1.2400, 1.2550),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal_bar = bar(0, 1.0000, 1.1500, 0.9900, 1.1000);
     let mut s = OnceOnBar::new(0, vec![buy_signal(&signal_bar)]);
     let result = engine.run(&bars, &mut s).unwrap();
@@ -206,7 +206,7 @@ fn last_bar_next_bar_open_does_not_fabricate_fill() {
         bar(0, 1.10, 1.11, 1.09, 1.105),
         bar(1, 1.10, 1.11, 1.09, 1.10),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let mut s = OnceOnBar::new(1, vec![buy_signal(&bar(1, 1.1, 1.11, 1.09, 1.10))]);
     let result = engine.run(&bars, &mut s).unwrap();
     assert!(
@@ -235,7 +235,7 @@ fn limit_pending_then_fills_when_touched() {
             1.1005,
         ));
     }
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Limit,
@@ -275,7 +275,7 @@ fn stop_pending_gap_through_uses_gap_price() {
         let o = if i == 4 { 1.1150 } else { 1.1000 };
         bars.push(bar(i, o, o + 0.0010, o - 0.0010, o + 0.0005));
     }
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Stop,
@@ -309,7 +309,7 @@ fn protective_sl_gap_exits_at_open() {
         bar(1, 1.1005, 1.1010, 1.0995, 1.1000),
         bar(2, 1.0930, 1.0940, 1.0920, 1.0935),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Market,
@@ -347,7 +347,7 @@ fn protective_tp_gap_is_favorable_no_slippage() {
         bar(1, 1.1005, 1.1010, 1.0995, 1.1000),
         bar(2, 1.1130, 1.1140, 1.1120, 1.1135), // open above TP 1.1100
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Market,
@@ -380,7 +380,7 @@ fn same_bar_sl_tp_resolves_sl_first() {
         bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
         bar(1, 1.1000, 1.1060, 1.0950, 1.1000),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Market,
@@ -417,7 +417,7 @@ fn multiple_and_hedged_positions_are_independent() {
         bar(1, 1.1010, 1.1020, 1.1000, 1.1015),
         bar(2, 1.1020, 1.1030, 1.1010, 1.1025),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let mut s = OnceOnBar::new(
         0,
         vec![
@@ -464,7 +464,7 @@ fn margin_rejection_is_structured_and_creates_no_position() {
         bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
         bar(1, 1.1000, 1.1010, 1.0990, 1.1000),
     ];
-    let engine = Engine::new(cfg).unwrap();
+    let mut engine = Engine::new(cfg).unwrap();
     let mut s = OnceOnBar::new(0, vec![buy_signal(&bar(0, 1.1, 1.101, 1.099, 1.1000))]);
     let result = engine.run(&bars, &mut s).unwrap();
     assert!(result.trades.is_empty());
@@ -494,7 +494,7 @@ fn order_seq_is_strictly_increasing_and_deterministic() {
             bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
             bar(1, 1.1010, 1.1020, 1.1000, 1.1010),
         ];
-        let engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
+        let mut engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
         let a = buy_signal(&bar(0, 1.1, 1.101, 1.099, 1.1000));
         let b = StrategySignal {
             direction: Direction::Sell,
@@ -541,7 +541,7 @@ fn strategy_parameters_reach_initialization() {
     cfg.strategy.as_mut().unwrap().parameters = params;
 
     let bars = vec![bar(0, 1.1, 1.11, 1.09, 1.105)];
-    let engine = Engine::new(cfg).unwrap();
+    let mut engine = Engine::new(cfg).unwrap();
     let mut s = ParamCapture { params: None };
     let _ = engine.run(&bars, &mut s).unwrap();
     let got = s.params.expect("params must reach the strategy");
@@ -567,7 +567,7 @@ fn strategy_error_fails_the_run() {
         }
     }
     let bars = vec![bar(0, 1.1, 1.11, 1.09, 1.105)];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let mut s = Failing;
     let err = engine.run(&bars, &mut s).unwrap_err();
     match err {
@@ -587,7 +587,7 @@ fn end_of_run_open_position_is_reported_not_liquidated() {
         bar(1, 1.1010, 1.1020, 1.1005, 1.1015),
         bar(2, 1.1030, 1.1040, 1.1020, 1.1035),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let mut s = OnceOnBar::new(0, vec![buy_signal(&bar(0, 1.1, 1.101, 1.099, 1.1000))]);
     let result = engine.run(&bars, &mut s).unwrap();
     assert_eq!(result.final_state.open_positions_remaining, 1);
@@ -615,7 +615,7 @@ fn known_answer_next_bar_open_entry_then_tp_exit() {
         bar(2, 1.1015, 1.1025, 1.1005, 1.1022),
         bar(3, 1.1010, 1.1020, 1.1000, 1.1010),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Market,
@@ -663,7 +663,7 @@ fn explicit_close_uses_ticket_and_closes_exact_position() {
         bar(2, 1.1015, 1.1025, 1.1005, 1.1020),
         bar(3, 1.1020, 1.1030, 1.1010, 1.1025),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
 
     struct OpenTwoThenCloseSecond;
     impl Strategy for OpenTwoThenCloseSecond {
@@ -720,7 +720,7 @@ fn limit_preserves_tp_and_closes_later() {
         bar(2, 1.1010, 1.1035, 1.1005, 1.1025), // high >= 1.1020 -> TP at 1.1020
         bar(3, 1.1000, 1.1010, 1.0990, 1.1005),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Limit,
@@ -772,7 +772,7 @@ fn stop_preserves_sl_and_tp() {
         bar(2, 1.0700, 1.0820, 1.0690, 1.0800), // TP 1.0800 reachable
         bar(3, 1.0600, 1.0700, 1.0580, 1.0650),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Stop,
@@ -849,7 +849,7 @@ fn resting_fill_position_levels_equal_signal() {
         bar(1, 1.0150, 1.0220, 1.0130, 1.0180), // trigger/fill
         bar(2, 1.0100, 1.0200, 1.0050, 1.0150), // observation bar for capture
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let mut s = Capture {
         emitted: false,
         sl: None,
@@ -876,7 +876,7 @@ fn next_bar_open_entry_can_tp_same_bar() {
         bar(1, 1.0000, 1.0060, 0.9990, 1.0055), // fill at open; TP 1.0050 reachable
         bar(2, 1.0000, 1.0010, 0.9990, 1.0005),
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Market,
@@ -918,7 +918,7 @@ fn limit_intrabar_fill_not_same_bar_protected() {
         bar(2, 1.0100, 1.0200, 1.0005, 1.0150), // benign
         bar(3, 1.0050, 1.0100, 0.9600, 0.9800), // low <= 0.9700 -> SL (next bar)
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Limit,
@@ -963,7 +963,7 @@ fn stop_intrabar_fill_not_same_bar_protected() {
         bar(2, 1.0200, 1.0300, 1.0150, 1.0250), // benign
         bar(3, 1.0400, 1.0850, 1.0300, 1.0800), // TP 1.0800 reachable (next bar)
     ];
-    let engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Stop,
@@ -1008,7 +1008,7 @@ fn bar_close_no_retroactive_protective() {
         bar(1, 1.1000, 1.1030, 1.0920, 1.0970), // SL 1.0950 reachable (next bar)
         bar(2, 1.1000, 1.1020, 1.1000, 1.1010),
     ];
-    let engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
+    let mut engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
     let signal = StrategySignal {
         direction: Direction::Buy,
         order_type: OrderKind::Market,

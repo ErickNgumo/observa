@@ -30,6 +30,7 @@ use observa_portfolio::portfolio::{
 };
 
 use crate::error::EngineError;
+use crate::runevents::{EngineEvent, EngineEventPayload, RejectionCategory, RunFailureCategory};
 use crate::strategy::{OpenPositionView, PortfolioView, Strategy, StrategySignal};
 
 // ────────────────────────────────────────────────
@@ -149,14 +150,17 @@ pub struct BarRecord {
 
 /// Structured in-memory result of a completed run.
 ///
-/// OBS-0008 will formalize the persisted run artifact; this is the canonical
-/// in-memory runtime result that CLI and later Python surfaces consume.
+/// The canonical runtime history is [`RunResult::events`] — a strictly
+/// increasing, ordered event sequence (persisted as `events.jsonl`). Every
+/// other field is derived runtime bookkeeping recorded alongside it.
 #[derive(Debug, Clone)]
 pub struct RunResult {
     /// Run id.
     pub run_id: Uuid,
     /// Total bars processed.
     pub total_bars: usize,
+    /// Canonical ordered runtime event history (EventSeq 0..n), source of truth.
+    pub events: Vec<EngineEvent>,
     /// Per-bar runtime records (snapshot + drawings).
     pub bars: Vec<BarRecord>,
     /// All execution fills in chronological order.
@@ -233,6 +237,12 @@ pub struct Engine {
     fills: Vec<RuntimeFill>,
     trades: Vec<TradeRecord>,
     bar_records: Vec<BarRecord>,
+
+    // Canonical ordered event history (single-writer: only the Engine appends).
+    events: Vec<EngineEvent>,
+    next_event_seq: u64,
+    /// Single-run guard: runtime state is never reusable across runs.
+    started: bool,
 }
 
 impl Engine {
@@ -276,6 +286,9 @@ impl Engine {
             fills: Vec::new(),
             trades: Vec::new(),
             bar_records: Vec::new(),
+            events: Vec::new(),
+            next_event_seq: 0,
+            started: false,
         })
     }
 
@@ -284,7 +297,78 @@ impl Engine {
         &self.portfolio
     }
 
-    /// Runs the complete backtest and consumes the Engine.
+    /// The resolved run configuration this Engine was built from.
+    pub fn config(&self) -> &BacktestConfig {
+        &self.config
+    }
+
+    /// The canonical ordered event history emitted so far. Empty before a
+    /// run starts; after a failed run it retains every event emitted up to
+    /// the failure (used for failure-artifact persistence).
+    pub fn events(&self) -> &[EngineEvent] {
+        &self.events
+    }
+
+    /// Appends one canonical event at the next strictly-increasing EventSeq.
+    fn emit(&mut self, payload: EngineEventPayload) -> Result<(), EngineError> {
+        let seq = self.next_event_seq;
+        self.next_event_seq = self
+            .next_event_seq
+            .checked_add(1)
+            .ok_or(EngineError::EventSequenceOverflow)?;
+        self.events.push(EngineEvent {
+            event_seq: seq,
+            payload,
+        });
+        Ok(())
+    }
+
+    /// Emits the canonical fill + opened events for one strategy-order entry
+    /// (queued-market, bar-close market, or resting limit/stop).
+    fn emit_entry_events(
+        &mut self,
+        bar_index: usize,
+        seq: u64,
+        side: Direction,
+        quantity_lots: f64,
+        fill: &semantics::Fill,
+        stop_loss: Option<f64>,
+        take_profit: Option<f64>,
+        position_id: Uuid,
+        timestamp: DateTime<Utc>,
+    ) -> Result<(), EngineError> {
+        self.emit(EngineEventPayload::OrderFilled {
+            order_seq: seq,
+            side,
+            quantity_lots,
+            raw_reference: fill.raw_reference,
+            executed_price: fill.executed_price,
+            spread_applied: fill.spread_applied,
+            slippage_applied: fill.slippage_applied,
+            commission_amount: self.commission_amount(quantity_lots),
+            bar_index,
+            timestamp,
+        })?;
+        self.emit(EngineEventPayload::PositionOpened {
+            position_id,
+            order_seq: Some(seq),
+            side,
+            quantity_lots,
+            entry_price: fill.executed_price,
+            stop_loss,
+            take_profit,
+            bar_index,
+            timestamp,
+        })?;
+        Ok(())
+    }
+
+    /// Runs the complete backtest.
+    ///
+    /// The same instance is single-run: runtime state (sequences, pending
+    /// orders, event history) is never reusable across runs — create a fresh
+    /// Engine per run. On failure the partial canonical event history stays
+    /// on the Engine (`events()`) so the caller can persist failure artifacts.
     ///
     /// # Deterministic per-bar chronology
     ///
@@ -324,13 +408,21 @@ impl Engine {
     ///    portfolio snapshot (all positions) is recorded.
     ///
     /// All execution work within a stage is ordered by the engine-assigned
-    /// strictly-increasing `OrderSeq`. No wall-clock time, UUID ordering, hash
-    /// iteration or thread scheduling influences economics.
+    /// strictly-increasing `OrderSeq`, and every transition is recorded as a
+    /// canonical event with a strictly-increasing `EventSeq`. No wall-clock
+    /// time, UUID ordering, hash iteration or thread scheduling influences
+    /// economics.
     pub fn run(
-        mut self,
+        &mut self,
         bars: &[Bar],
         strategy: &mut dyn Strategy,
     ) -> Result<RunResult, EngineError> {
+        if self.started {
+            return Err(EngineError::InvalidState(
+                "this Engine instance has already been run; create a fresh Engine per run".into(),
+            ));
+        }
+        self.started = true;
         if bars.is_empty() {
             return Err(EngineError::NoDataLoaded);
         }
@@ -343,45 +435,79 @@ impl Engine {
             ));
         }
 
-        // Strategy lifecycle: parameterized initialization.
-        let params = self.config.strategy.as_ref().map(|s| &s.parameters);
-        strategy.initialize_with_params(params);
-        if let Some(msg) = strategy.take_strategy_error() {
-            return Err(EngineError::StrategyFailure {
-                bar_index: None,
-                message: msg,
-            });
+        self.emit(EngineEventPayload::RunStarted {
+            strategy_name: self
+                .config
+                .strategy
+                .as_ref()
+                .map(|s| s.name.clone())
+                .unwrap_or_default(),
+        })?;
+
+        // Strategy lifecycle + replay. The body is isolated so any failure
+        // appends a canonical RunFailed event while the partial history stays
+        // on the Engine for failure-artifact persistence.
+        let body = (|| -> Result<(), EngineError> {
+            let params = self.config.strategy.as_ref().map(|s| s.parameters.clone());
+            strategy.initialize_with_params(params.as_ref());
+            if let Some(msg) = strategy.take_strategy_error() {
+                self.emit(EngineEventPayload::StrategyError {
+                    message: msg.clone(),
+                })?;
+                return Err(EngineError::StrategyFailure {
+                    bar_index: None,
+                    message: msg,
+                });
+            }
+            self.emit(EngineEventPayload::StrategyInitialized {})?;
+
+            let mut history: Vec<Bar> = Vec::new();
+            for (index, bar) in bars.iter().enumerate() {
+                // Strategy history only contains strictly prior bars: the
+                // current bar is appended AFTER the strategy observed it.
+                self.run_bar(index, bar, &history, strategy)?;
+                history.push(bar.clone());
+            }
+
+            // Teardown (errors are surfaced, never swallowed).
+            strategy.teardown();
+            if let Some(msg) = strategy.take_strategy_error() {
+                self.emit(EngineEventPayload::StrategyError {
+                    message: msg.clone(),
+                })?;
+                return Err(EngineError::StrategyFailure {
+                    bar_index: Some(bars.len().saturating_sub(1)),
+                    message: msg,
+                });
+            }
+
+            // Dataset-end handling: queued NEXT_BAR_OPEN markets on the final
+            // bar and any resting LIMIT/STOP orders are expired — never
+            // fabricated.
+            self.expire_unfilled_orders()?;
+            Ok(())
+        })();
+
+        if let Err(error) = body {
+            let (category, message) = run_failure(&error);
+            self.emit(EngineEventPayload::RunFailed { category, message })?;
+            return Err(error);
         }
-
-        let run_id = self.run_id;
-        let mut history: Vec<Bar> = Vec::new();
-
-        for (index, bar) in bars.iter().enumerate() {
-            // Strategy history only contains strictly prior bars: the current
-            // bar is appended AFTER the strategy has observed it.
-            self.run_bar(index, bar, &history, strategy)?;
-            history.push(bar.clone());
-        }
-
-        // Teardown (errors are surfaced, never swallowed).
-        strategy.teardown();
-        if let Some(msg) = strategy.take_strategy_error() {
-            return Err(EngineError::StrategyFailure {
-                bar_index: Some(bars.len().saturating_sub(1)),
-                message: msg,
-            });
-        }
-
-        // Dataset-end handling: queued NEXT_BAR_OPEN markets on the final bar
-        // and any resting LIMIT/STOP orders are expired — never fabricated.
-        self.expire_unfilled_orders();
 
         let last_close = bars.last().expect("bars non-empty").close;
         let final_state = self.portfolio.end_of_run_state(last_close);
 
-        Ok(RunResult {
-            run_id,
+        self.emit(EngineEventPayload::RunCompleted {
             total_bars: bars.len(),
+            final_balance: final_state.final_balance,
+            final_equity: final_state.final_equity,
+            open_positions_remaining: final_state.open_positions_remaining,
+        })?;
+
+        Ok(RunResult {
+            run_id: self.run_id,
+            total_bars: bars.len(),
+            events: std::mem::take(&mut self.events),
             bars: std::mem::take(&mut self.bar_records),
             fills: std::mem::take(&mut self.fills),
             orders: std::mem::take(&mut self.order_log),
@@ -397,6 +523,11 @@ impl Engine {
         history: &[Bar],
         strategy: &mut dyn Strategy,
     ) -> Result<(), EngineError> {
+        self.emit(EngineEventPayload::BarProcessed {
+            bar_index: index,
+            timestamp: bar.timestamp,
+        })?;
+
         // ── Stage 1 — scheduled NEXT_BAR_OPEN work at bar open ──────────────
         let queued = std::mem::take(&mut self.queued_market);
         for market in queued {
@@ -424,11 +555,11 @@ impl Engine {
         let mut still_pending = Vec::new();
         for order in rested {
             let seq = order.seq;
-            match self.evaluate_pending(index, bar, order) {
+            match self.evaluate_pending(index, bar, order)? {
                 PendingEval::Filled => {}
                 PendingEval::StillPending(o) => still_pending.push(o),
                 PendingEval::Rejected(msg) => {
-                    self.set_order_rejected(seq, index, &msg);
+                    self.reject_order(seq, index, RejectionCategory::ExecutionDomain, &msg)?;
                 }
             }
         }
@@ -487,12 +618,19 @@ impl Engine {
         let view = self.build_portfolio_view(bar);
         let signals = strategy.on_bar(bar, &view, history);
         if let Some(msg) = strategy.take_strategy_error() {
+            self.emit(EngineEventPayload::StrategyError {
+                message: msg.clone(),
+            })?;
             return Err(EngineError::StrategyFailure {
                 bar_index: Some(index),
                 message: msg,
             });
         }
         let drawings = strategy.take_drawings();
+        self.emit(EngineEventPayload::StrategyDecision {
+            bar_index: index,
+            signal_count: signals.len(),
+        })?;
 
         // ── Stage 5 — convert strategy intents into canonical orders ────────
         for signal in signals {
@@ -501,6 +639,18 @@ impl Engine {
 
         // ── Stage 6 — end-of-bar snapshot ───────────────────────────────────
         let snapshot = self.portfolio.snapshot(bar.close, bar.timestamp);
+        self.emit(EngineEventPayload::PortfolioSnapshot {
+            bar_index: index,
+            timestamp: bar.timestamp,
+            balance: snapshot.balance,
+            equity: snapshot.equity,
+            used_margin: snapshot.used_margin,
+            free_margin: snapshot.free_margin,
+            unrealised_pnl: snapshot.unrealised_pnl,
+            realised_pnl: snapshot.realised_pnl,
+            commissions_paid: snapshot.commissions_paid,
+            open_positions: snapshot.open_positions.len(),
+        })?;
         self.bar_records.push(BarRecord {
             bar_index: index,
             timestamp: bar.timestamp,
@@ -543,6 +693,13 @@ impl Engine {
             executed_price: None,
             rejection: None,
         });
+        self.emit(EngineEventPayload::OrderCreated {
+            order_seq: seq,
+            order_type,
+            side,
+            quantity_lots,
+            created_bar,
+        })?;
         Ok(seq)
     }
 
@@ -553,18 +710,52 @@ impl Engine {
         rec
     }
 
-    fn set_order_rejected(&mut self, seq: u64, _bar: usize, reason: &str) {
+    /// Marks an order rejected and appends the canonical rejection event.
+    fn reject_order(
+        &mut self,
+        seq: u64,
+        bar_index: usize,
+        category: RejectionCategory,
+        reason: &str,
+    ) -> Result<(), EngineError> {
         let rec = self.order_mut(seq);
         rec.state = OrderState::Rejected;
         rec.rejection = Some(reason.to_string());
+        self.emit(EngineEventPayload::OrderRejected {
+            order_seq: seq,
+            category,
+            reason: reason.to_string(),
+            bar_index,
+        })
     }
 
-    fn expire_unfilled_orders(&mut self) {
-        for rec in &mut self.order_log {
-            if rec.state == OrderState::Pending || rec.state == OrderState::Created {
-                rec.state = OrderState::Expired;
-            }
+    /// Marks a filled close order (state/execution info on the order log).
+    fn mark_order_filled(
+        &mut self,
+        seq: u64,
+        bar_index: usize,
+        position_id: Uuid,
+        executed_price: f64,
+    ) {
+        let rec = self.order_mut(seq);
+        rec.state = OrderState::Filled;
+        rec.filled_bar = Some(bar_index);
+        rec.executed_price = Some(executed_price);
+        rec.position_id = Some(position_id);
+    }
+
+    fn expire_unfilled_orders(&mut self) -> Result<(), EngineError> {
+        let expired: Vec<u64> = self
+            .order_log
+            .iter()
+            .filter(|rec| rec.state == OrderState::Pending || rec.state == OrderState::Created)
+            .map(|rec| rec.seq)
+            .collect();
+        for seq in expired {
+            self.order_mut(seq).state = OrderState::Expired;
+            self.emit(EngineEventPayload::OrderExpired { order_seq: seq })?;
         }
+        Ok(())
     }
 
     // ── Helpers ──────────────────────────────────
@@ -613,23 +804,25 @@ impl Engine {
                 let pos = match self.portfolio.position(&ticket) {
                     Some(p) if p.is_open() => p.clone(),
                     _ => {
-                        self.set_order_rejected(
+                        self.reject_order(
                             market.seq,
                             bar_index,
+                            RejectionCategory::ExecutionDomain,
                             &format!("cannot close position {ticket}: not open"),
-                        );
+                        )?;
                         return Ok(());
                     }
                 };
                 if !quantities_match(pos.quantity_lots, market.quantity_lots) {
-                    self.set_order_rejected(
+                    self.reject_order(
                         market.seq,
                         bar_index,
+                        RejectionCategory::ExecutionDomain,
                         &format!(
                             "close quantity mismatch for {ticket}: open {} requested {}",
                             pos.quantity_lots, market.quantity_lots
                         ),
-                    );
+                    )?;
                     return Ok(());
                 }
                 (opposite_side(pos.direction), Some(ticket))
@@ -651,6 +844,19 @@ impl Engine {
                     Some(ticket),
                     bar.timestamp,
                 );
+                self.emit(EngineEventPayload::OrderFilled {
+                    order_seq: market.seq,
+                    side,
+                    quantity_lots: market.quantity_lots,
+                    raw_reference: fill.raw_reference,
+                    executed_price: fill.executed_price,
+                    spread_applied: fill.spread_applied,
+                    slippage_applied: fill.slippage_applied,
+                    commission_amount: self.commission_amount(market.quantity_lots),
+                    bar_index,
+                    timestamp: bar.timestamp,
+                })?;
+                self.mark_order_filled(market.seq, bar_index, ticket, fill.executed_price);
                 self.execute_close_by_id(
                     bar_index,
                     ticket,
@@ -674,6 +880,17 @@ impl Engine {
                     fill.executed_price,
                     bar.timestamp,
                 )? {
+                    self.emit_entry_events(
+                        bar_index,
+                        market.seq,
+                        side,
+                        market.quantity_lots,
+                        &fill,
+                        market.stop_loss,
+                        market.take_profit,
+                        position_id,
+                        bar.timestamp,
+                    )?;
                     self.record_fill(
                         bar_index,
                         Some(market.seq),
@@ -695,11 +912,11 @@ impl Engine {
         bar_index: usize,
         bar: &Bar,
         order: PendingOrder,
-    ) -> PendingEval {
+    ) -> Result<PendingEval, EngineError> {
         // Resting orders are only evaluated on bars strictly after the bar on
         // which they were created (no same-bar trigger on creation bar data).
         if order.created_bar >= bar_index {
-            return PendingEval::StillPending(order);
+            return Ok(PendingEval::StillPending(order));
         }
         let spec = OrderSpec {
             kind: order.order_type,
@@ -717,7 +934,7 @@ impl Engine {
             },
         };
         if let Err(e) = semantics::validate_order(&spec, &self.instrument, &self.config.execution) {
-            return PendingEval::Rejected(e.to_string());
+            return Ok(PendingEval::Rejected(e.to_string()));
         }
 
         let outcome = match order.order_type {
@@ -725,16 +942,22 @@ impl Engine {
             OrderKind::Stop => {
                 semantics::stop_outcome(&self.exec_settings, bar, order.side, order.trigger_price)
             }
-            OrderKind::Market => return PendingEval::StillPending(order),
+            OrderKind::Market => return Ok(PendingEval::StillPending(order)),
         };
 
         match outcome {
-            Outcome::NotExecutable => PendingEval::StillPending(order),
+            Outcome::NotExecutable => Ok(PendingEval::StillPending(order)),
             Outcome::Executed(fill) => {
                 let reason = match order.order_type {
                     OrderKind::Limit => FillReason::LimitEntry,
                     _ => FillReason::StopEntry,
                 };
+                // The trigger itself is canonical: it fired on this bar even
+                // if the subsequent open is financially rejected.
+                self.emit(EngineEventPayload::OrderTriggered {
+                    order_seq: order.seq,
+                    bar_index,
+                })?;
                 match self.open_entry(
                     bar_index,
                     order.seq,
@@ -747,6 +970,17 @@ impl Engine {
                     bar.timestamp,
                 ) {
                     Ok(Some(position_id)) => {
+                        self.emit_entry_events(
+                            bar_index,
+                            order.seq,
+                            order.side,
+                            order.quantity_lots,
+                            &fill,
+                            order.stop_loss,
+                            order.take_profit,
+                            position_id,
+                            bar.timestamp,
+                        )?;
                         self.record_fill(
                             bar_index,
                             Some(order.seq),
@@ -757,16 +991,17 @@ impl Engine {
                             Some(position_id),
                             bar.timestamp,
                         );
-                        PendingEval::Filled
+                        Ok(PendingEval::Filled)
                     }
-                    Ok(None) => PendingEval::Filled, // financial rejection recorded
+                    Ok(None) => Ok(PendingEval::Filled), // financial rejection recorded
                     Err(e) => {
-                        self.set_order_rejected(
+                        self.reject_order(
                             order.seq,
                             bar_index,
+                            RejectionCategory::Runtime,
                             &format!("portfolio failed to open: {e}"),
-                        );
-                        PendingEval::Filled
+                        )?;
+                        Ok(PendingEval::Filled)
                     }
                 }
             }
@@ -795,7 +1030,12 @@ impl Engine {
             take_profit,
         };
         if let Err(e) = semantics::validate_protective_levels(executed_price, side, &levels) {
-            self.set_order_rejected(seq, bar_index, &e.to_string());
+            self.reject_order(
+                seq,
+                bar_index,
+                RejectionCategory::ExecutionDomain,
+                &e.to_string(),
+            )?;
             return Ok(None);
         }
 
@@ -823,11 +1063,12 @@ impl Engine {
                 required,
                 available,
             }) => {
-                self.set_order_rejected(
+                self.reject_order(
                     seq,
                     bar_index,
+                    RejectionCategory::Financial,
                     &format!("insufficient margin: required {required}, free margin {available}"),
-                );
+                )?;
                 Ok(None)
             }
             Err(e) => Err(EngineError::Portfolio(e)),
@@ -854,6 +1095,25 @@ impl Engine {
         match self.portfolio.close_position(&request) {
             Ok(report) => {
                 self.push_trade(bar_index, &report);
+                // Canonical PositionClosed; strategy-close correlation is
+                // via the preceding OrderFilled event (protective SL/TP exits
+                // have none).
+                if let Some(pos) = self.portfolio.position(&report.position_id) {
+                    let pos = pos.clone();
+                    self.emit(EngineEventPayload::PositionClosed {
+                        position_id: report.position_id,
+                        side: pos.direction,
+                        quantity_lots: report.quantity_lots,
+                        entry_price: pos.entry_price,
+                        exit_price: report.exit_price,
+                        exit_reason: report.exit_reason,
+                        gross_realized_pnl: report.gross_realized_pnl,
+                        total_commission: report.total_commission_for_position,
+                        net_realized_pnl: report.net_realized_pnl,
+                        bar_index,
+                        timestamp,
+                    })?;
+                }
                 Ok(())
             }
             Err(observa_portfolio::error::PortfolioError::PositionNotFound { .. })
@@ -948,11 +1208,14 @@ impl Engine {
         };
         if let Err(e) = semantics::validate_order(&spec, &self.instrument, &self.config.execution) {
             // Record a structured rejection; other signals still process.
-            if let Ok(seq) =
-                self.register_order(index, signal.order_type, signal.direction, signal.size)
-            {
-                self.set_order_rejected(seq, index, &e.to_string());
-            }
+            let seq =
+                self.register_order(index, signal.order_type, signal.direction, signal.size)?;
+            self.reject_order(
+                seq,
+                index,
+                RejectionCategory::ExecutionDomain,
+                &e.to_string(),
+            )?;
             return Ok(());
         }
 
@@ -982,6 +1245,17 @@ impl Engine {
                             fill.executed_price,
                             bar.timestamp,
                         )? {
+                            self.emit_entry_events(
+                                index,
+                                seq,
+                                signal.direction,
+                                signal.size,
+                                &fill,
+                                signal.sl,
+                                signal.tp,
+                                position_id,
+                                bar.timestamp,
+                            )?;
                             self.record_fill(
                                 index,
                                 Some(seq),
@@ -997,6 +1271,7 @@ impl Engine {
                     FillMode::NextBarOpen => {
                         // Queue for bar N+1; never fills on bar N.
                         self.order_mut(seq).state = OrderState::Pending;
+                        self.emit(EngineEventPayload::OrderPending { order_seq: seq })?;
                         self.queued_market.push(QueuedMarket {
                             seq,
                             side: signal.direction,
@@ -1012,6 +1287,7 @@ impl Engine {
                 // Rest until a later bar triggers it. First evaluated on the
                 // next bar (created_bar < evaluation bar).
                 self.order_mut(seq).state = OrderState::Pending;
+                self.emit(EngineEventPayload::OrderPending { order_seq: seq })?;
                 self.pending_orders.push(PendingOrder {
                     seq,
                     order_type: signal.order_type,
@@ -1038,16 +1314,22 @@ impl Engine {
             Some(t) => match t.parse::<Uuid>() {
                 Ok(id) => id,
                 Err(_) => {
-                    self.set_order_rejected(
+                    self.reject_order(
                         seq,
                         index,
+                        RejectionCategory::ExecutionDomain,
                         &format!("close requires a valid position ticket, got '{t}'"),
-                    );
+                    )?;
                     return Ok(());
                 }
             },
             None => {
-                self.set_order_rejected(seq, index, "close requires an explicit position ticket");
+                self.reject_order(
+                    seq,
+                    index,
+                    RejectionCategory::ExecutionDomain,
+                    "close requires an explicit position ticket",
+                )?;
                 return Ok(());
             }
         };
@@ -1055,23 +1337,25 @@ impl Engine {
         let pos = match self.portfolio.position(&ticket) {
             Some(p) if p.is_open() => p.clone(),
             _ => {
-                self.set_order_rejected(
+                self.reject_order(
                     seq,
                     index,
+                    RejectionCategory::ExecutionDomain,
                     &format!("cannot close position {ticket}: not open"),
-                );
+                )?;
                 return Ok(());
             }
         };
         if !quantities_match(pos.quantity_lots, signal.size) {
-            self.set_order_rejected(
+            self.reject_order(
                 seq,
                 index,
+                RejectionCategory::ExecutionDomain,
                 &format!(
                     "close quantity mismatch for {ticket}: open {} requested {}",
                     pos.quantity_lots, signal.size
                 ),
-            );
+            )?;
             return Ok(());
         }
         let side = opposite_side(pos.direction);
@@ -1090,6 +1374,19 @@ impl Engine {
                     Some(ticket),
                     bar.timestamp,
                 );
+                self.emit(EngineEventPayload::OrderFilled {
+                    order_seq: seq,
+                    side,
+                    quantity_lots: signal.size,
+                    raw_reference: fill.raw_reference,
+                    executed_price: fill.executed_price,
+                    spread_applied: fill.spread_applied,
+                    slippage_applied: fill.slippage_applied,
+                    commission_amount: self.commission_amount(signal.size),
+                    bar_index: index,
+                    timestamp: bar.timestamp,
+                })?;
+                self.mark_order_filled(seq, index, ticket, fill.executed_price);
                 self.execute_close_by_id(
                     index,
                     ticket,
@@ -1102,6 +1399,7 @@ impl Engine {
             FillMode::NextBarOpen => {
                 // Queue close-by-ticket for bar N+1's open.
                 self.order_mut(seq).state = OrderState::Pending;
+                self.emit(EngineEventPayload::OrderPending { order_seq: seq })?;
                 self.queued_market.push(QueuedMarket {
                     seq,
                     side: Direction::Close,
@@ -1120,6 +1418,29 @@ enum PendingEval {
     Filled,
     StillPending(PendingOrder),
     Rejected(String),
+}
+
+/// Classifies an Engine error into a canonical run-failure category + message.
+fn run_failure(error: &EngineError) -> (RunFailureCategory, String) {
+    let (category, message) = match error {
+        EngineError::InvalidConfiguration(m) => (RunFailureCategory::Configuration, m.clone()),
+        EngineError::NoDataLoaded => (RunFailureCategory::Data, "no bars loaded".into()),
+        EngineError::StrategyFailure { message, .. } => {
+            (RunFailureCategory::Strategy, message.clone())
+        }
+        EngineError::Portfolio(e) => (RunFailureCategory::Portfolio, e.to_string()),
+        EngineError::Execution(e) => (RunFailureCategory::Execution, e.to_string()),
+        EngineError::OrderSequenceOverflow => (
+            RunFailureCategory::Runtime,
+            "order sequence overflow".into(),
+        ),
+        EngineError::EventSequenceOverflow => (
+            RunFailureCategory::Runtime,
+            "event sequence overflow".into(),
+        ),
+        EngineError::InvalidState(m) => (RunFailureCategory::Runtime, m.clone()),
+    };
+    (category, message)
 }
 
 fn opposite_side(side: Direction) -> Direction {

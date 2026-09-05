@@ -15,6 +15,8 @@ use observa_core::config::{
 use observa_core::types::ExitReason;
 use observa_data::csv_reader::CsvReader;
 use observa_engine::engine::Engine;
+use observa_engine::persistence::{self, PersistenceError};
+use observa_engine::runevents::EngineEventPayload;
 use observa_metrics::metrics::MetricsEngine;
 use observa_python::strategy::{detect_strategy_class, PyStrategy};
 use uuid::Uuid;
@@ -35,6 +37,8 @@ struct CliArgs {
     config_file: Option<PathBuf>,
     /// Port to serve the visualization on
     port: u16,
+    /// Optional run-artifact output directory (run.json/events.jsonl/metrics.json)
+    output: Option<PathBuf>,
 }
 
 impl CliArgs {
@@ -56,6 +60,7 @@ impl CliArgs {
         let mut data_file: Option<PathBuf> = None;
         let mut config_file: Option<PathBuf> = None;
         let mut port = 7878_u16;
+        let mut output: Option<PathBuf> = None;
 
         let mut i = 2;
         while i < args.len() {
@@ -82,6 +87,10 @@ impl CliArgs {
                         .parse()
                         .map_err(|_| format!("Invalid port: {}", args[i]))?;
                 }
+                "--output" | "-o" => {
+                    i += 1;
+                    output = Some(PathBuf::from(&args[i]));
+                }
                 "--help" | "-h" => {
                     println!("{}", Self::usage());
                     std::process::exit(0);
@@ -103,6 +112,7 @@ impl CliArgs {
             data_file: data_file.ok_or("--data is required".to_string())?,
             config_file,
             port,
+            output,
         })
     }
 
@@ -126,6 +136,7 @@ OPTIONAL (run):
     --config,   -c <path>   Config file (default: config.yaml)
     --class        <name>   Strategy class name (auto-detected if omitted)
     --port,     -p <port>   Visualization server port (default: 7878)
+    --output,   -o <dir>    Persist run artifacts to <dir> (create-only dir)
     --help,     -h          Show this help
 
 EXAMPLE:
@@ -263,6 +274,72 @@ fn derive_base_currency(symbol: &str) -> String {
 // ────────────────────────────────────────────────
 // Presentation (console summary + UI event synthesis)
 // ────────────────────────────────────────────────
+
+/// Snake-case event type label (matches the persisted `"type"` tag).
+fn event_type_label(payload: &EngineEventPayload) -> &'static str {
+    match payload {
+        EngineEventPayload::RunStarted { .. } => "run_started",
+        EngineEventPayload::RunCompleted { .. } => "run_completed",
+        EngineEventPayload::RunFailed { .. } => "run_failed",
+        EngineEventPayload::StrategyInitialized { .. } => "strategy_initialized",
+        EngineEventPayload::StrategyError { .. } => "strategy_error",
+        EngineEventPayload::StrategyTeardown { .. } => "strategy_teardown",
+        EngineEventPayload::BarProcessed { .. } => "bar_processed",
+        EngineEventPayload::StrategyDecision { .. } => "strategy_decision",
+        EngineEventPayload::OrderCreated { .. } => "order_created",
+        EngineEventPayload::OrderPending { .. } => "order_pending",
+        EngineEventPayload::OrderTriggered { .. } => "order_triggered",
+        EngineEventPayload::OrderFilled { .. } => "order_filled",
+        EngineEventPayload::OrderRejected { .. } => "order_rejected",
+        EngineEventPayload::OrderExpired { .. } => "order_expired",
+        EngineEventPayload::PositionOpened { .. } => "position_opened",
+        EngineEventPayload::PositionClosed { .. } => "position_closed",
+        EngineEventPayload::PortfolioSnapshot { .. } => "portfolio_snapshot",
+    }
+}
+
+/// Prints the persisted-run summary (events count/bounds, economics, and the
+/// reproducibility hashes recorded in run.json).
+fn print_run_artifact_summary(
+    result: &observa_engine::engine::RunResult,
+    bars: &[Bar],
+    config: &BacktestConfig,
+) {
+    println!();
+    println!("  Artifact summary:");
+    println!("    Events:           {}", result.events.len());
+    match (result.events.first(), result.events.last()) {
+        (Some(first), Some(last)) => {
+            println!("    First event:      {}", event_type_label(&first.payload));
+            println!("    Last event:       {}", event_type_label(&last.payload));
+        }
+        _ => {}
+    }
+    println!(
+        "    Final balance:    ${:.2}",
+        result.final_state.final_balance
+    );
+    println!(
+        "    Final equity:     ${:.2}",
+        result.final_state.final_equity
+    );
+    println!("    Trades:           {}", result.trades.len());
+    println!(
+        "    Open positions:   {}",
+        result.final_state.open_positions_remaining
+    );
+    match observa_engine::persistence::dataset_identity(bars) {
+        Ok(identity) => {
+            println!("    Dataset sha256:   {}", identity.sha256);
+            println!("    Dataset bars:     {}", identity.bar_count);
+        }
+        Err(_) => {}
+    }
+    match observa_engine::persistence::strategy_identity(config) {
+        Ok(sha) => println!("    Strategy sha256:  {}", sha),
+        Err(_) => {}
+    }
+}
 
 fn print_summary(result: &observa_engine::engine::RunResult, metrics: &MetricsReportView) {
     println!();
@@ -547,7 +624,7 @@ fn main() {
 
     // ── Invoke the canonical Engine ──
     println!("  Running backtest...");
-    let engine = match Engine::new(config) {
+    let mut engine = match Engine::new(config) {
         Ok(e) => e,
         Err(e) => {
             eprintln!("  Failed to construct engine: {}", e);
@@ -555,13 +632,65 @@ fn main() {
         }
     };
 
+    let dataset_source = args.data_file.display().to_string();
     let result = match engine.run(&bars, &mut strategy) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("  Backtest failed: {}", e);
+            if let Some(out) = &args.output {
+                // Failure artifacts from the Engine's retained partial event
+                // history (metrics.json is intentionally not produced).
+                match persistence::persist_failed_run(
+                    out,
+                    engine.config(),
+                    &bars,
+                    engine.events(),
+                    &e.to_string(),
+                    &dataset_source,
+                ) {
+                    Ok(dir) => {
+                        println!();
+                        println!("  Failure artifacts persisted:");
+                        println!("    {}", dir.join("run.json").display());
+                        println!("    {}", dir.join("events.jsonl").display());
+                    }
+                    Err(pe) => eprintln!("  Failed to persist failure artifacts: {}", pe),
+                }
+            }
             std::process::exit(1);
         }
     };
+
+    // ── Optional artifact persistence (create-only; thin passthrough) ──
+    if let Some(out) = &args.output {
+        match persistence::persist_completed_run(
+            out,
+            engine.config(),
+            &bars,
+            &result.events,
+            &result,
+            4.0 * 24.0 * 252.0,
+            &dataset_source,
+        ) {
+            Ok(dir) => {
+                println!();
+                println!("  Run artifacts persisted:");
+                println!("    {}", dir.join("run.json").display());
+                println!("    {}", dir.join("events.jsonl").display());
+                println!("    {}", dir.join("metrics.json").display());
+                print_run_artifact_summary(&result, &bars, engine.config());
+            }
+            Err(PersistenceError::OutputAlreadyExists { path }) => {
+                eprintln!("  Refusing to overwrite existing run output: {path}");
+                eprintln!("  Choose a different --output directory and re-run.");
+                std::process::exit(1);
+            }
+            Err(e) => {
+                eprintln!("  Failed to persist run artifacts: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
 
     // ── Derive presentation metrics from the canonical result ──
     let initial_balance = result

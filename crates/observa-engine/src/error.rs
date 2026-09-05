@@ -39,6 +39,10 @@ pub enum EngineError {
     #[error("order sequence overflow: cannot create more orders in this run")]
     OrderSequenceOverflow,
 
+    /// An event-sequence overflow (u64 counter exhausted).
+    #[error("event sequence overflow: cannot create more events in this run")]
+    EventSequenceOverflow,
+
     /// Internal runtime state error.
     #[error("invalid runtime state: {0}")]
     InvalidState(String),
