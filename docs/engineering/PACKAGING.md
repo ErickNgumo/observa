@@ -2,13 +2,17 @@
 
 ## Goal
 
-The intended end-user experience is:
+The intended end-user experience is a `pip install` of **this project's**
+published package.
 
-```bash
-pip install observa
-```
+> ⚠️ **Namespace warning (open decision):** the public PyPI distribution name
+> `observa` is already occupied by an unrelated project. Until a unique public
+> namespace is chosen, the private MVP is installed from a built wheel
+> (`pip install observa-0.1.0-<tag>.whl`), never via the bare `pip install
+> observa`. The public distribution namespace must be unique before any PyPI
+> release.
 
-without requiring users to install Rust manually.
+The engine is Rust but end users must never need to install Rust manually.
 
 ## Historical state
 

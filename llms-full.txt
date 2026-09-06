@@ -1,0 +1,279 @@
+# Observa — Official Agent & Integration Guide (llms-full.txt)
+
+Single self-contained guide for humans and AI coding agents. Read this before
+using or building on Observa. If you are an AI agent asked to implement a
+trading strategy, follow the agent rules in section N.
+
+## A. What Observa is
+
+Observa is a deterministic, bar-based backtesting engine for Python trading
+strategies. One canonical Rust Engine replays market data bar by bar and
+records an ordered event history: what the strategy saw, which orders it
+created (and whether they filled/pended/rejected/expired), which exact
+position opened and closed, why SL/TP fired and at what price, and what
+happened to balance and equity. Observa then replays that history visually so
+users can inspect WHY a backtest behaved as it did.
+
+Product principle: the goal is the end of blind trust. The frontend and
+Python layer never recompute fills, P&L, SL/TP outcomes, or position pairing;
+they are views of the canonical Engine result.
+
+## B. Installation
+
+Private MVP: distributed as a wheel, NOT from PyPI.
+
+WARNING: do not `pip install observa`. The public PyPI name `observa` is an
+unrelated project. Install the private-MVP wheel file directly:
+
+    pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
+
+Verified: Linux x86_64 (glibc >= 2.34), CPython 3.13; abi3 metadata supports
+Python >= 3.10. No Rust/Cargo required at runtime.
+
+Verify you imported the correct package:
+
+    import observa
+    print(observa.__version__)   # 0.1.0
+    print(observa.__file__)      # path into this wheel's site-packages
+
+Notebook-friendly installation: `%pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl`.
+
+## C. Strategy contract
+
+A strategy is a plain Python class with three lifecycle methods:
+
+    class MyStrategy:
+        def initialize(self, params=None): ...
+        def on_bar(self, bar, portfolio, history): ...
+        def teardown(self): ...
+
+- `initialize(params)` — called once before the first bar with the resolved
+  parameters dict (empty dict when none configured).
+- `on_bar(bar, portfolio, history)` — called once per closed bar, in
+  chronological order. `history` contains strictly earlier bars only (no
+  lookahead). Return a list of signal dicts (empty list = do nothing).
+- `teardown()` — called once after the last bar; raising here fails the run.
+- Any Python exception in a callback fails the run with the message. It is
+  never silently treated as "no signal".
+
+The canonical bundled sample class lives in
+`observa.samples.sample_strategy.SampleEma`.
+
+## D. bar / portfolio / position fields (exact)
+
+bar: read-only dict with keys `timestamp` (RFC 3339 string), `open`, `high`,
+`low`, `close`, `volume` (float or None).
+
+portfolio: read-only dict with keys `balance`, `equity`, `used_margin`,
+`free_margin`, `has_open_position`, `open_positions` (list of position dicts),
+`unrealised_pnl`.
+
+position dict: keys `position_id` (and alias `ticket`), `symbol`,
+`direction` ("Buy"/"Sell"), `quantity` (alias `size`), `entry_price`,
+`stop_loss`, `take_profit`, `unrealized_pnl`.
+
+Close positions ONLY by exact `position_id`/`ticket`. There is no implicit
+FIFO close.
+
+## E. Signals
+
+`on_bar` returns a list of signal dicts.
+
+Direction + optional order type and protective levels:
+
+    {"direction": "buy",  "size": 1.0}                                  # MARKET buy
+    {"direction": "sell", "size": 1.0}                                  # MARKET sell
+    {"direction": "buy",  "size": 1.0, "order_type": "limit", "price": 1.05,
+     "sl": 1.02, "tp": 1.10}                                            # LIMIT buy
+    {"direction": "sell", "size": 1.0, "order_type": "stop", "price": 1.10}
+                                                                        # STOP sell
+    {"direction": "close", "size": pos["size"], "ticket": pos["position_id"]}
+
+Rules:
+- direction: "buy" | "sell" | "close".
+- MARKET is the default order_type.
+- LIMIT/STOP use the `price` field as their trigger/limit price.
+- `sl` / `tp` are optional protective levels on entries.
+- Python specifies intent. The Rust Engine determines triggering, fill
+  timing, spread/slippage, and P&L. Do NOT implement execution.
+
+## F. Explicit-ticket closes
+
+Strong rule: never invent FIFO close behavior. To close a position, always
+supply the exact `position_id` obtained from `portfolio["open_positions"]`.
+Multiple positions (including long + short on one symbol) are supported.
+
+## G. Data requirements
+
+Accepted inputs: CSV path, list of bar dicts, or DataFrame-like object
+(duck-typed via `.to_dict("records")`).
+
+CSV columns, in order:
+
+    timestamp,open,high,low,close,volume
+
+`volume` is optional. Timestamp must parse as RFC 3339 or
+`YYYY-MM-DD HH:MM:SS+00:00` (UTC). Bars must be strictly chronological.
+Per-bar validation: open/high/low/close must be internally consistent
+(high >= max(open, close), low <= min(open, close)). Observa does not invent
+missing candles.
+
+Bundled deterministic sample: `observa.sample_data_path()` returns a CSV path.
+
+## H. Configuration
+
+`observa.Config(...)` public fields (defaults in parentheses):
+
+    starting_balance (10000.0), currency ("USD"), leverage (100.0),
+    symbol ("EURUSD"), base_currency ("EUR"), quote_currency ("USD"),
+    contract_size (100000.0), price_decimals (5), tick_size (None),
+    pip_size (None), min_quantity (0.01), max_quantity (100.0),
+    quantity_step (0.01), fill_mode (NEXT_BAR_OPEN), spread (0.0002),
+    slippage (0.0001), commission (0.0), commission_mode (PER_SIDE),
+    commission_rate_per_unit (0.0), interval ("1d"), order_model (dict),
+    params (dict), strategy_name (None), strategy_source (None),
+    dataset_source (None)
+
+Constants: observa.MARKET/LIMIT/STOP, BUY/SELL/CLOSE,
+BAR_CLOSE/NEXT_BAR_OPEN, PER_SIDE/ROUND_TRIP.
+
+CRITICAL: set `dataset_source` to the data path when replay candles are
+required (candle recovery in replay verifies that file against the recorded
+dataset hash).
+
+## I. Execution semantics (exact)
+
+- BAR_CLOSE fill mode: MARKET generated while observing completed bar N fills
+  at bar N's close.
+- NEXT_BAR_OPEN: MARKET generated on bar N fills at bar N+1's open.
+- LIMIT/STOP created after observing bar N cannot retroactively fill using
+  bar N's range; they rest and start evaluating on future bars.
+- Spread is applied half on each side of the market reference; market-style
+  executions receive adverse slippage.
+- SL/TP attach to a position at fill and are Engine-evaluated.
+- Protective chronology: a position opened at bar OPEN is eligible for
+  same-bar protective processing; a position opened intrabar (resting
+  LIMIT/STOP) or at BAR_CLOSE becomes eligible the NEXT bar (full OHLC range
+  may contain prices that occurred before the entry).
+- Gaps: an SL cannot execute at the pre-gap price if the market opens through
+  it; it fills at the canonical market reference with applicable adjustments.
+- Same-bar ambiguity (both SL and TP reachable in one OHLC bar, no resolving
+  opening gap): the Engine applies SL-first. This is a deterministic
+  convention, not a claim about the true intrabar path.
+- No lookahead: history excludes the current bar.
+- Open positions are not force-closed at dataset end; unrealised P&L remains
+  in final equity (balance != equity when positions remain open).
+
+## J. Persistence
+
+`observa.run(..., output="dir")` (or `result.save("dir")`) writes:
+
+    run.json       what produced the run (config + identities/hashes)
+    events.jsonl   authoritative history (one canonical event per line)
+    metrics.json   derived statistics (never authoritative)
+
+The run directory is create-only: writing to an existing directory raises
+FileExistsError.
+
+## K. Replay
+
+Replay a persisted run with the installed package:
+
+    observa replay <run-dir> [--port <port>]
+
+or in Python: `observa.replay("<run-dir>")`. Open the printed URL. Replay
+derives all displayed state from canonical events; the chart library is
+bundled (offline). If candles cannot be recovered (dataset_source missing or
+dataset hash mismatch), the page shows a notice and events/orders/account
+still replay.
+
+## L. Complete working examples
+
+Quickstart (bundled sample):
+
+    import observa
+    from observa.samples.sample_strategy import SampleEma
+
+    data = observa.sample_data_path()
+    config = observa.Config(
+        fill_mode=observa.NEXT_BAR_OPEN,
+        spread=0.0002, slippage=0.0001,
+        commission=7.0, commission_mode=observa.ROUND_TRIP,
+        interval="15m",
+        dataset_source=data,
+    )
+    result = observa.run(SampleEma(), data, config=config, output="runs/sample")
+    print(result.final_balance, result.final_equity, len(result.trades))
+
+SMA crossover (20/50), bundled sample:
+
+    import observa
+
+    class SmaCross:
+        def __init__(self):
+            self.closes = []
+        def initialize(self, params=None):
+            params = params or {}
+            self.fast = int(params.get("fast", 20))
+            self.slow = int(params.get("slow", 50))
+            self.closes = []
+        def on_bar(self, bar, portfolio, history):
+            self.closes.append(bar["close"])
+            if len(self.closes) < self.slow + 1:
+                return []
+            fast = sum(self.closes[-self.fast:]) / self.fast
+            slow = sum(self.closes[-self.slow:]) / self.slow
+            prev_fast = sum(self.closes[-self.fast-1:-1]) / self.fast
+            prev_slow = sum(self.closes[-self.slow-1:-1]) / self.slow
+            if prev_fast <= prev_slow and fast > slow and not portfolio["has_open_position"]:
+                return [{"direction": "buy", "size": 1.0}]
+            if prev_fast >= prev_slow and fast < slow and portfolio["has_open_position"]:
+                pos = portfolio["open_positions"][0]
+                return [{"direction": "close", "size": pos["size"], "ticket": pos["position_id"]}]
+            return []
+        def teardown(self):
+            pass
+
+    data = observa.sample_data_path()
+    config = observa.Config(fill_mode=observa.BAR_CLOSE, spread=0.0, slippage=0.0,
+                            commission=0.0, params={"fast": 20, "slow": 50},
+                            dataset_source=data)
+    result = observa.run(SmaCross(), data, config=config, output="runs/sma")
+    print(result.final_balance, len(result.trades), len(result.events))
+
+RSI mean reversion and a yfinance real-data example are provided as runnable
+files in the repository under examples/ (quickstart.py, ema_yfinance.py,
+rsi_mean_reversion.py).
+
+## M. Common mistakes
+
+- Installing the unrelated PyPI "observa" package. Always install this wheel
+  and verify observa.__file__.
+- Omitting `dataset_source`, then wondering why replay has no candles.
+- Closing a position without an explicit `ticket` (or assuming FIFO).
+- Using the current bar in history-based indicators (lookahead).
+- Reimplementing fills/spread/slippage/SL-TP/P&L in Python — the Engine owns
+  execution.
+- Writing independent portfolio P&L math in the strategy or frontend.
+- Wrong CSV columns/order or non-chronological timestamps.
+
+## N. Agent rules
+
+When asked to use Observa:
+
+1. Use the Observa Python API.
+2. Do not implement an independent backtesting engine.
+3. Do not calculate fills manually.
+4. Do not calculate portfolio P&L manually.
+5. Do not infer SL/TP outcomes yourself.
+6. Use the canonical Engine.
+7. Close positions using explicit tickets.
+8. Set dataset_source if replay candles are required.
+9. Persist the run.
+10. Give the user the replay command.
+11. State assumptions when natural-language strategy rules are ambiguous.
+12. Do not claim success unless the code actually ran when execution access exists.
+
+When implementing a user trading strategy: do not modify the Observa engine.
+When implementing Observa itself: follow repository architecture and tests
+(AGENTS.md).

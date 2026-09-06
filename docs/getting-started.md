@@ -4,13 +4,11 @@ This is the single canonical first-run path: install the Python package, run a
 backtest with the bundled sample data and strategy, inspect the result, and
 open the visual replay — without a Rust toolchain or a repository checkout.
 
-## 1. Install
+## 1. Install (private MVP wheel)
 
-```bash
-pip install observa
-```
-
-or install a locally built wheel:
+> ⚠️ **Do not `pip install observa`.** The public PyPI name `observa` is an
+> unrelated project. This private MVP is distributed as a built wheel, not
+> from PyPI.
 
 ```bash
 pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
@@ -19,11 +17,12 @@ pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
 **Verified:** Linux x86_64, CPython 3.13. The wheel is `abi3` (Python >= 3.10
 metadata) and `manylinux_2_34`. Windows/macOS/Colab are not runtime-verified.
 
-Import test:
+Import test — verify you imported *this* Observa:
 
 ```python
 import observa
-print(observa.__version__)   # 0.1.0
+print(observa.__version__)   # must print 0.1.0
+print(observa.__file__)      # must point into this wheel's site-packages
 ```
 
 ## 2. Bundled sample assets

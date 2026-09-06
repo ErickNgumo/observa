@@ -1,0 +1,14 @@
+# Observa
+
+Deterministic, bar-based backtesting engine with a canonical event history and
+visual replay. Python API over a canonical Rust Engine.
+
+## Start here
+- Complete agent guide: llms-full.txt
+- Getting started: docs/getting-started.md
+- Strategy contract: docs/strategy-contract.md
+- Execution model: docs/execution-model.md
+- Data format: docs/data-format.md
+- Examples: examples/ (quickstart.py, ema_yfinance.py, rsi_mean_reversion.py)
+- Known limitations: docs/known-limitations.md
+- GitHub/source: https://github.com/ErickNgumo/observa
