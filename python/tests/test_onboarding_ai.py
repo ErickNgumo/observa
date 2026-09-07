@@ -50,7 +50,7 @@ def test_llms_full_markers():
     text = (REPO / "llms-full.txt").read_text().lower()
     required = [
         "do not `pip install observa`",
-        "official observa wheel url",
+        "releases/download/observa-0.1.0-private-mvp",
         "explicit ticket",
         "dataset_source",
         "sl-first",

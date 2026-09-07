@@ -13,14 +13,15 @@ way it did, instead of only trusting final statistics.
 > unrelated project.
 >
 > 📦 **Private-MVP distribution:** Observa 0.1.0 is distributed as an official
-> wheel attached to a private GitHub Release. **The official wheel URL is
-> provided with your tester invite.** If you do not have it, you were not
-> given an Observa build yet — building a wheel yourself is a contributor
-> task, not a user task (see Development below).
+> wheel attached to the private-MVP GitHub Release. Install it with the URL
+> below. Building a wheel yourself is a contributor task, not a user task
+> (see Development below).
 
 ```bash
-python -m pip install "<OFFICIAL OBSERVA WHEEL URL FROM YOUR INVITE>"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
+
+SHA-256: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c`
 
 For real-data examples, also install:
 
@@ -145,8 +146,8 @@ Technical examples only — not financial advice.
 ## Status
 
 Private MVP tester build. Not production-ready. Distribution is via the
-official private-MVP Release (wheel URL in tester invites). See
-[`docs/known-limitations.md`](docs/known-limitations.md).
+official private-MVP GitHub Release (install URL in the Install section).
+See [`docs/known-limitations.md`](docs/known-limitations.md).
 
 ## Development (contributors — not end users)
 

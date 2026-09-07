@@ -24,10 +24,10 @@ Private MVP: distributed as an official wheel attached to a private GitHub
 Release — NOT from PyPI.
 
 WARNING: do not `pip install observa`. The public PyPI name `observa` is an
-unrelated project. Install the official wheel by URL (the URL is provided
-with the tester invite):
+unrelated project. Install the official wheel by URL from the private-MVP
+GitHub Release:
 
-    python -m pip install "<OFFICIAL OBSERVA WHEEL URL>"
+    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
 
 Real-data examples also need: `python -m pip install yfinance pandas`.
 

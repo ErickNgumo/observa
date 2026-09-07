@@ -12,13 +12,15 @@ You will be asked to report:
 
 ## 1. Install
 
-Install the **official private-MVP wheel**. The wheel URL was given to you
-with your tester invite (it is attached to a private GitHub Release). Do not
-`pip install observa` — that is an unrelated PyPI package.
+Install the **official private-MVP wheel** from the private GitHub Release
+(the command below). Do not `pip install observa` — that is an unrelated
+PyPI package.
 
 ```bash
-python -m pip install "<OFFICIAL OBSERVA WHEEL URL FROM YOUR INVITE>"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
+
+SHA-256: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c`
 
 For the real-data example also:
 

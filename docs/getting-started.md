@@ -8,12 +8,13 @@ open the visual replay — without a Rust toolchain or a repository checkout.
 
 > ⚠️ **Do not `pip install observa`.** The public PyPI name `observa` is an
 > unrelated project. Observa 0.1.0 is distributed as an official wheel
-> attached to a private GitHub Release; **the wheel URL is provided with your
-> tester invite.**
+> attached to the private-MVP GitHub Release (URL below).
 
 ```bash
-python -m pip install "<OFFICIAL OBSERVA WHEEL URL FROM YOUR INVITE>"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
+
+SHA-256: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c`
 
 For the real-data example also: `python -m pip install yfinance pandas`.
 
