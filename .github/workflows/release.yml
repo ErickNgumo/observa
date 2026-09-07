@@ -1,0 +1,45 @@
+name: release-wheel
+
+on:
+  push:
+    tags:
+      - "observa-*"
+
+jobs:
+  build-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test + build wheel
+        run: |
+          cargo test --workspace
+          python -m pip install maturin
+          cd python && maturin build --release
+      - name: Record SHA-256
+        id: sha
+        run: |
+          sha256sum python/target/wheels/*.whl | tee sha256.txt
+          echo "wheel=$(ls python/target/wheels/*.whl | head -1)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(cut -d' ' -f1 sha256.txt)" >> "$GITHUB_OUTPUT"
+      - name: Create private-MVP GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          name: Observa 0.1.0 - Private MVP
+          body: |
+            Private-MVP tester wheel (Linux x86_64 / manylinux_2_34 / abi3 >= 3.10).
+            Wheel URL: attach from this release's assets.
+            SHA-256: ${{ steps.sha.outputs.sha }}
+            Install: python -m pip install "<wheel asset URL from this release>"
+            Docs: README.md, docs/getting-started.md, llms-full.txt
+          files: |
+            python/target/wheels/*.whl
+            examples/quickstart.py
+            examples/ema_observa.py
+            examples/rsi_mean_reversion.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

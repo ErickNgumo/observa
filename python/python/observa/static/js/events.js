@@ -21,6 +21,11 @@ function loadEvents() {
       replayBars   = data.bars || [];
       totalBars    = replayBars.length;
       replayIndex  = ObservaReplay.indexEvents(replayEvents);
+      if (totalBars === 0 && replayEvents.length > 0) {
+        showNotice('The dataset for this run could not be recovered, so the ' +
+          'candle chart is unavailable. Events, orders, positions and ' +
+          'account state still replay below.');
+      }
       updateProgressLabel();
       if (payload.run && payload.run.status === 'failed') {
         var meta = payload.run;
@@ -372,6 +377,14 @@ function renderMetrics(report) {
     card('Expectancy', '$' + fmtNum(r.expectancy, 2), r.expectancy >= 0 ? 'positive' : 'negative'), 'trades-group');
   grid.innerHTML = html;
   drawDrawdownHighlight(r);
+}
+
+function showNotice(message) {
+  var banner = document.getElementById('run-banner');
+  if (!banner) return;
+  banner.style.display = 'block';
+  banner.innerHTML = '<div class="run-banner-icon" aria-hidden="true">i</div>' +
+    '<div><strong>Dataset not available</strong><span>' + escapeHtml(message) + '</span></div>';
 }
 
 function showRunFailed(category, message, barIndex) {

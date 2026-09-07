@@ -1,146 +1,15 @@
-# Observa — Getting Started
-
-This is the single canonical first-run path: install the Python package, run a
-backtest with the bundled sample data and strategy, inspect the result, and
-open the visual replay — without a Rust toolchain or a repository checkout.
-
-## 1. Install (official private-MVP wheel)
-
-> ⚠️ **Do not `pip install observa`.** The public PyPI name `observa` is an
-> unrelated project. Observa 0.1.0 is distributed as an official wheel
-> attached to the private-MVP GitHub Release (URL below).
-
-```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
-```
-
-SHA-256: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c`
-
-For the real-data example also: `python -m pip install yfinance pandas`.
-
-**Notebook users:** if Observa was installed or replaced while a
-Jupyter/VS Code notebook kernel was already running, **restart the kernel**
-before `import observa` (a running kernel may still hold the unrelated PyPI
-"observa" module in memory).
-
-Building the wheel yourself is a contributor task (requires Rust + Maturin);
-end users never need that. See `docs/mvp-release-notes.md` for the
-contributor build commands.
-
-**Verified:** Linux x86_64, CPython 3.13. The wheel is `abi3` (Python >= 3.10
-metadata) and `manylinux_2_34`. Windows/macOS/Colab are not runtime-verified.
-
-Import test — verify you imported *this* Observa:
-
-```python
-import observa
-print(observa.__version__)   # must print 0.1.0
-print(observa.__file__)      # must point into this wheel's site-packages
-print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
-```
-
-## 2. Bundled sample assets
-
-The wheel ships a deterministic, clearly synthetic sample dataset and a small
-strategy (a technical example — not financial advice):
-
-```python
-data_file = observa.sample_data_path()          # sample CSV (200 x M15 bars)
-strategy_file = observa.sample_strategy_path()  # SampleEma strategy module
-```
-
-## 3. Write / load a strategy
-
-A strategy is a plain Python class implementing the lifecycle
-(`initialize` / `on_bar` / `teardown`). Load the bundled sample:
-
-```python
-import importlib.util
-spec = importlib.util.spec_from_file_location("sample", strategy_file)
-strategy_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(strategy_module)
-strategy = strategy_module.SampleEma()
-```
-
-See `docs/strategy-contract.md` for the full contract (signals, order types,
-portfolio view).
-
-## 4. Configure and run
-
-```python
-import observa
-
-config = observa.Config(
-    fill_mode=observa.NEXT_BAR_OPEN,   # or observa.BAR_CLOSE
-    spread=0.0002,
-    slippage=0.0001,
-    commission=7.0,
-    commission_mode=observa.ROUND_TRIP,
-    interval="15m",
-    params={"fast": 5, "slow": 20},
-)
-
-result = observa.run(strategy, data_file, config=config, output="runs/example")
-```
-
-`Config` fields are documented in `docs/execution-model.md`. `output=`
-persists the canonical artifacts; without it the run still returns a result.
-
-## 5. Inspect the result
-
-```python
-print(result.final_balance)
-print(result.final_equity)
-print(len(result.trades))      # closed trades
-print(result.open_positions)
-print(result.orders)           # canonical order lifecycle
-print(result.fills)
-print(result.events)           # canonical OBS-0008 event history
-print(result.metrics)
-```
-
-## 6. Saved artifacts
-
-`output="runs/example"` writes three files:
-
-| file            | role                                        |
-| --------------- | ------------------------------------------- |
-| `run.json`      | what produced the run (config/identity)     |
-| `events.jsonl`  | authoritative history (one event per line)  |
-| `metrics.json`  | derived statistics (never authoritative)    |
-
-## 7. Visual replay
-
-Running a backtest and launching replay are **two separate actions**. Replay
-a saved run with the installed package (no repository needed):
-
-```bash
-observa replay runs/example
-```
-
-then open **http://localhost:7878** in a browser. Replay is a view of the
-canonical events — it never recomputes fills, P&L, or position pairing. The
-chart library is bundled in the wheel, so replay works offline.
-
-## 8. Quickstart B — real EUR/USD data
-
-One complete, copy-paste runnable example. Copy the file below into a file named `ema_observa.py` (the same file is also attached to the private-MVP GitHub Release as an asset, and maintained at `examples/ema_observa.py` in the repository), then run:
-
-```bash
-python -m pip install yfinance pandas
-python ema_observa.py
-```
-
-`ema_observa.py`:
-
-```python
 """Canonical real-data onboarding example — single self-contained file.
 
 Quickstart B (real data): downloads intraday EUR/USD with yfinance, normalizes
 it to Observa's CSV format, runs an EMA crossover, persists the run, and
 prints the replay command. Everything is in this one file.
 
-Setup (external dependency, only needed for real data):
+Install Observa using the official private-MVP release URL in README.md
+(do not run bare `pip install observa` — that is an unrelated PyPI package).
+This file is also attached to the private-MVP GitHub Release, and embedded in
+full in docs/getting-started.md (Quickstart B).
+
+External dependency (only needed for real data):
 
     python -m pip install yfinance pandas
 
@@ -299,20 +168,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-```
-
-Start the replay with `observa replay runs/ema_observa_<timestamp>` and open http://localhost:7878.
-
-## 9. Your own data
-
-Data is an OHLCV CSV (`timestamp,open,high,low,close,volume`) — see
-`docs/data-format.md`. A Python list of bar dicts and DataFrame-like objects
-are also accepted.
-
-## More
-
-- `docs/strategy-contract.md` — the strategy lifecycle and order API.
-- `docs/execution-model.md` — fill timing, SL/TP, gaps, spread/slippage,
-  commission, margin, and assumptions.
-- `docs/data-format.md` — CSV requirements.
-- `docs/known-limitations.md` — honest release-candidate limitations.
