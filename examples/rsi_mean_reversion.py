@@ -16,6 +16,8 @@ This is a technical example, not trading advice.
 """
 
 import os
+from datetime import datetime
+from pathlib import Path
 
 import observa
 
@@ -85,7 +87,8 @@ def main() -> None:
         strategy_name="RsiMeanReversion",
         dataset_source=data_file,
     )
-    out_dir = os.path.abspath("runs/rsi")
+    run_tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_dir = str(Path("runs") / ("rsi_" + run_tag))
     result = observa.run(RsiMeanReversion(), data_file, config=config, output=out_dir)
 
     print("final balance:  %.2f" % result.final_balance)
@@ -93,8 +96,9 @@ def main() -> None:
     print("trades:         %d" % len(result.trades))
     print("open positions: %d" % result.open_positions)
     print("events:         %d" % len(result.events))
-    print("artifacts:      %s" % out_dir)
-    print("replay it with: observa replay %s" % out_dir)
+    print("Run saved to:    %s" % out_dir)
+    print("Replay with:     observa replay %s" % out_dir)
+    print("Then open:       http://localhost:7878")
 
 
 if __name__ == "__main__":

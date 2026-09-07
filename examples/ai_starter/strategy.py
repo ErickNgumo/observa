@@ -4,6 +4,9 @@ The strategy must use the canonical Observa API (see llms-full.txt):
 initialize(params) / on_bar(bar, portfolio, history) / teardown(),
 signal dicts, and explicit-ticket closes. Do not implement execution.
 """
+from datetime import datetime
+from pathlib import Path
+
 import observa
 
 
@@ -31,12 +34,15 @@ def main():
         strategy_name="UserStrategy",
         dataset_source=data,
     )
-    result = observa.run(UserStrategy(), data, config=config, output="runs/starter")
+    run_dir = str(Path("runs") / ("starter_" + datetime.now().strftime("%Y%m%d_%H%M%S")))
+    result = observa.run(UserStrategy(), data, config=config, output=run_dir)
     print("final balance:  %.2f" % result.final_balance)
     print("final equity:   %.2f" % result.final_equity)
     print("trades:         %d" % len(result.trades))
     print("events:         %d" % len(result.events))
-    print("replay:         observa replay %s" % "runs/starter")
+    print("Run saved to:    %s" % run_dir)
+    print("Replay with:     observa replay %s" % run_dir)
+    print("Then open:       http://localhost:7878")
 
 
 if __name__ == "__main__":

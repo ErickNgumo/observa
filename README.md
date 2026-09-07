@@ -7,27 +7,45 @@
 The goal is the end of blind trust: you inspect why a backtest behaved the
 way it did, instead of only trusting final statistics.
 
-## Install (private MVP wheel)
+## Install
 
-> ⚠️ **Do not `pip install observa`.** The public PyPI name `observa` is an
-> unrelated project. This private MVP is distributed as a built wheel.
+> ⚠️ Do **not** `pip install observa`. The public PyPI name `observa` is an
+> unrelated project.
+>
+> 📦 **Private-MVP distribution:** Observa 0.1.0 is distributed as an official
+> wheel attached to a private GitHub Release. **The official wheel URL is
+> provided with your tester invite.** If you do not have it, you were not
+> given an Observa build yet — building a wheel yourself is a contributor
+> task, not a user task (see Development below).
 
 ```bash
-pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
+python -m pip install "<OFFICIAL OBSERVA WHEEL URL FROM YOUR INVITE>"
 ```
 
-Verified on Linux x86_64 (glibc ≥ 2.34) with CPython 3.13. Windows, macOS and
-Colab are not runtime-verified for this build.
+For real-data examples, also install:
 
-Verify you imported *this* Observa (not the unrelated PyPI package):
+```bash
+python -m pip install yfinance pandas
+```
+
+**Notebook users:** if Observa was installed or replaced while a
+Jupyter/VS Code notebook kernel was already running, **restart the kernel**
+before `import observa` (an old kernel can still hold the unrelated PyPI
+"observa" module in memory).
+
+Verify you imported *this* Observa:
 
 ```python
 import observa
-print(observa.__version__)   # must print 0.1.0
-print(observa.__file__)      # must point into this wheel's site-packages
+
+print(observa.__version__)                      # must print 0.1.0
+print(observa.__file__)                         # .../site-packages/observa/__init__.py
+print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
 ```
 
-## Run your first backtest (≈2 minutes)
+## Quickstart A — bundled deterministic sample (no data download)
+
+Run the bundled example (copy, paste, run):
 
 ```python
 import observa
@@ -41,7 +59,7 @@ config = observa.Config(
     commission=7.0,
     commission_mode=observa.ROUND_TRIP,
     interval="15m",
-    dataset_source=data,                    # records the data path
+    dataset_source=data,                    # absolute path (replay candles)
 )
 
 result = observa.run(SampleEma(), data, config=config, output="runs/sample")
@@ -52,22 +70,38 @@ print(len(result.trades))
 print(result.open_positions)
 ```
 
-Or run the ready-made example (same thing, with prints and replay guidance):
+Or the ready-made file:
 
 ```bash
 python examples/quickstart.py
 ```
 
-## Replay it
+## Quickstart B — real EUR/USD data (one self-contained file)
 
 ```bash
-observa replay runs/sample
+python -m pip install yfinance pandas
+python examples/ema_observa.py
 ```
 
-Open http://localhost:7878. The replay is a view of the canonical events —
-fills, position pairing, SL/TP prices and account state all come from the
-run's event log, never recomputed in the browser. The chart library is
-bundled, so replay works offline.
+`examples/ema_observa.py` is a single file that: downloads intraday EUR/USD
+via yfinance, normalizes the columns to Observa's CSV format, validates them,
+saves the CSV to an absolute path, runs an EMA crossover, persists the run to
+a unique (timestamped) run directory, prints results, and prints the replay
+command. No repository, wheel paths, `importlib`, Rust, or Maturin needed.
+
+## Replay it
+
+Running a backtest and launching replay are **two separate actions**. After a
+run is saved, start the replay with:
+
+```bash
+observa replay runs/<run-directory>
+```
+
+Then open **http://localhost:7878** in a browser. Replay is a view of the
+canonical events — fills, position pairing, SL/TP prices and account state
+all come from the run's event log, never recomputed in the browser. The chart
+library is bundled, so replay works offline.
 
 ## Use Observa with AI
 
@@ -92,9 +126,9 @@ Run the backtest and give me the replay.
 
 ## Examples
 
-* [`examples/quickstart.py`](examples/quickstart.py) — copy-paste first run (bundled sample).
-* [`examples/ema_yfinance.py`](examples/ema_yfinance.py) — real intraday data via `yfinance`.
-* [`examples/rsi_mean_reversion.py`](examples/rsi_mean_reversion.py) — a second strategy pattern (RSI mean reversion).
+* [`examples/quickstart.py`](examples/quickstart.py) — Quickstart A (bundled sample).
+* [`examples/ema_observa.py`](examples/ema_observa.py) — Quickstart B (real EUR/USD via yfinance, one file).
+* [`examples/rsi_mean_reversion.py`](examples/rsi_mean_reversion.py) — RSI mean-reversion pattern.
 
 Technical examples only — not financial advice.
 
@@ -110,13 +144,22 @@ Technical examples only — not financial advice.
 
 ## Status
 
-Private MVP tester build. Not production-ready. See
+Private MVP tester build. Not production-ready. Distribution is via the
+official private-MVP Release (wheel URL in tester invites). See
 [`docs/known-limitations.md`](docs/known-limitations.md).
 
-## Development (contributors)
+## Development (contributors — not end users)
 
-Rust workspace under `crates/`, Python package under `python/`, replay
-frontend under `python/observa/static/`. End users need only Python; maintainers need Rust.
+Building Observa yourself requires Rust, Cargo and Maturin:
+
+```bash
+python -m pip install maturin
+cd python && maturin build --release   # wheel in python/target/wheels/
+```
+
+End users never need these. Repository layout: Rust workspace under
+`crates/`, Python package under `python/`, replay frontend under
+`python/observa/static/`.
 
 ```bash
 cargo test --workspace

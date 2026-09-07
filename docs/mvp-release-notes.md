@@ -16,12 +16,18 @@ numbers.
 
 ## Install
 
+The official wheel is attached to a private GitHub Release. **The wheel URL
+is provided with your tester invite.** Do not `pip install observa` (an
+unrelated PyPI package owns that name).
+
 ```bash
-pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
+python -m pip install "<OFFICIAL OBSERVA WHEEL URL FROM YOUR INVITE>"
 ```
 
-(Use the exact wheel filename you were given. A wheel file, not PyPI, is how
-this private build is distributed.)
+Real-data example dependency: `python -m pip install yfinance pandas`.
+
+**Notebook users:** restart the notebook kernel after installing/replacing
+Observa before `import observa`.
 
 Import test:
 
@@ -50,8 +56,13 @@ Windows, macOS and Google Colab are **not** runtime-verified for this build.
 
 ## Getting started
 
-Follow `docs/tester-onboarding.md` (five minutes). The same flow appears in
-the README and `docs/getting-started.md`.
+Two quickstart paths:
+
+* **A (bundled sample):** `python examples/quickstart.py`
+* **B (real EUR/USD data):** `python -m pip install yfinance pandas` then
+  `python examples/ema_observa.py` (one self-contained file).
+
+Full docs: `docs/tester-onboarding.md`, README, `docs/getting-started.md`.
 
 ## Known limitations (summary)
 
@@ -69,10 +80,13 @@ Use the feedback template: `docs/mvp-feedback.md` (fields + categories), or
 open an issue using the `MVP feedback` issue template. Include the diagnostic
 snippet from `docs/tester-onboarding.md` §Diagnostics when reporting failures.
 
-## Build (for the maintainers distributing this build)
+## Build (contributors / maintainers only — end users never need this)
 
 ```bash
-cd python && maturin build --release   # requires Rust toolchain
-# wheel written to python/target/wheels/
+python -m pip install maturin          # requires Rust toolchain
+cd python && maturin build --release   # wheel written to python/target/wheels/
 sha256sum python/target/wheels/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
 ```
+
+Publishing a tester build: attach the wheel to a GitHub Release and put the
+HTTPS URL + SHA-256 in the tester invite; then update README/llms-full.txt.

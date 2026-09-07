@@ -12,6 +12,8 @@ run, and prints how to launch the visual replay. Then run:
 """
 
 import os
+from datetime import datetime
+from pathlib import Path
 
 import observa
 from observa.samples.sample_strategy import SampleEma
@@ -30,7 +32,8 @@ config = observa.Config(
     dataset_source=data_file,  # records the data path so replay restores candles
 )
 
-out_dir = os.path.abspath("runs/quickstart")
+run_tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+out_dir = str(Path("runs") / ("quickstart_" + run_tag))
 result = observa.run(SampleEma(), data_file, config=config, output=out_dir)
 
 print(f"final balance:   {result.final_balance:.2f}")
@@ -39,5 +42,6 @@ print(f"trades:          {len(result.trades)}")
 print(f"open positions:  {result.open_positions}")
 print(f"events:          {len(result.events)}")
 print()
-print(f"artifacts saved to {out_dir} (run.json / events.jsonl / metrics.json)")
-print("replay it with:   observa replay %s" % out_dir)
+print(f"Run saved to:      {out_dir}")
+print("Replay with:       observa replay %s" % out_dir)
+print("Then open:         http://localhost:7878")

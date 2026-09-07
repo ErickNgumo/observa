@@ -4,15 +4,27 @@ This is the single canonical first-run path: install the Python package, run a
 backtest with the bundled sample data and strategy, inspect the result, and
 open the visual replay — without a Rust toolchain or a repository checkout.
 
-## 1. Install (private MVP wheel)
+## 1. Install (official private-MVP wheel)
 
 > ⚠️ **Do not `pip install observa`.** The public PyPI name `observa` is an
-> unrelated project. This private MVP is distributed as a built wheel, not
-> from PyPI.
+> unrelated project. Observa 0.1.0 is distributed as an official wheel
+> attached to a private GitHub Release; **the wheel URL is provided with your
+> tester invite.**
 
 ```bash
-pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
+python -m pip install "<OFFICIAL OBSERVA WHEEL URL FROM YOUR INVITE>"
 ```
+
+For the real-data example also: `python -m pip install yfinance pandas`.
+
+**Notebook users:** if Observa was installed or replaced while a
+Jupyter/VS Code notebook kernel was already running, **restart the kernel**
+before `import observa` (a running kernel may still hold the unrelated PyPI
+"observa" module in memory).
+
+Building the wheel yourself is a contributor task (requires Rust + Maturin);
+end users never need that. See `docs/mvp-release-notes.md` for the
+contributor build commands.
 
 **Verified:** Linux x86_64, CPython 3.13. The wheel is `abi3` (Python >= 3.10
 metadata) and `manylinux_2_34`. Windows/macOS/Colab are not runtime-verified.
@@ -23,6 +35,7 @@ Import test — verify you imported *this* Observa:
 import observa
 print(observa.__version__)   # must print 0.1.0
 print(observa.__file__)      # must point into this wheel's site-packages
+print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
 ```
 
 ## 2. Bundled sample assets
@@ -97,15 +110,28 @@ print(result.metrics)
 
 ## 7. Visual replay
 
-Replay a saved run with the installed package (no repository needed):
+Running a backtest and launching replay are **two separate actions**. Replay
+a saved run with the installed package (no repository needed):
 
 ```bash
 observa replay runs/example
 ```
 
-then open http://localhost:7878 in a browser. Replay is a view of the
+then open **http://localhost:7878** in a browser. Replay is a view of the
 canonical events — it never recomputes fills, P&L, or position pairing. The
 chart library is bundled in the wheel, so replay works offline.
+
+## 8. Quickstart B — real EUR/USD data
+
+```bash
+python -m pip install yfinance pandas
+python examples/ema_observa.py
+```
+
+`examples/ema_observa.py` is a single self-contained file: download intraday
+EUR/USD via yfinance, normalize/validate columns, save the CSV to an absolute
+path, run an EMA crossover, persist to a unique timestamped run directory,
+print results, and print the replay command.
 
 ## 8. Your own data
 

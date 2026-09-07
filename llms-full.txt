@@ -20,23 +20,31 @@ they are views of the canonical Engine result.
 
 ## B. Installation
 
-Private MVP: distributed as a wheel, NOT from PyPI.
+Private MVP: distributed as an official wheel attached to a private GitHub
+Release — NOT from PyPI.
 
 WARNING: do not `pip install observa`. The public PyPI name `observa` is an
-unrelated project. Install the private-MVP wheel file directly:
+unrelated project. Install the official wheel by URL (the URL is provided
+with the tester invite):
 
-    pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
+    python -m pip install "<OFFICIAL OBSERVA WHEEL URL>"
+
+Real-data examples also need: `python -m pip install yfinance pandas`.
 
 Verified: Linux x86_64 (glibc >= 2.34), CPython 3.13; abi3 metadata supports
-Python >= 3.10. No Rust/Cargo required at runtime.
+Python >= 3.10. No Rust/Cargo/Maturin required at runtime. Building a wheel
+is a contributor task, not user onboarding.
+
+Notebook users: if Observa was installed/replaced while a notebook kernel
+was running, RESTART the kernel before importing (a running kernel may still
+hold the unrelated PyPI 'observa' module in memory).
 
 Verify you imported the correct package:
 
     import observa
     print(observa.__version__)   # 0.1.0
-    print(observa.__file__)      # path into this wheel's site-packages
-
-Notebook-friendly installation: `%pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl`.
+    print(observa.__file__)      # .../site-packages/observa/__init__.py
+    print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
 
 ## C. Strategy contract
 
@@ -177,7 +185,8 @@ FileExistsError.
 
 ## K. Replay
 
-Replay a persisted run with the installed package:
+Running a backtest and launching replay are two separate actions. Replay a
+persisted run with the installed package:
 
     observa replay <run-dir> [--port <port>]
 
@@ -189,7 +198,7 @@ still replay.
 
 ## L. Complete working examples
 
-Quickstart (bundled sample):
+Quickstart A (bundled sample):
 
     import observa
     from observa.samples.sample_strategy import SampleEma
@@ -241,9 +250,15 @@ SMA crossover (20/50), bundled sample:
     result = observa.run(SmaCross(), data, config=config, output="runs/sma")
     print(result.final_balance, len(result.trades), len(result.events))
 
-RSI mean reversion and a yfinance real-data example are provided as runnable
-files in the repository under examples/ (quickstart.py, ema_yfinance.py,
-rsi_mean_reversion.py).
+Quickstart B (real data, one self-contained file):
+`examples/ema_observa.py` — downloads intraday EUR/USD via yfinance,
+normalizes/validates columns, saves the CSV to an ABSOLUTE path, runs an EMA
+crossover, persists to a unique timestamped run directory (persistence is
+create-only, so rerunning never overwrites), prints results and the replay
+command.
+
+Runnable example files: examples/quickstart.py (A), examples/ema_observa.py
+(B), examples/rsi_mean_reversion.py.
 
 ## M. Common mistakes
 

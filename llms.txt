@@ -9,6 +9,6 @@ visual replay. Python API over a canonical Rust Engine.
 - Strategy contract: docs/strategy-contract.md
 - Execution model: docs/execution-model.md
 - Data format: docs/data-format.md
-- Examples: examples/ (quickstart.py, ema_yfinance.py, rsi_mean_reversion.py)
+- Examples: examples/ (quickstart.py, ema_observa.py, rsi_mean_reversion.py)
 - Known limitations: docs/known-limitations.md
 - GitHub/source: https://github.com/ErickNgumo/observa

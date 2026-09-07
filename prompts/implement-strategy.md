@@ -5,6 +5,10 @@ Use Observa to implement and backtest the strategy below.
 Read the official Observa agent documentation first:
 `llms-full.txt` (repository root; complete agent & integration guide).
 
+Install the official Observa wheel by URL if not already installed (the
+private-MVP wheel URL is provided with the tester invite; never `pip install
+observa` — that is an unrelated PyPI package).
+
 Use the documented Observa API. Do not invent methods, classes, or execution
 behavior.
 

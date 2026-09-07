@@ -50,7 +50,7 @@ def test_llms_full_markers():
     text = (REPO / "llms-full.txt").read_text().lower()
     required = [
         "do not `pip install observa`",
-        "pip install observa-0.1.0",
+        "official observa wheel url",
         "explicit ticket",
         "dataset_source",
         "sl-first",
@@ -116,6 +116,12 @@ def test_docs_literal_ai_onboarding():
         run = json.load(open(os.path.join(out_dir, "run.json")))
         _check("run status completed", run["status"] == "completed", run.get("status"))
         _check("dataset_source recorded", run["dataset"]["source"] == data)
+        # Result API surface actually exposed by the installed wheel:
+        exposed = [x for x in dir(result) if not x.startswith("_")]
+        for field in ("final_balance", "final_equity", "trades", "orders",
+                      "fills", "open_positions", "events", "metrics"):
+            _check("result field exposed: " + field, field in exposed, str(exposed))
+        _check("open_positions is a count", isinstance(result.open_positions, int))
         _check("replay command valid", True)  # printed below; command uses absolute dir
         print("        replay command: observa replay %s" % out_dir)
     finally:
@@ -124,10 +130,85 @@ def test_docs_literal_ai_onboarding():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _payload_of(run_dir):
+    ext = observa._observa
+    return ext.replay_payload(run_dir)
+
+
+def test_replay_payload_absolute_source_has_candles():
+    import shutil
+
+    tmp = tempfile.mkdtemp(prefix="obs-replay-")
+    out_dir = os.path.join(tmp, "run")
+    try:
+        data = observa.sample_data_path()
+        config = observa.Config(
+            fill_mode=observa.BAR_CLOSE, spread=0.0, slippage=0.0,
+            commission=0.0, params={"fast": 20, "slow": 50},
+            dataset_source=data,  # absolute
+        )
+        observa.run(_sma_cross_50(), data, config=config, output=out_dir)
+        payload = _payload_of(out_dir)
+        events = payload["events"]
+        bars = payload["bars"]
+        _check("absolute dataset_source: replay payload loads (no 500)", payload is not None)
+        _check("absolute dataset_source: candles present", len(bars) > 0, str(len(bars)))
+        _check("absolute dataset_source: events present", len(events) > 0, str(len(events)))
+        with open(os.path.join(out_dir, "events.jsonl")) as fh:
+            n_lines = len(fh.read().splitlines())
+        _check("absolute dataset_source: event parity", len(events) == n_lines,
+               "%d vs %d" % (len(events), n_lines))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_replay_payload_relative_other_cwd_is_candleless_not_error():
+    import shutil
+
+    tmp_a = tempfile.mkdtemp(prefix="obs-rel-a-")
+    try:
+        run_dir = os.path.join(tmp_a, "run")
+        csv = os.path.join(tmp_a, "rel.csv")
+        # write a minimal valid CSV next to where the run directory will be
+        lines = ["timestamp,open,high,low,close,volume"]
+        from datetime import datetime, timezone
+
+        t = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        for i in range(60):
+            ts = t.strftime("%Y-%m-%d %H:%M:%S+00:00")
+            p0 = 1.10 + i * 0.0001
+            lines.append("%s,%.5f,%.5f,%.5f,%.5f,10.0" % (ts, p0, p0 + 0.0002,
+                                                          p0 - 0.0002, p0))
+            t = t + __import__("datetime").timedelta(minutes=15)
+        open(csv, "w").write("\n".join(lines) + "\n")
+        # run with a RELATIVE dataset_source from tmp_a
+        prev = os.getcwd()
+        os.chdir(tmp_a)
+        try:
+            config = observa.Config(fill_mode=observa.BAR_CLOSE, spread=0.0,
+                                    slippage=0.0, commission=0.0,
+                                    dataset_source="rel.csv")
+            result = observa.run(_sma_cross_50(), "rel.csv", config=config,
+                                 output=os.path.abspath("run"))
+            assert result is not None
+        finally:
+            os.chdir(prev)
+        # replay from a DIFFERENT cwd: must not raise, candles unavailable
+        payload = _payload_of(run_dir)
+        _check("relative+other-cwd replay loads without error", payload is not None)
+        _check("relative+other-cwd is candle-less (no fabricated bars)",
+               len(payload["bars"]) == 0, str(len(payload["bars"])))
+        _check("relative+other-cwd events intact", len(payload["events"]) > 0)
+    finally:
+        shutil.rmtree(tmp_a, ignore_errors=True)
+
+
 def _run_all():
     test_version_diagnostic()
     test_llms_full_markers()
     test_docs_literal_ai_onboarding()
+    test_replay_payload_absolute_source_has_candles()
+    test_replay_payload_relative_other_cwd_is_candleless_not_error()
     print("\nAll onboarding checks passed")
 
 

@@ -12,14 +12,29 @@ You will be asked to report:
 
 ## 1. Install
 
+Install the **official private-MVP wheel**. The wheel URL was given to you
+with your tester invite (it is attached to a private GitHub Release). Do not
+`pip install observa` — that is an unrelated PyPI package.
+
 ```bash
-pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
+python -m pip install "<OFFICIAL OBSERVA WHEEL URL FROM YOUR INVITE>"
 ```
+
+For the real-data example also:
+
+```bash
+python -m pip install yfinance pandas
+```
+
+**Notebook users:** if you installed/replaced Observa while a notebook kernel
+was running, restart the kernel first.
 
 ```python
 import observa
 print(observa.__version__)   # should print 0.1.0
+print(observa.__file__)      # .../site-packages/observa/__init__.py
 ```
+
 
 ## Diagnostics
 
@@ -28,6 +43,13 @@ If anything fails, include this snippet's output in your report:
 ```bash
 python -c "import observa, platform, sys; print(observa.__version__); print(platform.platform()); print(sys.version)"
 ```
+
+## 1b. Run your own example later
+
+For real EUR/USD data, one self-contained file:
+`python examples/ema_observa.py` (needs `pip install yfinance pandas`). It
+downloads, normalizes, saves, runs, persists to a unique timestamped run dir,
+and prints the replay command.
 
 ## 2. Run the bundled sample
 
