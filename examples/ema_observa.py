@@ -4,7 +4,12 @@ Quickstart B (real data): downloads intraday EUR/USD with yfinance, normalizes
 it to Observa's CSV format, runs an EMA crossover, persists the run, and
 prints the replay command. Everything is in this one file.
 
-Setup (external dependency, only needed for real data):
+Install Observa using the official private-MVP release URL in README.md
+(do not run bare `pip install observa` — that is an unrelated PyPI package).
+This file is also attached to the private-MVP GitHub Release, and embedded in
+full in docs/getting-started.md (Quickstart B).
+
+External dependency (only needed for real data):
 
     python -m pip install yfinance pandas
 

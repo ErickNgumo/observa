@@ -1,10 +1,12 @@
 """Second canonical strategy pattern: dependency-light RSI mean reversion.
 
-Runs on the bundled deterministic sample data (no repository or extra
-dependencies needed once the observa wheel is installed):
+Install Observa using the official private-MVP release URL in README.md
+(do not run bare `pip install observa` — that is an unrelated PyPI package).
 
-    pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
-    python examples/rsi_mean_reversion.py
+Obtain this file from the private-MVP GitHub Release assets, or copy the code
+below into your own file, then run:
+
+    python rsi_mean_reversion.py
 
 Then:
 

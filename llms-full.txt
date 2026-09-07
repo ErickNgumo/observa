@@ -29,6 +29,9 @@ GitHub Release:
 
     python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
 
+SHA-256 of this exact private-MVP wheel: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c` (optional check;
+not required for basic use).
+
 Real-data examples also need: `python -m pip install yfinance pandas`.
 
 Verified: Linux x86_64 (glibc >= 2.34), CPython 3.13; abi3 metadata supports

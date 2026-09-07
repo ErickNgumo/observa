@@ -79,13 +79,23 @@ python examples/quickstart.py
 
 ## Quickstart B — real EUR/USD data (one self-contained file)
 
+Get the complete example file one of two repo-free ways:
+
+* **copy it from the docs** — the full file is embedded in
+  [Getting Started → Quickstart B](docs/getting-started.md) (save it as
+  `ema_observa.py`), or
+* **download it from the GitHub Release** — `ema_observa.py` is attached to
+  the same private-MVP Release as the wheel.
+
+Then:
+
 ```bash
 python -m pip install yfinance pandas
-python examples/ema_observa.py
+python ema_observa.py
 ```
 
-`examples/ema_observa.py` is a single file that: downloads intraday EUR/USD
-via yfinance, normalizes the columns to Observa's CSV format, validates them,
+`ema_observa.py` is a single file that: downloads intraday EUR/USD via
+yfinance, normalizes the columns to Observa's CSV format, validates them,
 saves the CSV to an absolute path, runs an EMA crossover, persists the run to
 a unique (timestamped) run directory, prints results, and prints the replay
 command. No repository, wheel paths, `importlib`, Rust, or Maturin needed.

@@ -1,9 +1,12 @@
 """Observa quickstart — copy, paste, run.
 
-Works from the installed private-MVP wheel (no repository needed):
+Install Observa using the official private-MVP release URL in README.md
+(do not run bare `pip install observa` — that is an unrelated PyPI package).
 
-    pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
-    python examples/quickstart.py
+Obtain this file from the private-MVP GitHub Release assets, or copy the code
+below into your own file, then run:
+
+    python quickstart.py
 
 Uses the bundled deterministic sample data and sample strategy, persists the
 run, and prints how to launch the visual replay. Then run:

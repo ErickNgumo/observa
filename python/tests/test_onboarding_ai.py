@@ -1,8 +1,8 @@
 """OBS-0012A onboarding regression checks.
 
-Run from the repository after installing the private-MVP wheel:
+Run from the repository after installing the official private-MVP wheel
+(release URL in README.md):
 
-    pip install observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
     python python/tests/test_onboarding_ai.py
 
 Covers:
