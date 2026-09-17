@@ -8,8 +8,12 @@ class RSIStrategy:
     Demonstrates:
     - Incremental RSI calculation (no external libraries needed)
     - Ticket-based position closing
-    - Custom chart drawings (labels, horizontal lines)
-    - Safe warmup period handling
+    - Strategy annotations (OBS-AI-02): a continuous RSI series, entry/exit
+      labels, a level line and signal markers
+    - Safe warmup period handling (gaps, never interpolation)
+
+    Annotation contract: see ``docs/STRATEGY_API.md``. Annotations are
+    descriptive only and never affect fills, P&L or execution.
     """
 
     def initialize(self, params=None):
@@ -96,7 +100,7 @@ class RSIStrategy:
                 'reason':    f'RSI oversold: {rsi:.1f}',
             })
 
-            # Draw entry label on the chart
+            # Callout with the RSI reading
             drawings.append({
                 'id':       f'rsi_entry_{self.label_count}',
                 'type':     'label',
@@ -107,15 +111,26 @@ class RSIStrategy:
                 'position': 'below',
             })
 
-            # Draw a horizontal line at entry price
+            # A strategy marker for "entry condition fired"
             drawings.append({
-                'id':    f'entry_line_{self.label_count}',
-                'type':  'hline',
-                'time':  bar['timestamp'],
-                'price': bar['close'],
-                'color': '#3fb95066',
-                'style': 'dashed',
-                'width': 1,
+                'id':       f'rsi_entry_marker_{self.label_count}',
+                'type':     'marker',
+                'time':     bar['timestamp'],
+                'position': 'below',
+                'shape':    'arrow_up',
+                'color':    '#3fb950',
+                'text':     'oversold',
+            })
+
+            # Entry level (hline is extended automatically; no time needed)
+            drawings.append({
+                'id':         f'entry_line_{self.label_count}',
+                'type':       'hline',
+                'price':      bar['close'],
+                'color':      '#3fb950',
+                'line_style': 'dashed',
+                'width':      1,
+                'label':      'entry',
             })
 
         # ── Exit — overbought ───────────────────────
@@ -129,7 +144,7 @@ class RSIStrategy:
                 'reason':    f'RSI overbought: {rsi:.1f}',
             })
 
-            # Draw exit label on the chart
+            # Exit callout + marker
             drawings.append({
                 'id':       f'rsi_exit_{self.label_count}',
                 'type':     'label',
@@ -139,6 +154,27 @@ class RSIStrategy:
                 'color':    '#f85149',
                 'position': 'above',
             })
+            drawings.append({
+                'id':       f'rsi_exit_marker_{self.label_count}',
+                'type':     'marker',
+                'time':     bar['timestamp'],
+                'position': 'above',
+                'shape':    'arrow_down',
+                'color':    '#f85149',
+                'text':     'overbought',
+            })
+
+        # Continuous RSI series on its own pane. `value: None` during warm-up
+        # is a gap — never zero, never interpolated.
+        drawings.insert(0, {
+            'id':          'rsi',
+            'type':        'series',
+            'value':       rsi,
+            'series_type': 'line',
+            'pane':        'separate',
+            'color':       '#8957e5',
+            'label':       f'RSI {self.period}',
+        })
 
         return {'signals': signals, 'drawings': drawings}
 

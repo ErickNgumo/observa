@@ -153,3 +153,23 @@ intended and reviewed:
 3. explain the change in the commit message / ticket,
 4. update the expected values (and the digest) in the same commit,
 5. never accept a new baseline just to make a failing test pass.
+
+## Strategy annotations (OBS-AI-02)
+
+Annotation coverage is split across four layers so a regression is caught
+wherever it is introduced:
+
+| Layer | File | What it locks in |
+| --- | --- | --- |
+| Rust parser/validation | `crates/observa-core/src/drawings.rs` (`#[cfg(test)]`) | every primitive parses, stable error codes, lifecycle rules, 256/bar limit, deprecated fields ignored, JSON round-trip |
+| Rust engine | `crates/observa-engine/tests/annotations.rs` | `drawings_emitted` only when non-empty, ordering (decision → drawings → orders), dense EventSeq, persistence round-trip, failure artifacts keep prior annotations, economics unchanged |
+| Python (installed wheel) | `python/tests/test_annotations.py` | end-to-end: every primitive persists and replays, gaps, lifecycle, all validation codes, per-bar limit, deprecated fields, determinism, payload derived from canonical events, economics unchanged |
+| Node (pure) | `python/tests/drawings.test.js` | reducer: series accumulation/gaps, add/update/remove, seek rebuild equivalence, progressive visibility, marker merge, colour handling, unknown-type defensiveness |
+
+The canonical no-drawing baseline (`python/tests/test_canonical_baseline.py`)
+is the hard gate: a strategy that emits no drawings must stay byte-identical
+(1500 bars / 4862 events / 47 trades / …), which is checked after every
+implementation stage.
+
+The `drawings_emitted` event is emitted **only** when a bar returned at least
+one instruction, which is what keeps no-drawing runs unchanged.
