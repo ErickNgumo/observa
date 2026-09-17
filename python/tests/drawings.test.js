@@ -189,4 +189,31 @@ function bar(t, instructions) { return instructions; }
   ok('legend: deterministic series summary with label fallback');
 }
 
+// ── Lightweight Charts primitive/renderer contract ──
+// Regression guard for the defect that blanked EVERY series (price pane and
+// secondary pane): Lightweight Charts 5.0.9 calls renderer.draw() on every
+// pane view unconditionally and drawBackground() only when present, so a
+// background-only renderer throws "draw is not a function" and aborts the
+// whole render pass.
+{
+  const prim = new Renderer.StrategyDrawingPrimitive({ type: 'rectangle', price_top: 1, price_bot: 0 });
+  const views = prim.paneViews();
+  assert.ok(Array.isArray(views) && views.length >= 1, 'paneViews returns views');
+  for (const view of views) {
+    assert.strictEqual(typeof view.renderer, 'function', 'each view exposes renderer()');
+    const r = view.renderer();
+    assert.strictEqual(typeof r.draw, 'function',
+      'every pane renderer MUST implement draw() (LWC calls it unconditionally)');
+    if (r.drawBackground !== undefined) {
+      assert.strictEqual(typeof r.drawBackground, 'function', 'drawBackground must be callable when present');
+    }
+  }
+  const background = views.find((v) => v.zOrder() === 'bottom').renderer();
+  assert.strictEqual(typeof background.drawBackground, 'function', 'background view paints via drawBackground');
+  assert.strictEqual(typeof background.draw, 'function', 'background view still satisfies draw()');
+  const top = views.find((v) => v.zOrder() === 'top').renderer();
+  assert.strictEqual(typeof top.draw, 'function', 'top view draws strokes/labels');
+  ok('renderer contract: every pane view renderer implements draw()');
+}
+
 console.log('\n' + passed + ' drawing test groups passed');

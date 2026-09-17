@@ -23,10 +23,11 @@ use observa_core::config::{
 };
 use observa_core::drawings::{
     DrawingAction, DrawingInstruction, DrawingKind, HLineDrawing, LabelDrawing, LabelPosition,
-    LineStyle, RectangleDrawing,
+    LineDrawing, LineStyle, MarkerDrawing, RectangleDrawing,
 };
 use observa_core::types::Direction;
 use observa_engine::engine::Engine;
+use observa_engine::error::EngineError;
 use observa_engine::persistence;
 use observa_engine::replay;
 use observa_engine::runevents::{EngineEvent, EngineEventPayload};
@@ -405,6 +406,192 @@ fn failure_artifacts_preserve_prior_drawing_events() {
     assert_eq!(drawings[1].len(), 3, "bar 1 annotations survive the failure");
     assert!(drawings[2].is_empty(), "the failing bar emitted nothing");
     assert!(format!("{error}").contains("scripted strategy failure"));
+}
+
+/// Bar timestamps for the future-timestamp test (free functions so the
+/// closures below stay `'static`).
+fn draw_ts_unix(i: i64) -> i64 {
+    1_700_000_000 + i * 900
+}
+
+fn draw_ts(i: i64) -> DateTime<Utc> {
+    Utc.timestamp_opt(draw_ts_unix(i), 0).unwrap()
+}
+
+#[test]
+fn future_bar_drawing_timestamps_are_rejected() {
+    // At bar N: N and N-1 are accepted; N+1 and N+50 are rejected even though
+    // both are real bar timestamps in the dataset. `time_end: None` stays
+    // valid because it names no timestamp (extend-right as replay advances).
+    const BARS: usize = 60;
+    let bars: Vec<Bar> = (0..BARS)
+        .map(|i| {
+            let base = 1.1000 + (i as f64) * 0.0001;
+            bar(i as i64, base, base + 0.0005, base - 0.0005, base + 0.0002)
+        })
+        .collect();
+
+    struct Annotating {
+        make: Box<dyn Fn(&Bar) -> Vec<DrawingInstruction>>,
+        seen: usize,
+        pending: Vec<DrawingInstruction>,
+    }
+    impl Strategy for Annotating {
+        fn on_bar(
+            &mut self,
+            bar: &Bar,
+            _view: &PortfolioView,
+            _history: &[Bar],
+        ) -> Vec<StrategySignal> {
+            let index = self.seen;
+            self.seen += 1;
+            if index == 1 {
+                self.pending = (self.make)(bar);
+            }
+            vec![]
+        }
+        fn take_drawings(&mut self) -> Vec<DrawingInstruction> {
+            std::mem::take(&mut self.pending)
+        }
+    }
+
+    fn run_with(
+        bars: &[Bar],
+        make: Box<dyn Fn(&Bar) -> Vec<DrawingInstruction>>,
+    ) -> Result<(), EngineError> {
+        let mut engine = Engine::new(config()).unwrap();
+        let mut strategy = Annotating {
+            make,
+            seen: 0,
+            pending: Vec::new(),
+        };
+        engine.run(bars, &mut strategy).map(|_| ())
+    }
+
+
+    // accepted: current bar N and previous bar N-1
+    assert!(run_with(&bars, Box::new(move |b| vec![note("n_now", b.timestamp, 1.1, "x")])).is_ok());
+    assert!(run_with(&bars, Box::new(move |_b| vec![note("n_prev", draw_ts(0), 1.1, "x")])).is_ok());
+    // accepted: extend-right rectangle (no timestamp)
+    assert!(run_with(
+        &bars,
+        Box::new(move |b| vec![DrawingInstruction {
+            id: "z".to_string(),
+            action: DrawingAction::Add,
+            kind: Some(DrawingKind::Rectangle(RectangleDrawing {
+                time_start: b.timestamp.to_rfc3339(),
+                time_end: None,
+                price_top: 1.2,
+                price_bot: 1.1,
+                color: "#3fb950".to_string(),
+                opacity: None,
+                border: None,
+                label: None,
+            })),
+        }])
+    )
+    .is_ok());
+
+    fn expect_future(err: EngineError, label: &str) {
+        match err {
+            EngineError::StrategyFailure {
+                code,
+                message,
+                bar_index,
+                ..
+            } => {
+                assert_eq!(code.as_deref(), Some("DRAWING_TIME_INVALID"), "{label}: {message}");
+                assert!(
+                    message.contains("future bar"),
+                    "{label}: expected a future-bar message, got: {message}"
+                );
+                assert_eq!(bar_index, Some(1), "{label}");
+            }
+            other => panic!("{label}: expected a strategy failure, got {other}"),
+        }
+    }
+
+    // rejected: one bar ahead (N+1, a real dataset bar)
+    expect_future(
+        run_with(&bars, Box::new(move |_b| vec![note("n_next", draw_ts(2), 1.1, "x")])).unwrap_err(),
+        "N+1 label",
+    );
+    // rejected: far ahead (N+50, also a real dataset bar)
+    expect_future(
+        run_with(&bars, Box::new(move |_b| vec![note("n_far", draw_ts(51), 1.1, "x")])).unwrap_err(),
+        "N+50 label",
+    );
+    // rejected: future marker
+    expect_future(
+        run_with(
+            &bars,
+            Box::new(move |_b| vec![DrawingInstruction {
+                id: "m".to_string(),
+                action: DrawingAction::Add,
+                kind: Some(DrawingKind::Marker(MarkerDrawing {
+                    time: draw_ts(2).to_rfc3339(),
+                    position: Default::default(),
+                    shape: Default::default(),
+                    color: "#3fb950".to_string(),
+                    text: None,
+                })),
+            }]),
+        )
+        .unwrap_err(),
+        "N+1 marker",
+    );
+    // rejected: future line endpoint (x2)
+    expect_future(
+        run_with(
+            &bars,
+            Box::new(move |b| vec![DrawingInstruction {
+                id: "t".to_string(),
+                action: DrawingAction::Add,
+                kind: Some(DrawingKind::Line(LineDrawing {
+                    x1: b.timestamp.to_rfc3339(),
+                    y1: 1.1,
+                    x2: draw_ts(51).to_rfc3339(),
+                    y2: 1.2,
+                    color: "#8957e5".to_string(),
+                    line_style: LineStyle::Solid,
+                    width: 1,
+                })),
+            }]),
+        )
+        .unwrap_err(),
+        "future line x2",
+    );
+    // rejected: future region end
+    expect_future(
+        run_with(
+            &bars,
+            Box::new(move |b| vec![DrawingInstruction {
+                id: "g".to_string(),
+                action: DrawingAction::Add,
+                kind: Some(DrawingKind::Region(observa_core::drawings::RegionDrawing {
+                    time_start: b.timestamp.to_rfc3339(),
+                    time_end: draw_ts(10).to_rfc3339(),
+                    color: "#58a6ff".to_string(),
+                    opacity: None,
+                    label: None,
+                })),
+            }]),
+        )
+        .unwrap_err(),
+        "future region end",
+    );
+    // rejected: a timestamp that is not in the dataset at all
+    let missing = run_with(
+        &bars,
+        Box::new(move |_b| vec![note("n_missing", Utc.timestamp_opt(1_800_000_000, 0).unwrap(), 1.1, "x")]),
+    )
+    .unwrap_err();
+    match missing {
+        EngineError::StrategyFailure { code, .. } => {
+            assert_eq!(code.as_deref(), Some("DRAWING_TIME_INVALID"))
+        }
+        other => panic!("expected a strategy failure, got {other}"),
+    }
 }
 
 // ── helpers ─────────────────────────────────────

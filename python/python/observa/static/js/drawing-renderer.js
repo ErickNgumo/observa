@@ -48,6 +48,28 @@ function drawingSeriesOptions(LC, options) {
   return opts;
 }
 
+/**
+ * Removes the secondary strategy pane once no series uses it, so normal usage
+ * never leaves an empty orphan pane behind (OBS-AI-02 fix). Guarded: pane
+ * removal is best-effort and never breaks the chart if unsupported.
+ */
+function drawingReleasePaneIfEmpty() {
+  if (drawingPaneIndex === null) return;
+  try {
+    var panes = (typeof chart.panes === 'function') ? chart.panes() : [];
+    if (panes.length <= 1) { drawingPaneIndex = null; return; }
+    var pane = panes[1];
+    var count = (pane && typeof pane.getSeries === 'function') ? pane.getSeries().length : 1;
+    if (count === 0 && typeof chart.removePane === 'function') {
+      chart.removePane(1);
+      drawingPaneIndex = null;
+    }
+  } catch (e) {
+    // A pane that cannot be removed is cosmetically imperfect, never fatal.
+    drawingPaneIndex = null;
+  }
+}
+
 function drawingCreateSeries(LC, id, options) {
   var pane = options.pane === 'separate' ? drawingEnsurePane(LC) : 0;
   var ctor = options.series_type === 'histogram' ? LC.HistogramSeries : LC.LineSeries;
@@ -94,6 +116,7 @@ function applyDrawingSeries(state, incremental) {
       existing.series.setData(entry.points);
     }
   }
+  drawingReleasePaneIfEmpty();
 }
 
 // ── Primitives (zones, lines, text) ─────────────
@@ -108,7 +131,19 @@ StrategyDrawingPrimitive.prototype.paneViews = function () {
     {
       zOrder: function () { return 'bottom'; },
       renderer: function () {
-        return { drawBackground: function (target) { primitive.draw(target, true); } };
+        // Lightweight Charts 5.0.9 calls `renderer.draw(target, ...)`
+        // UNCONDITIONALLY and `renderer.drawBackground?.(target, ...)` only
+        // when present — see the bundled source:
+        //   class Rt { nt(t,i,s){ this.th.draw(t, Tt) }
+        //              ih(t,i,s){ this.th.drawBackground?.(t, Tt) } }
+        // A renderer that implements only `drawBackground` therefore throws
+        // "this.th.draw is not a function", aborting the entire render pass
+        // and silently blanking every series (price pane AND secondary pane).
+        // The background view must expose a no-op `draw`.
+        return {
+          draw: function () {},
+          drawBackground: function (target) { primitive.draw(target, true); }
+        };
       }
     },
     {
@@ -382,6 +417,7 @@ function clearDrawingLayer() {
   }
   drawingPrimitivesById = {};
   drawingSeriesById = {};
+  drawingReleasePaneIfEmpty();
 }
 
 /** Strategy markers in the shape the canonical marker plugin expects.
@@ -419,6 +455,7 @@ function removeStrategyDrawing(primitive) {
 // Node-testable pure helpers (no DOM is touched by these functions).
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    StrategyDrawingPrimitive: StrategyDrawingPrimitive,
     drawingMarkersFor: drawingMarkersFor,
     drawingFillColor: drawingFillColor,
     drawingStrokeColor: drawingStrokeColor,

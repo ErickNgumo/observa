@@ -641,7 +641,7 @@ impl Engine {
             });
         }
         let drawings = strategy.take_drawings();
-        self.validate_drawing_times(&drawings, index, bar_times)?;
+        self.validate_drawing_times(&drawings, index, bar_times, bar.timestamp.timestamp())?;
         self.emit(EngineEventPayload::StrategyDecision {
             bar_index: index,
             signal_count: signals.len(),
@@ -687,13 +687,20 @@ impl Engine {
     }
 
     /// Validates that every timestamp an annotation references is a real bar
-    /// timestamp (never a future bar or an unknown time). Annotations must
-    /// line up with the canonical timeline so replay can always render them.
+    /// timestamp **and not later than the bar the strategy is currently
+    /// processing**.
+    ///
+    /// The membership check alone would let a strategy name a bar it has never
+    /// seen (the Engine holds the whole dataset), which would be an
+    /// information oracle into the unseen future. `time_end: null` is not a
+    /// timestamp and is unaffected: it means "extend right as replay
+    /// advances".
     fn validate_drawing_times(
         &self,
         drawings: &[DrawingInstruction],
         index: usize,
         bar_times: &BTreeSet<i64>,
+        current_ts: i64,
     ) -> Result<(), EngineError> {
         for drawing in drawings {
             let Some(kind) = drawing.kind.as_ref() else {
@@ -729,6 +736,25 @@ impl Engine {
                             "drawing_id": drawing.id,
                             "field": field,
                             "value": raw,
+                        })),
+                    });
+                }
+                // A real bar timestamp is not enough: annotations may not
+                // reference bars the strategy has not reached yet.
+                if parsed.timestamp() > current_ts {
+                    return Err(EngineError::StrategyFailure {
+                        bar_index: Some(index),
+                        message: format!(
+                            "drawing '{}': field '{}' refers to a future bar ({raw}) that the strategy has not seen yet",
+                            drawing.id, field
+                        ),
+                        code: Some("DRAWING_TIME_INVALID".to_string()),
+                        details: Some(serde_json::json!({
+                            "bar_index": index,
+                            "drawing_id": drawing.id,
+                            "field": field,
+                            "value": raw,
+                            "current_bar_timestamp": current_ts,
                         })),
                     });
                 }

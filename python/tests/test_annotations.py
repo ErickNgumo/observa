@@ -17,6 +17,7 @@ import os
 import shutil
 import sys
 import tempfile
+from datetime import datetime, timedelta
 
 import observa
 from observa import _observa
@@ -268,6 +269,58 @@ def test_validation_errors():
                 "DRAWING_REFERENCE_INVALID", "err-remove")
 
 
+# ── 15c-15g. future-bar drawing timestamps are rejected ──
+def _shift(ts, seconds):
+    """Shifts an RFC3339 bar timestamp by whole seconds (bars are 15m apart)."""
+    base = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    return (base + timedelta(seconds=seconds)).isoformat()
+
+
+def test_future_timestamps_rejected():
+    """A drawing timestamp must name a bar that has already been replayed.
+
+    The rule is about the *future*, not about existence: N+1 and N+50 both
+    exist in the dataset, yet both are rejected while the replay cursor is
+    still behind them.  N (the current bar) and N-1 (an earlier bar) are
+    accepted.
+    """
+    run = os.path.join(TMP, "time-ok")
+
+    def accepted(bar, i):
+        if i != 1:
+            return []
+        return [
+            {"id": "now", "type": "label", "time": bar["timestamp"],
+             "price": bar["close"], "text": "N", "color": "#ff00ff"},
+            {"id": "prev", "type": "label", "time": _shift(bar["timestamp"], -900),
+             "price": bar["close"], "text": "N-1", "color": "#00ffff"},
+        ]
+
+    run_emitter(accepted, out=run)
+    ids = {d["id"] for d in payload_for(run)["drawings"][1] if d.get("type") == "label"}
+    check("15c current-bar drawing timestamp (N) is accepted", "now" in ids, ids)
+    check("15d earlier drawing timestamp (N-1) is accepted", "prev" in ids, ids)
+
+    def emitter(offset):
+        def make(bar, i):
+            if i != 0:
+                return []
+            return [{"id": "f", "type": "label", "time": _shift(bar["timestamp"], offset),
+                     "price": bar["close"], "text": "future", "color": "#ff8800"}]
+        return make
+
+    code, exc = expect_code(lambda: run_emitter(emitter(900), out=os.path.join(TMP, "time-f1")))
+    check("15e next-bar drawing timestamp (N+1) is rejected",
+          code == "DRAWING_TIME_INVALID", code)
+    check("15f the rejection names the replay cursor",
+          exc is not None and exc.details.get("current_bar_timestamp") is not None,
+          getattr(exc, "details", None))
+
+    code, _ = expect_code(lambda: run_emitter(emitter(900 * 50), out=os.path.join(TMP, "time-f50")))
+    check("15g far-future drawing timestamp (N+50) is rejected",
+          code == "DRAWING_TIME_INVALID", code)
+
+
 # ── 17. per-bar limit ──
 def test_per_bar_limit():
     def make(bar, i):
@@ -416,6 +469,7 @@ def main():
     test_lifecycle()
     test_series_lifecycle_rules()
     test_validation_errors()
+    test_future_timestamps_rejected()
     test_per_bar_limit()
     test_deprecated_fields()
     test_deterministic_repeat()

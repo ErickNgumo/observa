@@ -329,10 +329,25 @@ except RuntimeError as exc:
 
 ## Deprecated fields
 
-`persist`, `fill_price`, `style` (as an alias of `line_style`), `extend` and
-`bg_color` are still **accepted but ignored** for backward compatibility.
-There is no hidden price-crossing lifecycle: the strategy decides when to
-`remove` a drawing. Do not use them in new strategies.
+**`style` is a deprecated compatibility alias for `line_style`.** It is
+honoured, not ignored:
+
+```python
+{"id": "poc", "type": "hline", "price": 1.0972, "style": "dashed"}
+# identical to:  "line_style": "dashed"
+```
+
+The following fields are accepted for backward compatibility and are
+**ignored** — they have no effect on the rendering or on the engine:
+
+| Field | Status |
+| --- | --- |
+| `persist` | ignored. There is no hidden price-crossing lifecycle; the strategy decides when to emit `action: "remove"`. |
+| `fill_price` | ignored (it was only meaningful together with `persist`). |
+| `extend` | ignored. `line` requires both endpoints; use `hline` for indefinitely extended levels. |
+| `bg_color` | ignored. Label backgrounds are derived from `color`. |
+
+Do not use any of these in new strategies.
 
 ## Deprecated: `bar_color`
 

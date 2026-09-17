@@ -183,8 +183,9 @@ DRAWING_TIME_INVALID, DRAWING_REFERENCE_INVALID, DRAWING_LIMIT_EXCEEDED.
   RSI-like). Use `pane: "price"` for overlays (EMA, VWAP, bands).
 - A shaded band is just three series (upper/mid/lower); there is no band type.
 - Execution markers are Observa-owned; do not emit markers to fake fills.
-- `persist` / `fill_price` / `style` / `extend` / `bg_color` are accepted but
-  IGNORED (deprecated). Do not use them.
+- `style` is a deprecated ALIAS for `line_style` (it IS honoured).
+  `persist` / `fill_price` / `extend` / `bg_color` are accepted but IGNORED —
+  they have no effect. Do not use any of them in new strategies.
 
 ### Recipes
 
