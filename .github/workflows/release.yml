@@ -14,6 +14,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Resolve release version
+        id: version
+        # Single source of truth: the package version in python/pyproject.toml.
+        # The tag must contain that version, so a mislabelled release fails
+        # before anything is built or uploaded.
+        run: |
+          VERSION=$(python -c "import tomllib;print(tomllib.load(open('python/pyproject.toml','rb'))['project']['version'])")
+          case "${GITHUB_REF_NAME}" in
+            *"${VERSION}"*) ;;
+            *)
+              echo "::error::tag '${GITHUB_REF_NAME}' does not contain package version '${VERSION}' (from python/pyproject.toml)"
+              exit 1
+              ;;
+          esac
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved release version ${VERSION} from tag ${GITHUB_REF_NAME}"
       - name: Test + build wheel
         run: |
           cargo test --workspace
@@ -22,19 +38,35 @@ jobs:
       - name: Record SHA-256
         id: sha
         run: |
-          sha256sum python/target/wheels/*.whl | tee sha256.txt
-          echo "wheel=$(ls python/target/wheels/*.whl | head -1)" >> "$GITHUB_OUTPUT"
+          WHEEL=$(ls python/target/wheels/*.whl | head -1)
+          sha256sum "$WHEEL" | tee sha256.txt
+          echo "wheel=$WHEEL" >> "$GITHUB_OUTPUT"
+          echo "wheel_name=$(basename "$WHEEL")" >> "$GITHUB_OUTPUT"
           echo "sha=$(cut -d' ' -f1 sha256.txt)" >> "$GITHUB_OUTPUT"
+      - name: Verify built wheel (deterministic canonical baseline)
+        # A release must not be publishable if the canonical economics regressed.
+        run: |
+          python -m venv .release-venv
+          .release-venv/bin/pip install python/target/wheels/*.whl
+          .release-venv/bin/python -c "import observa;assert observa.__version__ == '${{ steps.version.outputs.version }}', observa.__version__"
+          .release-venv/bin/python python/tests/test_canonical_baseline.py
       - name: Create private-MVP GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           prerelease: true
-          name: Observa 0.1.0 - Private MVP
+          name: Observa ${{ steps.version.outputs.version }} — Private MVP
           body: |
             Private-MVP tester wheel (Linux x86_64 / manylinux_2_34 / abi3 >= 3.10).
-            Wheel URL: attach from this release's assets.
+
+            Version: ${{ steps.version.outputs.version }}
+            Tag: ${{ github.ref_name }}
+            Wheel: ${{ steps.sha.outputs.wheel_name }}
             SHA-256: ${{ steps.sha.outputs.sha }}
+
             Install: python -m pip install "<wheel asset URL from this release>"
+            Do NOT run bare `pip install observa` (unrelated PyPI project).
+            Real-data example: python -m pip install yfinance pandas; python ema_observa.py
+            Replay now selects a free port and prints the URL it bound.
             Docs: README.md, docs/getting-started.md, llms-full.txt
           files: |
             python/target/wheels/*.whl
