@@ -100,7 +100,7 @@ def main() -> None:
     print("events:         %d" % len(result.events))
     print("Run saved to:    %s" % out_dir)
     print("Replay with:     observa replay %s" % out_dir)
-    print("Then open:       http://localhost:7878")
+    print("Then open:       the URL printed by observa replay")
 
 
 if __name__ == "__main__":

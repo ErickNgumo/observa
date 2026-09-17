@@ -96,7 +96,8 @@ What do you think the open position means?
 observa replay runs/sample
 ```
 
-Open http://localhost:7878 in a browser. Controls: Play, Step (next bar),
+Open the URL printed by the command (it binds a free port automatically; pass
+`--port N` to require a specific one). Controls: Play, Step (next bar),
 Previous, Reset, Jump to end. The bottom panel has tabs: Equity Curve, Trade
 Log, **Replay State** (account, positions, orders, current-bar events),
 Metrics.

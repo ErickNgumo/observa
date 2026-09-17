@@ -69,7 +69,14 @@ print(result.final_balance)
 print(result.final_equity)
 print(len(result.trades))
 print(result.open_positions)
+print(result.summary())       # machine-readable dict, no arrays duplicated
 ```
+
+`result.summary()` returns one JSON-serializable dict with `status`,
+`artifact_dir`, `total_bars`, `trades`, `open_positions`, `final_balance`,
+`final_equity`, `events`, `metrics`, `dataset_source`, and
+`run_schema_version` — convenient for agents and notebooks that should not
+walk the full event/order arrays.
 
 Or the ready-made file:
 
@@ -109,7 +116,40 @@ run is saved, start the replay with:
 observa replay runs/<run-directory>
 ```
 
-Then open **http://localhost:7878** in a browser. Replay is a view of the
+The CLI picks a free port automatically and prints the URL it bound, for
+example `http://127.0.0.1:42689`. Pass `--port N` to require a specific port;
+if it is already in use the command prints a one-line error and exits `2`.
+Replay never opens a browser for you.
+
+From a script, notebook, or coding agent, use the same programmatic entry
+point:
+
+```python
+import observa
+
+# Start the server and keep working (notebook-friendly), then shut it down.
+server = observa.replay(run_dir, block=False)
+print(server.url)          # e.g. http://127.0.0.1:42689
+server.stop()              # idempotent
+
+# Or serve a just-finished, persisted run. Replay only needs run artifacts.
+result = observa.run(MyStrategy(), data, config=config, output="runs/ema")
+server = observa.replay(result, block=False)
+```
+
+Key points:
+
+* `observa.replay(run_dir_or_result, port=None, block=True, open_browser=False)`
+  is the one canonical replay entry point.
+* `port=None` (default) binds port `0` and lets the OS choose a free port, so
+  concurrent replay servers never collide.
+* An explicit `port` is strict: if it is taken, replay raises `OSError` with
+  `exc.code == "REPLAY_PORT_IN_USE"` and `exc.details["port"]`.
+* The run must be persisted (`output=` on `observa.run(...)` or
+  `result.save(dir)`); an in-memory result raises `ValueError` with
+  `exc.code == "REPLAY_RUN_NOT_PERSISTED"`.
+
+Then open the printed URL in a browser. Replay is a view of the
 canonical events — fills, position pairing, SL/TP prices and account state
 all come from the run's event log, never recomputed in the browser. The chart
 library is bundled, so replay works offline.

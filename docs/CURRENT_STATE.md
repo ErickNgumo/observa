@@ -24,6 +24,21 @@ This document is a migration of the **current-state claims in the source knowled
 - Bar / portfolio conversion.
 - Drawing conversion.
 
+### Agent / notebook interface
+- Single programmatic replay entry point
+  `observa.replay(run_dir_or_result, *, port=None, block=True, open_browser=False)`.
+- Automatic free-port binding (`port=None` binds port 0) and strict explicit
+  ports (`REPLAY_PORT_IN_USE` with `details["port"]`).
+- Non-blocking `ReplayServer` handle (`.url`, `.port`, `.run_dir`,
+  `.is_running`, idempotent `.stop()`, context manager, daemon thread) while
+  `block=True` remains the default.
+- Machine-readable result summaries: `result.summary()` and
+  `observa.run_summary(run_dir)`; the latter reads only `run.json`/`metrics.json`
+  and duplicates no arrays.
+- Machine-readable failure codes on the existing exception classes: `exc.code`,
+  `exc.details`, and the `observa.error_code(exc)` helper. Order rejections
+  remain canonical `order_rejected` events, not exceptions.
+
 ### Execution
 - Market-order fills.
 - Fixed spread.
