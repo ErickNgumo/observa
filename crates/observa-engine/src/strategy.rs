@@ -132,6 +132,45 @@ impl PortfolioView {
 // Strategy trait
 // ────────────────────────────────────────────────
 
+/// A structured failure raised by a strategy bridge (OBS-AI-02).
+///
+/// `code` is the stable machine-readable contract surfaced to Python as
+/// `exc.code` (OBS-AI-01). When absent the Engine reports the generic
+/// `STRATEGY_ERROR`. `details` carries only values the bridge actually knows.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct StrategyFailure {
+    /// Human-readable message (always present).
+    pub message: String,
+    /// Stable machine-readable code, when the failure has one.
+    pub code: Option<String>,
+    /// Structured context (never parsed out of `message`).
+    pub details: Option<serde_json::Value>,
+}
+
+impl StrategyFailure {
+    /// A plain strategy failure (no specific code).
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            code: None,
+            details: None,
+        }
+    }
+
+    /// A coded strategy failure with structured details.
+    pub fn coded(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        details: serde_json::Value,
+    ) -> Self {
+        Self {
+            message: message.into(),
+            code: Some(code.into()),
+            details: Some(details),
+        }
+    }
+}
+
 /// The interface every strategy must implement.
 ///
 /// The Engine (OBS-0007) drives the strategy lifecycle in strict order:
@@ -180,7 +219,7 @@ pub trait Strategy {
     /// Engine after each strategy call. `Some` means the last callback failed
     /// and the Engine must treat the run as failed rather than silently
     /// continuing with an empty decision. Default: no error.
-    fn take_strategy_error(&mut self) -> Option<String> {
+    fn take_strategy_error(&mut self) -> Option<StrategyFailure> {
         None
     }
 

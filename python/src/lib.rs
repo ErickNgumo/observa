@@ -15,7 +15,7 @@ use pyo3::types::{PyDict, PyList, PyString};
 use serde_json::{json, Value};
 
 use observa_core::bar::Bar;
-use observa_core::drawings::DrawingInstruction;
+use observa_core::drawings::{DrawingInstruction, DrawingRegistry};
 use observa_core::config::{
     AccountConfig, BacktestConfig, BarInterval, CommissionConfig, CommissionMode, DatasetConfig,
     ExecutionConfig, FillMode, InstrumentConfig, OrderModelConfig, StrategyConfig,
@@ -27,7 +27,7 @@ use observa_engine::error::EngineError;
 use observa_engine::persistence::{self, PersistenceError};
 use observa_engine::replay::{self as replay_mod};
 use observa_engine::runevents::RUN_SCHEMA_VERSION;
-use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
+use observa_engine::strategy::{PortfolioView, Strategy, StrategyFailure, StrategySignal};
 use observa_metrics::metrics::MetricsEngine;
 
 // ────────────────────────────────────────────────
@@ -80,16 +80,36 @@ fn engine_err(py: Python<'_>, e: impl std::fmt::Display) -> PyErr {
     )
 }
 
-fn strategy_err(py: Python<'_>, message: &str, bar_index: Option<usize>) -> PyErr {
-    let mut items: Vec<(&str, PyObject)> = vec![("message", message.into_py(py))];
+/// Maps an Engine strategy failure to a coded Python exception.
+///
+/// Drawing-validation failures (OBS-AI-02) carry their specific code
+/// (`DRAWING_*`) and structured details; every other strategy failure keeps
+/// the OBS-AI-01 default code `STRATEGY_ERROR`. The exception class stays
+/// `RuntimeError` so existing handlers keep working.
+fn strategy_err(
+    py: Python<'_>,
+    message: &str,
+    bar_index: Option<usize>,
+    code: Option<&str>,
+    failure_details: Option<&Value>,
+) -> PyErr {
+    let dict = PyDict::new_bound(py);
+    let _ = dict.set_item("message", message);
     if let Some(index) = bar_index {
-        items.push(("bar_index", index.into_py(py)));
+        let _ = dict.set_item("bar_index", index);
+    }
+    if let Some(Value::Object(map)) = failure_details {
+        for (k, v) in map {
+            if let Ok(obj) = value_to_py(py, v) {
+                let _ = dict.set_item(k, obj);
+            }
+        }
     }
     coded(
         py,
         PyRuntimeError::new_err(format!("engine error: strategy failure: {message}")),
-        "STRATEGY_ERROR",
-        Some(details(py, items)),
+        code.unwrap_or("STRATEGY_ERROR"),
+        Some(dict.into_py(py)),
     )
 }
 
@@ -481,7 +501,13 @@ struct PyStrategy {
     instance: PyObject,
     class_name: String,
     symbol: String,
-    last_error: Option<String>,
+    last_error: Option<StrategyFailure>,
+    /// Annotations returned by the last `on_bar` call (OBS-AI-02).
+    pending_drawings: Vec<DrawingInstruction>,
+    /// Per-run drawing id registry used for lifecycle validation.
+    drawings: DrawingRegistry,
+    /// Zero-based index of the bar currently being processed.
+    bar_index: usize,
 }
 
 impl PyStrategy {
@@ -491,8 +517,66 @@ impl PyStrategy {
             class_name,
             symbol,
             last_error: None,
+            pending_drawings: Vec::new(),
+            drawings: DrawingRegistry::new(),
+            bar_index: 0,
         }
     }
+}
+
+// ────────────────────────────────────────────────
+// Python → JSON conversion (drawing payloads)
+// ────────────────────────────────────────────────
+
+/// Converts a Python value into `serde_json::Value` for strict drawing
+/// validation. Only the JSON-representable subset is accepted (mappings,
+/// sequences, str, bool, int, float, None); anything else is reported as a
+/// drawing value error rather than silently coerced.
+fn py_to_json(obj: &Bound<'_, pyo3::PyAny>) -> Result<Value, String> {
+    if obj.is_none() {
+        return Ok(Value::Null);
+    }
+    if let Ok(b) = obj.downcast::<pyo3::types::PyBool>() {
+        return Ok(Value::Bool(b.is_true()));
+    }
+    if let Ok(i) = obj.extract::<i64>() {
+        return Ok(json!(i));
+    }
+    if let Ok(f) = obj.extract::<f64>() {
+        return Ok(json!(f));
+    }
+    if let Ok(s) = obj.downcast::<PyString>() {
+        return Ok(Value::String(s.to_string_lossy().into_owned()));
+    }
+    if let Ok(d) = obj.downcast::<PyDict>() {
+        let mut map = serde_json::Map::with_capacity(d.len());
+        for (k, v) in d.iter() {
+            let key = match k.downcast::<PyString>() {
+                Ok(s) => s.to_string_lossy().into_owned(),
+                Err(_) => return Err("drawing keys must be strings".to_string()),
+            };
+            map.insert(key, py_to_json(&v)?);
+        }
+        return Ok(Value::Object(map));
+    }
+    if let Ok(list) = obj.downcast::<PyList>() {
+        let mut out = Vec::with_capacity(list.len());
+        for item in list.iter() {
+            out.push(py_to_json(&item)?);
+        }
+        return Ok(Value::Array(out));
+    }
+    if let Ok(t) = obj.downcast::<pyo3::types::PyTuple>() {
+        let mut out = Vec::with_capacity(t.len());
+        for item in t.iter() {
+            out.push(py_to_json(&item)?);
+        }
+        return Ok(Value::Array(out));
+    }
+    Err(format!(
+        "unsupported drawing value of type '{}'",
+        obj.get_type().name().map(|n| n.to_string()).unwrap_or_else(|_| "?".to_string())
+    ))
 }
 
 fn bar_to_py_dict<'py>(py: Python<'py>, bar: &Bar) -> PyResult<Bound<'py, PyDict>> {
@@ -636,10 +720,10 @@ impl Strategy for PyStrategy {
                 .map(|_| ())
         });
         if let Err(e) = result {
-            self.last_error = Some(format!(
+            self.last_error = Some(StrategyFailure::new(format!(
                 "strategy '{}' initialize() failed: {e}",
                 self.class_name
-            ));
+            )));
         }
     }
 
@@ -653,14 +737,14 @@ impl Strategy for PyStrategy {
             let py_bar = match bar_to_py_dict(py, bar) {
                 Ok(d) => d,
                 Err(e) => {
-                    self.last_error = Some(format!("bar conversion failed: {e}"));
+                    self.last_error = Some(StrategyFailure::new(format!("bar conversion failed: {e}")));
                     return vec![];
                 }
             };
             let py_portfolio = match portfolio_to_py_dict(py, portfolio, &self.symbol) {
                 Ok(d) => d,
                 Err(e) => {
-                    self.last_error = Some(format!("portfolio conversion failed: {e}"));
+                    self.last_error = Some(StrategyFailure::new(format!("portfolio conversion failed: {e}")));
                     return vec![];
                 }
             };
@@ -678,21 +762,70 @@ impl Strategy for PyStrategy {
                 {
                     Ok(r) => r,
                     Err(e) => {
-                        self.last_error = Some(format!(
+                        self.last_error = Some(StrategyFailure::new(format!(
                             "strategy '{}' on_bar() failed: {e}",
                             self.class_name
-                        ));
+                        )));
                         return vec![];
                     }
                 };
 
             // Accept either a plain list of signal dicts or
-            // {'signals': [...]} (drawings are ignored for the MVP).
-            let list_opt = if let Ok(d) = result.downcast_bound::<PyDict>(py) {
-                d.get_item("signals").ok().flatten()
-            } else {
-                Some(result.clone_ref(py).into_bound(py))
-            };
+            // {'signals': [...], 'drawings': [...]}.
+            //
+            // Annotations are descriptive only (OBS-AI-02): they are validated
+            // strictly, recorded on the canonical timeline and never fed into
+            // order processing. Malformed annotations fail the run instead of
+            // being silently discarded.
+            let mut list_opt = Some(result.clone_ref(py).into_bound(py));
+            if let Ok(d) = result.downcast_bound::<PyDict>(py) {
+                list_opt = d.get_item("signals").ok().flatten();
+                match d.get_item("drawings") {
+                    Ok(Some(drawings_obj)) => {
+                        let values = match py_to_json(&drawings_obj) {
+                            Ok(Value::Array(items)) => items,
+                            Ok(_) => {
+                                self.last_error = Some(StrategyFailure::coded(
+                                    "DRAWING_TYPE_INVALID",
+                                    format!(
+                                        "strategy '{}': 'drawings' must be a list",
+                                        self.class_name
+                                    ),
+                                    json!({ "bar_index": self.bar_index }),
+                                ));
+                                return vec![];
+                            }
+                            Err(message) => {
+                                self.last_error = Some(StrategyFailure::coded(
+                                    "DRAWING_VALUE_INVALID",
+                                    format!("strategy '{}': {message}", self.class_name),
+                                    json!({ "bar_index": self.bar_index }),
+                                ));
+                                return vec![];
+                            }
+                        };
+                        match self.drawings.parse_bar(&values, self.bar_index) {
+                            Ok(parsed) => self.pending_drawings = parsed,
+                            Err(e) => {
+                                self.last_error = Some(StrategyFailure::coded(
+                                    e.code.clone(),
+                                    format!("strategy '{}': {}", self.class_name, e.message),
+                                    e.details.clone(),
+                                ));
+                                return vec![];
+                            }
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        self.last_error = Some(StrategyFailure::new(format!(
+                            "strategy '{}': 'drawings' could not be read: {e}",
+                            self.class_name
+                        )));
+                        return vec![];
+                    }
+                }
+            }
             let mut out = Vec::new();
             if let Some(list_obj) = list_opt {
                 if let Ok(list) = list_obj.downcast::<PyList>() {
@@ -700,35 +833,40 @@ impl Strategy for PyStrategy {
                         match signal_from_py(&item) {
                             Ok(s) => out.push(s),
                             Err(e) => {
-                                self.last_error = Some(format!(
+                                self.last_error = Some(StrategyFailure::new(format!(
                                     "strategy '{}' returned an invalid signal: {e}",
                                     self.class_name
-                                ));
+                                )));
                             }
                         }
                     }
                 } else if !list_obj.is_none() {
-                    self.last_error = Some(format!(
+                    self.last_error = Some(StrategyFailure::new(format!(
                         "strategy '{}' on_bar() must return a list or a dict with 'signals'",
                         self.class_name
-                    ));
+                    )));
                 }
             }
+            self.bar_index += 1;
             out
         })
     }
 
-    fn take_strategy_error(&mut self) -> Option<String> {
+    fn take_strategy_error(&mut self) -> Option<StrategyFailure> {
         self.last_error.take()
+    }
+
+    fn take_drawings(&mut self) -> Vec<DrawingInstruction> {
+        std::mem::take(&mut self.pending_drawings)
     }
 
     fn teardown(&mut self) {
         Python::with_gil(|py| {
             if let Err(e) = self.instance.call_method0(py, "teardown") {
-                self.last_error = Some(format!(
+                self.last_error = Some(StrategyFailure::new(format!(
                     "strategy '{}' teardown() failed: {e}",
                     self.class_name
-                ));
+                )));
             }
         });
     }
@@ -1087,9 +1225,18 @@ fn run(
                 );
             }
             match &e {
-                EngineError::StrategyFailure { message, bar_index } => {
-                    Err(strategy_err(py, message, *bar_index))
-                }
+                EngineError::StrategyFailure {
+                    message,
+                    bar_index,
+                    code,
+                    details: failure_details,
+                } => Err(strategy_err(
+                    py,
+                    message,
+                    *bar_index,
+                    code.as_deref(),
+                    failure_details.as_ref(),
+                )),
                 _ => Err(engine_err(py, e)),
             }
         }
@@ -1138,12 +1285,9 @@ fn replay_payload_fn(py: Python<'_>, dir_path: &str) -> PyResult<PyObject> {
     // exists and matches the persisted dataset hash.
     let bars = recover_persisted_bars(&loaded.run_json);
 
-    let drawings: Vec<Vec<DrawingInstruction>> =
-        (0..bars.len()).map(|_| Vec::new()).collect();
     let payload = replay_mod::replay_payload(
         &bars,
         &loaded.events,
-        &drawings,
         &meta,
         loaded.metrics.as_ref(),
     );

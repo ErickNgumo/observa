@@ -6,6 +6,7 @@ use std::path::Path;
 use serde_json::Value;
 
 use observa_core::bar::Bar;
+use observa_engine::strategy::StrategyFailure;
 use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
 
 use crate::bar::bar_to_py;
@@ -33,7 +34,11 @@ pub struct PyStrategy {
     pub pending_drawings: Vec<observa_core::drawings::DrawingInstruction>,
     /// Last structured strategy error produced by the bridge (drained by the
     /// Engine after each callback so failures are never silent).
-    last_error: Option<String>,
+    last_error: Option<StrategyFailure>,
+    /// Per-run annotation id registry (OBS-AI-02 lifecycle validation).
+    drawings_registry: observa_core::drawings::DrawingRegistry,
+    /// Zero-based index of the bar being processed.
+    bar_index: usize,
 }
 
 impl PyStrategy {
@@ -70,6 +75,8 @@ impl PyStrategy {
                 class_name: class_name.to_string(),
                 pending_drawings: Vec::new(),
                 last_error: None,
+                drawings_registry: observa_core::drawings::DrawingRegistry::new(),
+                bar_index: 0,
             })
         })
     }
@@ -113,7 +120,7 @@ impl Strategy for PyStrategy {
                 "[PyStrategy] initialize() failed on '{}': {}",
                 self.class_name, e
             );
-            self.last_error = Some(format!("initialize() failed: {e}"));
+            self.last_error = Some(StrategyFailure::new(format!("initialize() failed: {e}")));
         }
     }
 
@@ -131,14 +138,14 @@ impl Strategy for PyStrategy {
             let py_bar = match bar_to_py(py, bar) {
                 Ok(d) => d,
                 Err(e) => {
-                    self.last_error = Some(format!("bar conversion failed: {e}"));
+                    self.last_error = Some(StrategyFailure::new(format!("bar conversion failed: {e}")));
                     return vec![];
                 }
             };
             let py_portfolio = match portfolio_to_py(py, portfolio) {
                 Ok(d) => d,
                 Err(e) => {
-                    self.last_error = Some(format!("portfolio conversion failed: {e}"));
+                    self.last_error = Some(StrategyFailure::new(format!("portfolio conversion failed: {e}")));
                     return vec![];
                 }
             };
@@ -157,7 +164,7 @@ impl Strategy for PyStrategy {
                     Ok(r) => r,
                     Err(e) => {
                         eprintln!("[PyStrategy] on_bar() failed: {}", e);
-                        self.last_error = Some(format!("on_bar() failed: {e}"));
+                        self.last_error = Some(StrategyFailure::new(format!("on_bar() failed: {e}")));
                         return vec![];
                     }
                 };
@@ -174,15 +181,28 @@ impl Strategy for PyStrategy {
                     .and_then(|v| v.downcast::<PyList>().ok().map(|l| l.to_owned()));
                 let drawings = dict.get_item("drawings").ok().flatten();
 
-                // Store drawings for the caller to retrieve
+                // Parse annotations strictly (OBS-AI-02): malformed drawings
+                // fail the run with a coded error instead of being dropped.
                 if let Some(d) = drawings {
                     match crate::drawings::drawings_from_py(py, &d) {
-                        Ok(parsed) => {
-                            self.pending_drawings = parsed;
-                        }
+                        Ok(values) => match self.drawings_registry.parse_bar(&values, self.bar_index) {
+                            Ok(parsed) => self.pending_drawings = parsed,
+                            Err(e) => {
+                                self.last_error = Some(StrategyFailure::coded(
+                                    e.code.clone(),
+                                    e.message.clone(),
+                                    e.details.clone(),
+                                ));
+                                return vec![];
+                            }
+                        },
                         Err(e) => {
-                            eprintln!("[PyStrategy] drawings: {}", e);
-                            self.last_error = Some(format!("drawings parse failed: {e}"));
+                            self.last_error = Some(StrategyFailure::coded(
+                                "DRAWING_VALUE_INVALID",
+                                format!("'drawings' could not be read: {e}"),
+                                serde_json::json!({ "bar_index": self.bar_index }),
+                            ));
+                            return vec![];
                         }
                     }
                 }
@@ -201,14 +221,14 @@ impl Strategy for PyStrategy {
                 None => return vec![],
             };
 
-            let mut parse_error: Option<String> = None;
+            let mut parse_error: Option<StrategyFailure> = None;
             let signals = signal_list
                 .iter()
                 .filter_map(|item| match signal_from_py(py, &item) {
                     Ok(s) => Some(s),
                     Err(e) => {
                         eprintln!("[PyStrategy] signal: {}", e);
-                        parse_error = Some(format!("signal parse failed: {e}"));
+                        parse_error = Some(StrategyFailure::new(format!("signal parse failed: {e}")));
                         None
                     }
                 })
@@ -216,6 +236,7 @@ impl Strategy for PyStrategy {
             if let Some(err) = parse_error {
                 self.last_error = Some(err);
             }
+            self.bar_index += 1;
             signals
         })
     }
@@ -226,7 +247,7 @@ impl Strategy for PyStrategy {
     }
 
     /// Drains the last structured strategy error, if any.
-    fn take_strategy_error(&mut self) -> Option<String> {
+    fn take_strategy_error(&mut self) -> Option<StrategyFailure> {
         self.last_error.take()
     }
 
@@ -237,7 +258,7 @@ impl Strategy for PyStrategy {
                 "[PyStrategy] teardown() failed on '{}': {}",
                 self.class_name, e
             );
-            self.last_error = Some(format!("teardown() failed: {e}"));
+            self.last_error = Some(StrategyFailure::new(format!("teardown() failed: {e}")));
         }
     }
 }

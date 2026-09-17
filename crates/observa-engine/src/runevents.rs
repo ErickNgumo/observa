@@ -11,6 +11,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use observa_core::drawings::DrawingInstruction;
 use observa_core::types::{Direction, ExitReason, OrderKind};
 
 /// Version of the persisted event schema.
@@ -90,6 +91,18 @@ pub enum EngineEventPayload {
     StrategyDecision {
         bar_index: usize,
         signal_count: usize,
+    },
+    /// Strategy-produced visual annotations for a bar (OBS-AI-02).
+    ///
+    /// Purely descriptive: these instructions never influence order creation,
+    /// fills, spread/slippage, SL/TP, margin, portfolio accounting, metrics or
+    /// execution chronology. Emitted only when the strategy returned at least
+    /// one instruction for the bar, so a strategy that draws nothing adds no
+    /// events to the canonical history.
+    DrawingsEmitted {
+        bar_index: usize,
+        timestamp: DateTime<Utc>,
+        drawings: Vec<DrawingInstruction>,
     },
     /// A strategy-generated order was created.
     OrderCreated {

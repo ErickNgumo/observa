@@ -14,12 +14,14 @@
 //! Python/Jupyter layers invoke [`Engine::run`]; they do not reproduce the
 //! loop.
 
+use std::collections::BTreeSet;
+
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use observa_core::bar::Bar;
-use observa_core::config::{BacktestConfig, CommissionConfig, FillMode, InstrumentConfig};
 use observa_core::drawings::DrawingInstruction;
+use observa_core::config::{BacktestConfig, CommissionConfig, FillMode, InstrumentConfig};
 use observa_core::types::{Direction, ExitReason, OrderKind, OrderState};
 use observa_execution::semantics::{
     self, ExecutionSettings, OrderSpec, Outcome, ProtectiveLevels, ProtectiveOutcome,
@@ -134,8 +136,11 @@ pub struct TradeRecord {
     pub net_realized_pnl: f64,
 }
 
-/// Per-bar runtime record: end-of-bar canonical portfolio snapshot plus any
-/// drawings the strategy produced on that bar.
+/// Per-bar runtime record: the end-of-bar canonical portfolio snapshot.
+///
+/// Strategy annotations are deliberately **not** stored here — they live only
+/// in the canonical event history (`drawings_emitted`), which is the single
+/// source of truth for replay (OBS-AI-02).
 #[derive(Debug, Clone)]
 pub struct BarRecord {
     /// Zero-based bar index.
@@ -144,8 +149,6 @@ pub struct BarRecord {
     pub timestamp: DateTime<Utc>,
     /// End-of-bar mark-to-market snapshot (all open positions).
     pub snapshot: PortfolioSnapshot,
-    /// Drawings emitted by the strategy for this bar.
-    pub drawings: Vec<DrawingInstruction>,
 }
 
 /// Structured in-memory result of a completed run.
@@ -450,34 +453,42 @@ impl Engine {
         let body = (|| -> Result<(), EngineError> {
             let params = self.config.strategy.as_ref().map(|s| s.parameters.clone());
             strategy.initialize_with_params(params.as_ref());
-            if let Some(msg) = strategy.take_strategy_error() {
+            if let Some(failure) = strategy.take_strategy_error() {
                 self.emit(EngineEventPayload::StrategyError {
-                    message: msg.clone(),
+                    message: failure.message.clone(),
                 })?;
                 return Err(EngineError::StrategyFailure {
                     bar_index: None,
-                    message: msg,
+                    message: failure.message,
+                    code: failure.code,
+                    details: failure.details,
                 });
             }
             self.emit(EngineEventPayload::StrategyInitialized {})?;
+
+            // Canonical bar timestamps: annotations may only reference real
+            // bars (never a future or unknown time), validated per bar below.
+            let bar_times: BTreeSet<i64> = bars.iter().map(|b| b.timestamp.timestamp()).collect();
 
             let mut history: Vec<Bar> = Vec::new();
             for (index, bar) in bars.iter().enumerate() {
                 // Strategy history only contains strictly prior bars: the
                 // current bar is appended AFTER the strategy observed it.
-                self.run_bar(index, bar, &history, strategy)?;
+                self.run_bar(index, bar, &history, strategy, &bar_times)?;
                 history.push(bar.clone());
             }
 
             // Teardown (errors are surfaced, never swallowed).
             strategy.teardown();
-            if let Some(msg) = strategy.take_strategy_error() {
+            if let Some(failure) = strategy.take_strategy_error() {
                 self.emit(EngineEventPayload::StrategyError {
-                    message: msg.clone(),
+                    message: failure.message.clone(),
                 })?;
                 return Err(EngineError::StrategyFailure {
                     bar_index: Some(bars.len().saturating_sub(1)),
-                    message: msg,
+                    message: failure.message,
+                    code: failure.code,
+                    details: failure.details,
                 });
             }
 
@@ -522,6 +533,7 @@ impl Engine {
         bar: &Bar,
         history: &[Bar],
         strategy: &mut dyn Strategy,
+        bar_times: &BTreeSet<i64>,
     ) -> Result<(), EngineError> {
         self.emit(EngineEventPayload::BarProcessed {
             bar_index: index,
@@ -617,20 +629,34 @@ impl Engine {
         // ── Stage 4 — strategy observation ──────────────────────────────────
         let view = self.build_portfolio_view(bar);
         let signals = strategy.on_bar(bar, &view, history);
-        if let Some(msg) = strategy.take_strategy_error() {
+        if let Some(failure) = strategy.take_strategy_error() {
             self.emit(EngineEventPayload::StrategyError {
-                message: msg.clone(),
+                message: failure.message.clone(),
             })?;
             return Err(EngineError::StrategyFailure {
                 bar_index: Some(index),
-                message: msg,
+                message: failure.message,
+                code: failure.code,
+                details: failure.details,
             });
         }
         let drawings = strategy.take_drawings();
+        self.validate_drawing_times(&drawings, index, bar_times)?;
         self.emit(EngineEventPayload::StrategyDecision {
             bar_index: index,
             signal_count: signals.len(),
         })?;
+        // Strategy annotations are descriptive only: they are recorded on the
+        // canonical timeline (normal EventSeq) and never fed into order
+        // processing below. Emitting only when non-empty keeps runs that draw
+        // nothing byte-identical.
+        if !drawings.is_empty() {
+            self.emit(EngineEventPayload::DrawingsEmitted {
+                bar_index: index,
+                timestamp: bar.timestamp,
+                drawings,
+            })?;
+        }
 
         // ── Stage 5 — convert strategy intents into canonical orders ────────
         for signal in signals {
@@ -655,9 +681,59 @@ impl Engine {
             bar_index: index,
             timestamp: bar.timestamp,
             snapshot,
-            drawings,
         });
 
+        Ok(())
+    }
+
+    /// Validates that every timestamp an annotation references is a real bar
+    /// timestamp (never a future bar or an unknown time). Annotations must
+    /// line up with the canonical timeline so replay can always render them.
+    fn validate_drawing_times(
+        &self,
+        drawings: &[DrawingInstruction],
+        index: usize,
+        bar_times: &BTreeSet<i64>,
+    ) -> Result<(), EngineError> {
+        for drawing in drawings {
+            let Some(kind) = drawing.kind.as_ref() else {
+                continue;
+            };
+            for (field, raw) in kind.timestamps() {
+                let parsed = observa_core::drawings::parse_timestamp(raw).ok_or_else(|| {
+                    EngineError::StrategyFailure {
+                        bar_index: Some(index),
+                        message: format!(
+                            "drawing '{}': field '{}' is not a valid timestamp: {raw}",
+                            drawing.id, field
+                        ),
+                        code: Some("DRAWING_TIME_INVALID".to_string()),
+                        details: Some(serde_json::json!({
+                            "bar_index": index,
+                            "drawing_id": drawing.id,
+                            "field": field,
+                            "value": raw,
+                        })),
+                    }
+                })?;
+                if !bar_times.contains(&parsed.timestamp()) {
+                    return Err(EngineError::StrategyFailure {
+                        bar_index: Some(index),
+                        message: format!(
+                            "drawing '{}': field '{}' does not match a bar timestamp: {raw}",
+                            drawing.id, field
+                        ),
+                        code: Some("DRAWING_TIME_INVALID".to_string()),
+                        details: Some(serde_json::json!({
+                            "bar_index": index,
+                            "drawing_id": drawing.id,
+                            "field": field,
+                            "value": raw,
+                        })),
+                    });
+                }
+            }
+        }
         Ok(())
     }
 

@@ -19,7 +19,7 @@ use observa_core::config::{
 };
 use observa_core::types::{Direction, OrderKind};
 use observa_engine::engine::Engine;
-use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
+use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal, StrategyFailure};
 
 fn ts(i: i64) -> chrono::DateTime<Utc> {
     Utc.timestamp_opt(1_700_000_000 + i * 900, 0).unwrap()
@@ -484,8 +484,8 @@ fn run_all(dir: &Path) {
         fn on_bar(&mut self, _bar: &Bar, _v: &PortfolioView, _h: &[Bar]) -> Vec<StrategySignal> {
             vec![]
         }
-        fn take_strategy_error(&mut self) -> Option<String> {
-            Some("scripted failure in fixture L".to_string())
+        fn take_strategy_error(&mut self) -> Option<StrategyFailure> {
+            Some(StrategyFailure::new("scripted failure in fixture L"))
         }
     }
     emit(
