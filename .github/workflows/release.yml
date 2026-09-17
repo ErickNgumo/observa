@@ -5,6 +5,13 @@ on:
     tags:
       - "observa-*"
 
+# Creating the Release and uploading assets needs write access to repository
+# contents. The default workflow token is read-only here, which made the
+# release step fail while every earlier step (build, version check, baseline)
+# succeeded. Scope the token to the minimum required.
+permissions:
+  contents: write
+
 jobs:
   build-upload:
     runs-on: ubuntu-latest
