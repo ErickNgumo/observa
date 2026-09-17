@@ -7,14 +7,14 @@ open the visual replay — without a Rust toolchain or a repository checkout.
 ## 1. Install (official private-MVP wheel)
 
 > ⚠️ **Do not `pip install observa`.** The public PyPI name `observa` is an
-> unrelated project. Observa 0.1.0 is distributed as an official wheel
+> unrelated project. Observa 0.1.1 is distributed as an official wheel
 > attached to the private-MVP GitHub Release (URL below).
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.1-private-mvp/observa-0.1.1-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-SHA-256: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c`
+SHA-256: `9cb10ee386c41b6b8fe5b0ba553894d4a7ff3cafb74ff69b83ae0d3a65a26cf8`
 
 For the real-data example also: `python -m pip install yfinance pandas`.
 
@@ -34,7 +34,7 @@ Import test — verify you imported *this* Observa:
 
 ```python
 import observa
-print(observa.__version__)   # must print 0.1.0
+print(observa.__version__)   # must print 0.1.1
 print(observa.__file__)      # must point into this wheel's site-packages
 print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
 ```

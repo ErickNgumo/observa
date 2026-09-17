@@ -1,4 +1,4 @@
-# Observa 0.1.0 — Private MVP (Release Notes)
+# Observa 0.1.1 — Private MVP (Release Notes)
 
 > Status: **private MVP tester build**. Not production-ready. This build is for
 > a small, invited cohort to validate the core product idea: **seeing what a
@@ -21,10 +21,10 @@ it with the URL in the command below. Do not `pip install observa` (an
 unrelated PyPI package owns that name).
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.1-private-mvp/observa-0.1.1-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-SHA-256: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c`
+SHA-256: `9cb10ee386c41b6b8fe5b0ba553894d4a7ff3cafb74ff69b83ae0d3a65a26cf8`
 
 Real-data example dependency: `python -m pip install yfinance pandas`.
 
@@ -35,7 +35,7 @@ Import test:
 
 ```python
 import observa
-print(observa.__version__)   # 0.1.0
+print(observa.__version__)   # 0.1.1
 ```
 
 ## Verified platform
@@ -87,8 +87,28 @@ snippet from `docs/tester-onboarding.md` §Diagnostics when reporting failures.
 ```bash
 python -m pip install maturin          # requires Rust toolchain
 cd python && maturin build --release   # wheel written to python/target/wheels/
-sha256sum python/target/wheels/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl
+sha256sum python/target/wheels/observa-0.1.1-cp310-abi3-manylinux_2_34_x86_64.whl
 ```
 
-Publishing a tester build: attach the wheel to a GitHub Release and put the
-HTTPS URL + SHA-256 in the tester invite; then update README/llms-full.txt.
+Publishing a tester build: push an `observa-<version>-private-mvp` tag; the
+`release-wheel` workflow builds the wheel, verifies the version, runs the
+deterministic canonical regression baseline, records the SHA-256 and uploads
+the wheel plus the example scripts as a prerelease. Then update the install
+URL + SHA-256 in README / getting-started / llms-full.txt / tester-onboarding.
+
+## Previous release (historical)
+
+Observa 0.1.0 — Private MVP remains published and unchanged:
+
+```bash
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
+```
+
+SHA-256: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c`
+
+0.1.1 is the current tester build. It adds the agent/notebook interface
+(`observa.replay(..., block=False)`, `ReplayServer`, `result.summary()`,
+`observa.run_summary()`, machine-readable `exc.code`/`exc.details`) and a
+free-port default for `observa replay`; there are no engine or economic
+changes. The 0.1.0 example assets still print the old fixed `localhost:7878`
+replay hint, which matches the 0.1.0 wheel.

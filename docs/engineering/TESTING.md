@@ -62,6 +62,7 @@ explicit expected/actual table.
 | Item | Value |
 | --- | --- |
 | Fixture | `python/tests/fixtures/canonical_m15.csv` (1500 M15 bars, ~94 KB) |
+| Fixture SHA-256 | `63a307e7d1d93efb46ed5a38a68be202068bc0d6e2506bd8f6822bc3f722038d` |
 | Generator | `python/tests/fixtures/generate_canonical_dataset.py` |
 | Reproduce fixture | `python python/tests/fixtures/generate_canonical_dataset.py` |
 | Integrity check | the test regenerates in memory and asserts the committed file matches byte for byte |

@@ -12,16 +12,16 @@ way it did, instead of only trusting final statistics.
 > ⚠️ Do **not** `pip install observa`. The public PyPI name `observa` is an
 > unrelated project.
 >
-> 📦 **Private-MVP distribution:** Observa 0.1.0 is distributed as an official
+> 📦 **Private-MVP distribution:** Observa 0.1.1 is distributed as an official
 > wheel attached to the private-MVP GitHub Release. Install it with the URL
 > below. Building a wheel yourself is a contributor task, not a user task
 > (see Development below).
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.1-private-mvp/observa-0.1.1-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-SHA-256: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c`
+SHA-256: `9cb10ee386c41b6b8fe5b0ba553894d4a7ff3cafb74ff69b83ae0d3a65a26cf8`
 
 For real-data examples, also install:
 
@@ -39,7 +39,7 @@ Verify you imported *this* Observa:
 ```python
 import observa
 
-print(observa.__version__)                      # must print 0.1.0
+print(observa.__version__)                      # must print 0.1.1
 print(observa.__file__)                         # .../site-packages/observa/__init__.py
 print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
 ```
@@ -127,14 +127,21 @@ point:
 ```python
 import observa
 
-# Start the server and keep working (notebook-friendly), then shut it down.
-server = observa.replay(run_dir, block=False)
+# Run once and persist it (replay only needs the run artifacts).
+result = observa.run(MyStrategy(), data, config=config, output="runs/ema")
+
+# Cheap machine-readable result summary (no array walking).
+summary = result.summary()
+print(summary["status"], summary["trades"], summary["final_balance"])
+
+# Serve the run without blocking, then shut it down.
+server = observa.replay(result, block=False)
 print(server.url)          # e.g. http://127.0.0.1:42689
 server.stop()              # idempotent
 
-# Or serve a just-finished, persisted run. Replay only needs run artifacts.
-result = observa.run(MyStrategy(), data, config=config, output="runs/ema")
-server = observa.replay(result, block=False)
+# Serving an already-persisted run directory works too.
+server = observa.replay("runs/ema", block=False)
+server.stop()
 ```
 
 Key points:

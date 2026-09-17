@@ -1,4 +1,4 @@
-# Tester Onboarding — Observa 0.1.0 (Private MVP)
+# Tester Onboarding — Observa 0.1.1 (Private MVP)
 
 This is the whole kit. Please try it **without help first** — we want to see
 what is naturally understandable. Expected total time: about five minutes for
@@ -17,10 +17,10 @@ Install the **official private-MVP wheel** from the private GitHub Release
 PyPI package.
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.0-private-mvp/observa-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.1-private-mvp/observa-0.1.1-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-SHA-256: `8367263b786243e0fd89d289cb8a9df1cf1e0ec961316697c95d36f2605fc23c`
+SHA-256: `9cb10ee386c41b6b8fe5b0ba553894d4a7ff3cafb74ff69b83ae0d3a65a26cf8`
 
 For the real-data example also:
 
@@ -33,7 +33,7 @@ was running, restart the kernel first.
 
 ```python
 import observa
-print(observa.__version__)   # should print 0.1.0
+print(observa.__version__)   # should print 0.1.1
 print(observa.__file__)      # .../site-packages/observa/__init__.py
 ```
 
