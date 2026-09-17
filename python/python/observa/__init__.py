@@ -28,6 +28,8 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Optional, Sequence, Union
 
 from ._observa import RunResult, run as _run
+from .errors import coded, error_code
+from .replay import ReplayServer
 
 __version__ = "0.1.0"
 
@@ -200,16 +202,125 @@ def sample_strategy_path() -> str:
     return str(resources.files("observa") / "samples" / "sample_strategy.py")
 
 
-def replay(run_dir: str, port: int = 7878):
-    """Launches the local canonical replay server for a persisted run.
+def replay(run_dir_or_result, *, port=None, block: bool = True, open_browser: bool = False):
+    """Starts the local canonical replay server for a persisted run.
 
-    ``run_dir`` must contain the artifacts produced by ``run(..., output=...)``
-    or by the CLI. Blocks until the server is stopped (Ctrl+C); open
-    http://localhost:<port> in a browser.
+    Parameters
+    ----------
+    run_dir_or_result:
+        A persisted run directory (``str``/``os.PathLike``) or a
+        :class:`RunResult` whose ``artifact_dir`` exists (created with
+        ``output=...`` or ``result.save(...)``).
+    port:
+        ``None`` (default) asks the OS for a free port. An explicit integer is
+        strict: if busy, an ``OSError`` with ``code == "REPLAY_PORT_IN_USE"``
+        and ``details["port"]`` is raised.
+    block:
+        ``True`` (default) serves until interrupted (returns ``None``) — the
+        historical behavior. ``False`` returns a :class:`ReplayServer`
+        immediately (notebook/agent friendly).
+    open_browser:
+        When ``True``, opens the replay URL in the default browser.
+
+    Examples
+    --------
+    >>> server = observa.replay(result, block=False)   # doctest: +SKIP
+    >>> server.url                                     # doctest: +SKIP
+    'http://127.0.0.1:53421'
+    >>> server.stop()                                  # doctest: +SKIP
     """
+    artifact_dir = getattr(run_dir_or_result, "artifact_dir", None)
+    if hasattr(run_dir_or_result, "final_balance") or hasattr(run_dir_or_result, "summary"):
+        if not artifact_dir:
+            raise coded(
+                ValueError(
+                    "this RunResult has not been persisted; pass output=... to "
+                    "observa.run(...) or call result.save(dir) before replay"
+                ),
+                "REPLAY_RUN_NOT_PERSISTED",
+            )
+        run_dir = artifact_dir
+    else:
+        run_dir = run_dir_or_result
+
+    if port is not None:
+        try:
+            port = int(port)
+        except (TypeError, ValueError):
+            raise coded(
+                ValueError("port must be an integer or None, got %r" % (port,)),
+                "REPLAY_PORT_INVALID",
+                {"port": port},
+            )
+        if not (0 < port < 65536):
+            raise coded(
+                ValueError("port must be between 1 and 65535, got %d" % port),
+                "REPLAY_PORT_INVALID",
+                {"port": port},
+            )
+
     from .replay import serve
 
-    serve(run_dir, port)
+    return serve(run_dir, port=port, block=block, open_browser=open_browser)
+
+
+def run_summary(run_dir) -> dict:
+    """Summarises a persisted run using only its artifacts (never re-runs).
+
+    Reads ``run.json`` and, when present, ``metrics.json``. Returns a dict
+    shaped like :meth:`RunResult.summary`, plus ``error`` for failed runs.
+    ``trades`` is taken from ``metrics.json`` when available (else ``None``).
+    """
+    import json
+    import os
+
+    path = os.path.abspath(str(run_dir))
+    run_json_path = os.path.join(path, "run.json")
+    if not os.path.isdir(path) or not os.path.isfile(run_json_path):
+        raise coded(
+            FileNotFoundError("no persisted run found at %s (expected run.json)" % path),
+            "RUN_DIR_NOT_FOUND",
+            {"path": path},
+        )
+    try:
+        with open(run_json_path, "r", encoding="utf-8") as fh:
+            run = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise coded(
+            ValueError("invalid run artifacts at %s: %s" % (run_json_path, exc)),
+            "RUN_ARTIFACTS_INVALID",
+            {"path": run_json_path},
+        )
+
+    metrics = None
+    metrics_path = os.path.join(path, "metrics.json")
+    if os.path.isfile(metrics_path):
+        try:
+            with open(metrics_path, "r", encoding="utf-8") as fh:
+                metrics = json.load(fh)
+        except (OSError, ValueError) as exc:
+            raise coded(
+                ValueError("invalid metrics artifacts at %s: %s" % (metrics_path, exc)),
+                "RUN_ARTIFACTS_INVALID",
+                {"path": metrics_path},
+            )
+
+    dataset = run.get("dataset") or {}
+    status = run.get("status", "unknown")
+    return {
+        "status": status,
+        "artifact_dir": path,
+        "total_bars": dataset.get("bar_count"),
+        "trades": (metrics or {}).get("total_trades"),
+        "open_positions": run.get("open_positions_remaining"),
+        "final_balance": run.get("final_balance"),
+        "final_equity": run.get("final_equity"),
+        "events": run.get("event_count"),
+        "metrics": metrics,
+        "dataset_source": dataset.get("source"),
+        "run_schema_version": run.get("run_schema_version"),
+        "error": run.get("error"),
+    }
 
 
 def _install_resources() -> None:
@@ -222,6 +333,9 @@ _install_resources()
 __all__ = [
     "run",
     "replay",
+    "run_summary",
+    "ReplayServer",
+    "error_code",
     "sample_data_path",
     "sample_strategy_path",
     "RunResult",

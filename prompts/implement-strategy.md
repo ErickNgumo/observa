@@ -27,8 +27,10 @@ Your responsibilities:
 10. Fix installation/API/runtime errors.
 11. Persist the run.
 12. Return key results.
-13. Give me the Observa replay command.
-14. Warn me about lookahead or execution assumptions.
+13. Give me the Observa replay command (`observa replay <run-dir>`; it prints
+    the URL it bound).
+14. Report key results from `result.summary()` rather than re-deriving them.
+15. Warn me about lookahead or execution assumptions.
 
 Strategy:
 [DESCRIBE STRATEGY]

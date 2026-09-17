@@ -118,9 +118,74 @@ a saved run with the installed package (no repository needed):
 observa replay runs/example
 ```
 
-then open **http://localhost:7878** in a browser. Replay is a view of the
-canonical events — it never recomputes fills, P&L, or position pairing. The
-chart library is bundled in the wheel, so replay works offline.
+The CLI binds a free port automatically and prints the exact URL it bound
+(for example `http://127.0.0.1:42689`). Pass `--port 7878` to require a
+specific port; if that port is already in use the command prints a one-line
+error and exits with code `2`. Replay never opens a browser automatically.
+
+From Python (scripts, notebooks, coding agents) the same entry point is:
+
+```python
+import observa
+
+server = observa.replay("runs/example", block=False)   # returns immediately
+print(server.url)          # actual bound URL, e.g. http://127.0.0.1:42689
+print(server.port)         # actual bound port
+print(server.run_dir)      # resolved run directory
+server.stop()              # idempotent; also works as a context manager
+
+with observa.replay("runs/example", block=False) as server:
+    ...
+
+observa.replay("runs/example")                         # block=True default
+server = observa.replay(result, block=False)           # persisted RunResult
+```
+
+* `port=None` (the default) binds port `0`, so the operating system picks a
+  free port and two replay servers can never race for the same port.
+* An explicit `port` is strict. On collision replay raises `OSError` with
+  `exc.code == "REPLAY_PORT_IN_USE"` and `exc.details["port"]`; it never
+  silently falls back to another port.
+* A `RunResult` is accepted only after it is persisted (`output=` on
+  `observa.run(...)`, or `result.save(dir)`). An in-memory result raises
+  `ValueError` with `exc.code == "REPLAY_RUN_NOT_PERSISTED"`.
+
+Open the printed URL in a browser. Replay is a view of the canonical events —
+it never recomputes fills, P&L, or position pairing. The chart library is
+bundled in the wheel, so replay works offline.
+
+### Reading a run without replay
+
+```python
+result.summary()            # dict for the live result object
+observa.run_summary("runs/example")   # dict/status from run.json + metrics.json
+```
+
+`result.summary()` returns exactly: `status`, `artifact_dir`, `total_bars`,
+`trades`, `open_positions`, `final_balance`, `final_equity`, `events`,
+`metrics`, `dataset_source`, `run_schema_version`. `observa.run_summary(dir)`
+reads only the persisted `run.json`/`metrics.json`, so it also works for runs
+produced by another process — including failed runs, whose summary reports
+`status="failed"` with the recorded `error`.
+
+### Error codes for agents
+
+Observa raises the ordinary built-in exception classes but attaches
+machine-readable attributes instead of requiring message parsing:
+
+```python
+try:
+    observa.replay(run_dir, port=7878)
+except OSError as exc:
+    print(exc.code)        # "REPLAY_PORT_IN_USE"
+    print(exc.details)     # {"port": 7878}
+    print(observa.error_code(exc))   # same string, works for any exception
+```
+
+Replay and CLI failures always include a code. Order rejections are **not**
+exceptions at all — an invalid SL/TP, an oversized quantity, or insufficient
+margin produces a canonical `order_rejected` event in `result.events` and the
+run completes.
 
 ## 8. Quickstart B — real EUR/USD data
 
@@ -294,14 +359,15 @@ def main() -> None:
     print()
     print("Run saved to:    %s" % run_dir)
     print("Replay with:     observa replay %s" % run_dir)
-    print("Then open:       http://localhost:7878")
+    print("Then open:       the URL printed by observa replay")
 
 
 if __name__ == "__main__":
     main()
 ```
 
-Start the replay with `observa replay runs/ema_observa_<timestamp>` and open http://localhost:7878.
+Start the replay with `observa replay runs/ema_observa_<timestamp>` and open the URL it prints
+(it chooses a free port automatically; pass `--port N` to require a specific one).
 
 ## 9. Your own data
 

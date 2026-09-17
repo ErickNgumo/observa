@@ -5,6 +5,7 @@
 //! is exactly one backtesting loop — the canonical [`Engine`]. No execution,
 //! portfolio, or event logic is reimplemented here.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -22,8 +23,10 @@ use observa_core::config::{
 use observa_core::types::{Direction, OrderKind};
 use observa_data::csv_reader::CsvReader;
 use observa_engine::engine::{Engine, RunResult as EngineRunResult};
+use observa_engine::error::EngineError;
 use observa_engine::persistence::{self, PersistenceError};
-use observa_engine::replay::{self as replay_mod, RunMeta};
+use observa_engine::replay::{self as replay_mod};
+use observa_engine::runevents::RUN_SCHEMA_VERSION;
 use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
 use observa_metrics::metrics::MetricsEngine;
 
@@ -31,24 +34,81 @@ use observa_metrics::metrics::MetricsEngine;
 // Error mapping
 // ────────────────────────────────────────────────
 
-fn config_err(e: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(format!("invalid configuration: {e}"))
+/// Attaches the stable machine-readable contract (`exc.code`, `exc.details`)
+/// to an existing Python exception, preserving its class for compatibility.
+fn coded(py: Python<'_>, err: PyErr, code: &str, details: Option<PyObject>) -> PyErr {
+    let value = err.value_bound(py);
+    let _ = value.setattr("code", code);
+    let details_obj = details.unwrap_or_else(|| PyDict::new_bound(py).into_py(py));
+    let _ = value.setattr("details", details_obj);
+    err
 }
 
-fn data_err(e: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(format!("invalid data: {e}"))
+/// Builds a `details` dict from known context only (never parsed from text).
+fn details(py: Python<'_>, items: Vec<(&str, PyObject)>) -> PyObject {
+    let d = PyDict::new_bound(py);
+    for (k, v) in items {
+        let _ = d.set_item(k, v);
+    }
+    d.into_py(py)
 }
 
-fn engine_err(e: impl std::fmt::Display) -> PyErr {
-    PyRuntimeError::new_err(format!("engine error: {e}"))
+fn config_err(py: Python<'_>, e: impl std::fmt::Display) -> PyErr {
+    coded(
+        py,
+        PyValueError::new_err(format!("invalid configuration: {e}")),
+        "CONFIG_INVALID",
+        None,
+    )
 }
 
-fn map_persistence(e: PersistenceError) -> PyErr {
+fn data_err(py: Python<'_>, e: impl std::fmt::Display) -> PyErr {
+    coded(
+        py,
+        PyValueError::new_err(format!("invalid data: {e}")),
+        "DATA_INVALID",
+        None,
+    )
+}
+
+fn engine_err(py: Python<'_>, e: impl std::fmt::Display) -> PyErr {
+    coded(
+        py,
+        PyRuntimeError::new_err(format!("engine error: {e}")),
+        "ENGINE_ERROR",
+        None,
+    )
+}
+
+fn strategy_err(py: Python<'_>, message: &str, bar_index: Option<usize>) -> PyErr {
+    let mut items: Vec<(&str, PyObject)> = vec![("message", message.into_py(py))];
+    if let Some(index) = bar_index {
+        items.push(("bar_index", index.into_py(py)));
+    }
+    coded(
+        py,
+        PyRuntimeError::new_err(format!("engine error: strategy failure: {message}")),
+        "STRATEGY_ERROR",
+        Some(details(py, items)),
+    )
+}
+
+fn map_persistence(py: Python<'_>, e: PersistenceError) -> PyErr {
     match e {
-        PersistenceError::OutputAlreadyExists { path } => {
-            PyFileExistsError::new_err(format!("output directory already exists: {path}"))
-        }
-        other => PyRuntimeError::new_err(format!("persistence error: {other}")),
+        PersistenceError::OutputAlreadyExists { path } => coded(
+            py,
+            PyFileExistsError::new_err(format!(
+                "output directory already exists: {path} (Observa persistence is create-only)"
+            )),
+            "RUN_OUTPUT_EXISTS",
+            Some(details(py, vec![("path", path.into_py(py))])),
+        ),
+        other => coded(
+            py,
+            PyRuntimeError::new_err(format!("persistence error: {other}")),
+            "RUN_PERSIST_FAILED",
+            None,
+        ),
     }
 }
 
@@ -370,24 +430,44 @@ fn bar_from_py(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<Bar> {
 }
 
 fn bars_from_py(data: &Bound<'_, pyo3::PyAny>) -> PyResult<Vec<Bar>> {
+    let py = data.py();
     if let Ok(path) = data.downcast::<PyString>() {
         let path: String = path.extract()?;
         return CsvReader::load(&path).map_err(|e| {
             if let observa_data::error::DataError::FileNotFound { path, .. } = &e {
-                return PyFileNotFoundError::new_err(format!("data file not found: {path}"));
+                let known = path.clone();
+                return coded(
+                    py,
+                    PyFileNotFoundError::new_err(format!("data file not found: {path}")),
+                    "DATA_FILE_NOT_FOUND",
+                    Some(details(py, vec![("path", known.into_py(py))])),
+                );
             }
-            data_err(e)
+            data_err(py, e)
         });
     }
     if let Ok(list) = data.downcast::<PyList>() {
         let mut bars = Vec::with_capacity(list.len());
-        for item in list.iter() {
-            bars.push(bar_from_py(&item)?);
+        for (i, item) in list.iter().enumerate() {
+            let bar = bar_from_py(&item).map_err(|e| {
+                coded(
+                    py,
+                    e,
+                    "DATA_INVALID",
+                    Some(details(py, vec![("row", i.into_py(py))])),
+                )
+            })?;
+            bars.push(bar);
         }
         return Ok(bars);
     }
-    Err(PyValueError::new_err(
-        "data must be a CSV file path or a list of bars (dicts or sequences)",
+    Err(coded(
+        py,
+        PyValueError::new_err(
+            "data must be a CSV file path or a list of bars (dicts or sequences)",
+        ),
+        "DATA_INVALID",
+        None,
     ))
 }
 
@@ -719,6 +799,9 @@ struct RunResult {
     bars_per_year: f64,
     dataset_source: String,
     artifact_dir: Option<String>,
+    /// Derived metrics are expensive to compute; cache the canonical derived
+    /// value so `metrics` / `summary()` never recompute it repeatedly.
+    metrics_cache: RefCell<Option<serde_json::Value>>,
 }
 
 fn trade_to_dict(py: Python<'_>, t: &observa_engine::engine::TradeRecord) -> PyResult<PyObject> {
@@ -841,12 +924,35 @@ impl RunResult {
 
     #[getter]
     fn metrics(&self, py: Python<'_>) -> PyResult<PyObject> {
-        value_to_py(py, &metrics_value(&self.result, self.bars_per_year))
+        value_to_py(py, &self.metrics_value_cached())
+    }
+
+    /// Structured, agent-oriented summary of the canonical run.
+    ///
+    /// Values are canonical (stored Engine result / derived metrics); arrays
+    /// such as trades/orders/fills/events are summarised by count only.
+    fn summary(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let d = PyDict::new_bound(py);
+        d.set_item("status", "completed")?;
+        d.set_item("artifact_dir", self.artifact_dir.clone())?;
+        d.set_item("total_bars", self.result.total_bars)?;
+        d.set_item("trades", self.result.trades.len())?;
+        d.set_item(
+            "open_positions",
+            self.result.final_state.open_positions_remaining,
+        )?;
+        d.set_item("final_balance", self.result.final_state.final_balance)?;
+        d.set_item("final_equity", self.result.final_state.final_equity)?;
+        d.set_item("events", self.result.events.len())?;
+        d.set_item("metrics", value_to_py(py, &self.metrics_value_cached())?)?;
+        d.set_item("dataset_source", &self.dataset_source)?;
+        d.set_item("run_schema_version", RUN_SCHEMA_VERSION)?;
+        Ok(d.into_py(py))
     }
 
     /// Persists the canonical artifacts (run.json / events.jsonl /
     /// metrics.json) to `output_dir`. Create-only: refuses to overwrite.
-    fn save(&mut self, output_dir: String) -> PyResult<String> {
+    fn save(&mut self, py: Python<'_>, output_dir: String) -> PyResult<String> {
         let path = std::path::PathBuf::from(&output_dir);
         let dir = persistence::persist_completed_run(
             &path,
@@ -857,9 +963,21 @@ impl RunResult {
             self.bars_per_year,
             &self.dataset_source,
         )
-        .map_err(map_persistence)?;
+        .map_err(|e| map_persistence(py, e))?;
         self.artifact_dir = Some(dir.display().to_string());
         Ok(dir.display().to_string())
+    }
+}
+
+impl RunResult {
+    /// Computes the derived metrics once and reuses them afterwards.
+    fn metrics_value_cached(&self) -> serde_json::Value {
+        if let Some(cached) = self.metrics_cache.borrow().as_ref() {
+            return cached.clone();
+        }
+        let value = metrics_value(&self.result, self.bars_per_year);
+        *self.metrics_cache.borrow_mut() = Some(value.clone());
+        value
     }
 }
 
@@ -874,6 +992,7 @@ impl RunResult {
 #[pyfunction]
 #[pyo3(signature = (strategy, data, config=None, output=None, bars_per_year=252.0))]
 fn run(
+    py: Python<'_>,
     strategy: &Bound<'_, pyo3::PyAny>,
     data: &Bound<'_, pyo3::PyAny>,
     config: Option<&Bound<'_, PyDict>>,
@@ -883,7 +1002,7 @@ fn run(
     let bars = bars_from_py(data)?;
 
     let mut cfg = match config {
-        Some(d) => config_from_dict(d)?,
+        Some(d) => config_from_dict(d).map_err(|e| config_err(py, e))?,
         None => BacktestConfig::default(),
     };
 
@@ -894,20 +1013,22 @@ fn run(
         .and_then(|n| n.extract::<String>())
         .unwrap_or_else(|_| "Strategy".to_string());
     let params = match config {
-        Some(d) => params_from_dict(d)?,
+        Some(d) => params_from_dict(d).map_err(|e| config_err(py, e))?,
         None => BTreeMap::new(),
     };
     let strategy_source = match config {
-        Some(d) => opt_str(d, "strategy_source")?,
+        Some(d) => opt_str(d, "strategy_source").map_err(|e| config_err(py, e))?,
         None => None,
     };
     let dataset_source = match config {
-        Some(d) => opt_str(d, "dataset_source")?.unwrap_or_else(|| "python".to_string()),
+        Some(d) => opt_str(d, "dataset_source")
+            .map_err(|e| config_err(py, e))?
+            .unwrap_or_else(|| "python".to_string()),
         None => "python".to_string(),
     };
     let interval = match config {
-        Some(d) => match opt_str(d, "interval")? {
-            Some(s) => parse_interval(&s)?,
+        Some(d) => match opt_str(d, "interval").map_err(|e| config_err(py, e))? {
+            Some(s) => parse_interval(&s).map_err(|e| config_err(py, e))?,
             None => BarInterval::Day,
         },
         None => BarInterval::Day,
@@ -928,9 +1049,9 @@ fn run(
         parameters: params,
     });
 
-    cfg.validate().map_err(config_err)?;
+    cfg.validate().map_err(|e| config_err(py, e))?;
 
-    let mut engine = Engine::new(cfg.clone()).map_err(engine_err)?;
+    let mut engine = Engine::new(cfg.clone()).map_err(|e| engine_err(py, e))?;
     let mut py_strategy = PyStrategy::new(
         strategy.clone().unbind(),
         class_name,
@@ -946,9 +1067,10 @@ fn run(
                 bars_per_year,
                 dataset_source,
                 artifact_dir: None,
+                metrics_cache: RefCell::new(None),
             };
             if let Some(out) = output {
-                let _ = rr.save(out)?; // persists (create-only); raises on conflict
+                let _ = rr.save(py, out)?; // persists (create-only); raises on conflict
             }
             Ok(rr)
         }
@@ -964,7 +1086,12 @@ fn run(
                     &dataset_source,
                 );
             }
-            Err(engine_err(e))
+            match &e {
+                EngineError::StrategyFailure { message, bar_index } => {
+                    Err(strategy_err(py, message, *bar_index))
+                }
+                _ => Err(engine_err(py, e)),
+            }
         }
     }
 }
@@ -975,8 +1102,35 @@ fn run(
 #[pyo3(name = "replay_payload")]
 fn replay_payload_fn(py: Python<'_>, dir_path: &str) -> PyResult<PyObject> {
     let dir = std::path::PathBuf::from(dir_path);
-    let loaded = replay_mod::load_persisted_run(&dir).map_err(|e| {
-        PyRuntimeError::new_err(format!("cannot load persisted run '{dir_path}': {e}"))
+    let loaded = replay_mod::load_persisted_run(&dir).map_err(|e| match &e {
+        replay_mod::ReplayLoadError::MissingArtifact { path, .. } => coded(
+            py,
+            PyFileNotFoundError::new_err(format!("persisted run not found: {path}")),
+            "REPLAY_RUN_NOT_FOUND",
+            Some(details(py, vec![("path", path.clone().into_py(py))])),
+        ),
+        replay_mod::ReplayLoadError::InvalidRunJson { path, .. } => coded(
+            py,
+            PyValueError::new_err(format!(
+                "invalid run artifacts at {path}: {e} (delete and re-run, or pass a valid run directory)"
+            )),
+            "REPLAY_ARTIFACTS_INVALID",
+            Some(details(py, vec![("path", path.clone().into_py(py))])),
+        ),
+        replay_mod::ReplayLoadError::InvalidEventLine { path, line, .. } => coded(
+            py,
+            PyValueError::new_err(format!(
+                "invalid events.jsonl at {path} (line {line}): {e}"
+            )),
+            "REPLAY_ARTIFACTS_INVALID",
+            Some(details(
+                py,
+                vec![
+                    ("path", path.clone().into_py(py)),
+                    ("line", (*line).into_py(py)),
+                ],
+            )),
+        ),
     })?;
     let meta = replay_mod::run_meta_from_run_json(&loaded.run_json);
 

@@ -193,11 +193,75 @@ persisted run with the installed package:
 
     observa replay <run-dir> [--port <port>]
 
-or in Python: `observa.replay("<run-dir>")`. Open the printed URL. Replay
-derives all displayed state from canonical events; the chart library is
+The CLI binds a free port automatically and prints the exact URL it bound
+(e.g. `http://127.0.0.1:42689`); it never opens a browser and never picks a
+fixed default port. `--port N` is strict: if N is taken the CLI prints a
+one-line error and exits 2.
+
+The one canonical programmatic entry point is:
+
+    observa.replay(run_dir_or_result, *, port=None, block=True,
+                   open_browser=False)
+
+* `block=True` (default) serves until interrupted and prints the URL.
+* `block=False` returns a `ReplayServer` immediately: read `server.url`,
+  `server.port`, `server.run_dir`, `server.is_running`; call `server.stop()`
+  (idempotent) or use it as a context manager. Notebooks and coding agents
+  should prefer this and stop the server when done.
+* `port=None` binds port 0 so the OS picks a free port — never race or
+  pre-inspect ports yourself. An explicit busy port raises `OSError` with
+  `exc.code == "REPLAY_PORT_IN_USE"` and `exc.details["port"]`; it does NOT
+  fall back to another port.
+* A `RunResult` is accepted only when persisted (`output=` on
+  `observa.run(...)` or `result.save(dir)`); otherwise `ValueError` with
+  `exc.code == "REPLAY_RUN_NOT_PERSISTED"`. Replay only needs the run
+  artifacts (`run.json` + `events.jsonl`).
+
+Replay derives all displayed state from canonical events; the chart library is
 bundled (offline). If candles cannot be recovered (dataset_source missing or
 dataset hash mismatch), the page shows a notice and events/orders/account
 still replay.
+
+### K.1 Reading results without replay
+
+    result.summary()          # live result -> one JSON-serializable dict
+    observa.run_summary(run_dir)   # persisted run -> dict from run.json/metrics.json
+
+`summary()` keys (exactly): `status`, `artifact_dir`, `total_bars`,
+`trades`, `open_positions`, `final_balance`, `final_equity`, `events`,
+`metrics`, `dataset_source`, `run_schema_version`. It duplicates no arrays,
+so it is cheap for an agent to read repeatedly. `run_summary()` works for runs
+produced by any process and reports `status="failed"` plus `error` for a
+failed run (`metrics` is `None`, `trades` is `None`).
+
+### K.2 Machine-readable error codes
+
+Observa raises ordinary built-in exceptions and attaches `.code` (string) and
+`.details` (dict) instead of requiring message parsing:
+
+    try:
+        observa.replay(run_dir, port=7878)
+    except OSError as exc:
+        exc.code                     # "REPLAY_PORT_IN_USE"
+        exc.details                  # {"port": 7878}
+        observa.error_code(exc)      # helper; None for uncoded exceptions
+
+Codes: `CONFIG_INVALID`, `DATA_INVALID`, `DATA_FILE_NOT_FOUND`,
+`STRATEGY_ERROR`, `ENGINE_ERROR`, `RUN_OUTPUT_EXISTS`, `RUN_PERSIST_FAILED`,
+`RUN_DIR_NOT_FOUND`, `RUN_ARTIFACTS_INVALID`, `REPLAY_RUN_NOT_FOUND`,
+`REPLAY_ARTIFACTS_INVALID`, `REPLAY_PORT_IN_USE`, `REPLAY_PORT_INVALID`,
+`REPLAY_RUN_NOT_PERSISTED`.
+
+Do NOT parse exception messages; switch on `exc.code`. Do NOT wrap a coded
+exception in a new exception — that discards the code.
+
+### K.3 Rejections are events, not exceptions
+
+An invalid SL/TP, an oversized quantity, or insufficient margin is NOT an
+exception. The order is rejected in the canonical engine and appears as an
+`order_rejected` event in `result.events`; the run completes normally. Check
+events for rejection reasons (e.g. category/reason fields) instead of
+catching exceptions.
 
 ## L. Complete working examples
 
@@ -216,6 +280,7 @@ Quickstart A (bundled sample):
     )
     result = observa.run(SampleEma(), data, config=config, output="runs/sample")
     print(result.final_balance, result.final_equity, len(result.trades))
+    print(result.summary())   # cheap machine-readable status/metrics dict
 
 SMA crossover (20/50), bundled sample:
 
@@ -274,6 +339,18 @@ Runnable example files: examples/quickstart.py (A), examples/ema_observa.py
   execution.
 - Writing independent portfolio P&L math in the strategy or frontend.
 - Wrong CSV columns/order or non-chronological timestamps.
+- Pre-scanning for a "free port" or assuming port 7878: pass `port=None`
+  (default) and read `server.port`/`server.url` instead.
+- Calling `observa.replay(result)` on an unpersisted result
+  (`REPLAY_RUN_NOT_PERSISTED`) instead of passing `output="dir"` to
+  `observa.run(...)`.
+- Leaving a non-blocking replay server running in a notebook; call
+  `server.stop()`.
+- Parsing exception messages for replay/CLI failures instead of reading
+  `exc.code`/`exc.details`.
+- Treating an order rejection (bad SL/TP, oversized size, insufficient
+  margin) as an exception: it is an `order_rejected` event in
+  `result.events` and the run completes.
 
 ## N. Agent rules
 
@@ -289,8 +366,12 @@ When asked to use Observa:
 8. Set dataset_source if replay candles are required.
 9. Persist the run.
 10. Give the user the replay command.
-11. State assumptions when natural-language strategy rules are ambiguous.
-12. Do not claim success unless the code actually ran when execution access exists.
+11. For notebooks/agents prefer `observa.replay(run_dir, block=False)` and
+    call `server.stop()`; read `server.url` for the actual port.
+12. Read results with `result.summary()` / `observa.run_summary(dir)` instead
+    of walking full arrays; branch on `exc.code`, never on messages.
+13. State assumptions when natural-language strategy rules are ambiguous.
+14. Do not claim success unless the code actually ran when execution access exists.
 
 When implementing a user trading strategy: do not modify the Observa engine.
 When implementing Observa itself: follow repository architecture and tests
