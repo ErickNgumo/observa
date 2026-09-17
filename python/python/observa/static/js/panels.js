@@ -139,3 +139,23 @@ function setupPanelResize() {
     saveWorkspaceState();
   });
 }
+
+// ── Strategy series legend (OBS-AI-02) ─────────
+// Compact chips inside the Replay State panel. No floating overlay.
+function renderSeriesLegend(state) {
+  var host = document.getElementById('series-legend');
+  if (!host) return;
+  if (!state) { host.textContent = '—'; return; }
+  var series = ObservaDrawings.summary(state).series;
+  if (!series.length) { host.textContent = 'none'; return; }
+  var html = '';
+  for (var i = 0; i < series.length; i++) {
+    var s = series[i];
+    html += '<span class="series-chip">' +
+      '<i class="series-swatch" style="background:' + escapeHtml(s.color || '#58a6ff') + '"></i>' +
+      escapeHtml(s.label) +
+      (s.pane === 'separate' ? ' <em>(pane)</em>' : '') +
+      '</span>';
+  }
+  host.innerHTML = html;
+}

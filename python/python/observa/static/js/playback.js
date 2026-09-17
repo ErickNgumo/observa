@@ -95,6 +95,9 @@ function resetReplay() {
   candleSeries.setData([]);
   fastEmaSeries.setData([]);
   slowEmaSeries.setData([]);
+  drawingState = null;
+  clearDrawingLayer();
+  renderSeriesLegend(null);
   equitySeries.setData([]);
   if (balanceSeries) balanceSeries.setData([]);
   markerPlugin.setMarkers([]);
@@ -116,7 +119,10 @@ function updateSpeed() {
   if (isPlaying) { stopPlayback(); startPlayback(); }
 }
 
-function toggleLines() {
-  showLines = !showLines;
-  document.getElementById('btn-lines').classList.toggle('active', showLines);
+// Toggles the strategy annotation layer. Canonical execution markers are NOT
+// affected — they are observa-owned evidence and always stay visible.
+function toggleAnnotations() {
+  showAnnotations = !showAnnotations;
+  document.getElementById('btn-lines').classList.toggle('active', showAnnotations);
+  drawAnnotations(currentBar, true);
 }

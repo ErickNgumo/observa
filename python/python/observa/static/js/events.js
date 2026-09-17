@@ -21,6 +21,9 @@ function loadEvents() {
       replayBars   = data.bars || [];
       totalBars    = replayBars.length;
       replayIndex  = ObservaReplay.indexEvents(replayEvents);
+      drawingBarTimes = replayBars.map(function (b) { return toUnix(b.time); });
+      drawingState = null;
+      lastDrawingBar = -2;
       if (totalBars === 0 && replayEvents.length > 0) {
         showNotice('The dataset for this run could not be recovered, so the ' +
           'candle chart is unavailable. Events, orders, positions and ' +
@@ -78,7 +81,11 @@ function renderToBar(k) {
   // Finished only when we processed through a run_completed / run_failed tail.
   finished = (k === maxK) && (!!view.completed || !!view.failed);
 
+  // Annotation state is folded before candles so bar colours apply, and
+  // applied after candles so right-extending zones see the current bar.
+  var annotationsIncremental = foldAnnotations(k);
   renderCandles(k, view);
+  applyAnnotations(annotationsIncremental);
   renderMarkers(endIdx);
   renderAccount(view);
   renderPositions(view);
@@ -102,9 +109,13 @@ function renderCandles(k, view) {
   candleData = [];
   for (var i = 0; i <= k && i < replayBars.length; i++) {
     var b = replayBars[i];
-    candleData.push({
+    var point = {
       time: toUnix(b.time), open: b.open, high: b.high, low: b.low, close: b.close
-    });
+    };
+    if (drawingState && drawingState.barColors[point.time]) {
+      point.color = drawingState.barColors[point.time];
+    }
+    candleData.push(point);
   }
   candleSeries.setData(candleData);
   barsDrawn = candleData.length;
@@ -143,7 +154,41 @@ function renderMarkers(endIdx) {
       });
     }
   }
+  // Strategy markers (OBS-AI-02) are a separate layer merged in here.
+  // Canonical execution markers are never replaced or hidden.
+  var strategyMarkers = drawingMarkersFor(drawingState);
+  for (var m = 0; m < strategyMarkers.length; m++) tradeMarkers.push(strategyMarkers[m]);
   refreshMarkers();
+}
+
+// ── Strategy annotations (OBS-AI-02) ───────────
+
+var lastDrawingBar = -2;
+
+/** Folds the canonical `drawings` array up to bar `k`; returns whether the
+ *  fold was incremental (forward step) so series can use `update()`. */
+function foldAnnotations(k) {
+  if (!payload) { drawingState = null; lastDrawingBar = k; return false; }
+  var perBar = payload.drawings || [];
+  var incremental = !!(drawingState && k === lastDrawingBar + 1);
+  if (incremental) {
+    ObservaDrawings.applyInstructions(drawingState, perBar[k] || [], k, drawingBarTimes[k]);
+  } else {
+    drawingState = ObservaDrawings.fold(perBar, k, drawingBarTimes);
+  }
+  lastDrawingBar = k;
+  return incremental;
+}
+
+function applyAnnotations(incremental) {
+  applyDrawingState(drawingState, { incremental: !!incremental });
+  renderSeriesLegend(drawingState);
+}
+
+/** Full re-render of the annotation layer (used by the Annotations toggle). */
+function drawAnnotations(k, force) {
+  var incremental = force ? false : foldAnnotations(k);
+  applyAnnotations(incremental);
 }
 
 function renderAccount(view) {

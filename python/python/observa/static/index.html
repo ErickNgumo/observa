@@ -36,7 +36,7 @@
       <option value="10">10x</option>
       <option value="1">Max</option>
       </select>
-      <button class="toolbar-btn active icon-label" id="btn-lines" onclick="toggleLines()">&#8862; Lines</button>
+      <button class="toolbar-btn active icon-label" id="btn-lines" onclick="toggleAnnotations()" title="Show/hide strategy annotations" aria-label="Show/hide strategy annotations">&#8862; Annotations</button>
     </div>
 
     <div id="status-bar" aria-label="Backtest status">
@@ -143,6 +143,7 @@
             <tbody id="orders-body"></tbody>
           </table>
         </div>
+        <div class="replay-subheading">Strategy series <span id="series-legend" class="series-legend"></span></div>
         <div id="bar-events" class="bar-events"></div>
       </div>
     </div>
@@ -154,6 +155,8 @@
   <script src="/js/themes.js"></script>
   <script src="/js/charts.js"></script>
   <script src="/js/replay-core.js"></script>
+  <script src="/js/drawing-state.js"></script>
+  <script src="/js/drawing-renderer.js"></script>
   <script src="/js/events.js"></script>
   <script src="/js/investigation.js"></script>
   <script src="/js/drawdown.js"></script>

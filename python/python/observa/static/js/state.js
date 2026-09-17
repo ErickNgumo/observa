@@ -18,7 +18,7 @@ var currentView   = null;   // last derived view (ObservaReplay.stateThrough)
 var isPlaying = false;
 var playTimer = null;
 var playSpeed = 200;
-var showLines = true;
+var showAnnotations = true; // strategy annotation layer visibility
 var totalBars = 0;
 var barsDrawn = 0;
 
@@ -33,7 +33,11 @@ var equityData   = []; // equity curve points (canonical snapshots)
 var balanceData  = []; // balance curve points (canonical snapshots)
 var tradeMarkers = []; // raw marker objects for the candlestick chart
 var tradeLines   = []; // line series for entry-exit connectors
-var activeDrawings = {}; // active strategy drawing series (id -> series[])
 
 // Last metrics report received from the server
 var lastMetricsReport = null;
+
+// Strategy annotation layer (OBS-AI-02): folded drawing state, derived
+// from the canonical `drawings` array on every navigation.
+var drawingState = null;
+var drawingBarTimes = [];
