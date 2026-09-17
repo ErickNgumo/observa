@@ -31,6 +31,7 @@ jobs:
           python -m venv .ci-venv
           .ci-venv/bin/pip install python/target/wheels/*.whl
           .ci-venv/bin/python python/tests/test_observa.py
+          .ci-venv/bin/python python/tests/test_canonical_baseline.py
           .ci-venv/bin/python python/tests/test_ai_interface.py
           .ci-venv/bin/python python/tests/test_onboarding_ai.py
       - name: Quickstart smoke (installed wheel)
