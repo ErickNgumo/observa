@@ -189,6 +189,29 @@ observa-server
   config and strategy reproduces `events.jsonl`, `run.json` and `metrics.json`
   byte-for-byte.
 
+## 6c. Run inspection (OBS-AI-03)
+
+- `observa.inspect_run(run_dir)` returns a read-only `PersistedRun` over a
+  **persisted** run: the programmatic way to ask what canonical history
+  contains without re-running the engine.
+- Inspection reads only the persisted artifacts (`run.json`, `events.jsonl`,
+  `metrics.json`). It never requires the strategy code, never executes a
+  strategy, and never writes to the run directory.
+- It **organizes** canonical evidence; it never recomputes economics, never
+  infers missing facts and never fabricates strategy reasoning. Where the
+  canonical model has no value, the API returns `None`/`[]`.
+- Events are parsed once and indexed by `event_seq`, bar chronology bucket,
+  `position_id` and `order_seq`. `bar_index` queries use the same
+  chronology-bucket attribution the replay frontend uses — events belong to the
+  bar whose `bar_processed` is open — so `events(bar_index=n)` and
+  `bar(n)["events"]` always agree.
+- Canonical ordering (`event_seq` ascending) is preserved everywhere; nothing is
+  ordered by identifier text or hash iteration.
+- Known canonical-data limitations are reported rather than papered over: a
+  strategy's prose `reason` is not persisted (G11), and a position's closing
+  order is not derivable because `position_closed` carries no `order_seq` (G12).
+  Both need separate schema tickets.
+
 ## 7. Traceability
 
 The intended chain for a normal trade is:

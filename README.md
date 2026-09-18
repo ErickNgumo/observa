@@ -161,6 +161,44 @@ canonical events — fills, position pairing, SL/TP prices and account state
 all come from the run's event log, never recomputed in the browser. The chart
 library is bundled, so replay works offline.
 
+## Inspect a persisted run programmatically
+
+`observa.inspect_run(dir)` answers structured questions about a saved run
+**without re-running the engine** — no strategy code, no parsing `events.jsonl`
+by hand. It reads only the persisted artifacts and never recomputes economics:
+
+```python
+import observa
+
+run = observa.inspect_run("runs/sample")
+
+run.meta, run.metrics                  # persisted run.json / metrics.json
+run.trades()                           # completed canonical trades
+run.positions(open=None)               # None = all, True = open, False = closed
+
+pid = run.trades()[0]["position_id"]
+run.position(pid)                      # lifecycle: opened/closed/order/annotations
+run.position(pid)["events"]            # every canonical event for that position
+
+run.order(17)                          # one order's lifecycle
+run.rejections()                       # rejected orders + why (verbatim)
+run.bar(421)                           # everything canonical on that bar
+run.events(event_type="order_filled", bar_index=421)
+
+run.event(254)                         # one event by event_seq
+```
+
+Guarantees: canonical `event_seq` ordering everywhere; `bar_index` queries use
+canonical chronology buckets (so `events(bar_index=n) == bar(n)["events"]`);
+results are plain JSON-serializable dicts; a failed run inspects fine
+(`metrics is None`); OHLC is only returned when it still matches the persisted
+dataset hash. Unknown ids raise `KeyError` with `exc.code` of
+`EVENT_NOT_FOUND` / `BAR_NOT_FOUND` / `POSITION_NOT_FOUND` / `ORDER_NOT_FOUND`.
+
+Known canonical-data gaps, reported as absence rather than guessed: a strategy's
+prose reason is not persisted, and a position's `closing_order` is always `None`
+because `position_closed` carries no `order_seq`.
+
 ## Show the strategy's reasoning
 
 `on_bar` may return annotations next to signals, and replay renders them over
