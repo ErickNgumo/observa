@@ -3,7 +3,7 @@ no Rust toolchain on PATH. Executed from OUTSIDE the repository directory."""
 
 import observa
 
-assert observa.__version__ == "0.1.1"
+assert observa.__version__ == "0.1.2"
 
 bars = [
     {"timestamp": "2023-11-14T22:13:20Z", "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": None},

@@ -57,6 +57,12 @@ jobs:
           .release-venv/bin/pip install python/target/wheels/*.whl
           .release-venv/bin/python -c "import observa;assert observa.__version__ == '${{ steps.version.outputs.version }}', observa.__version__"
           .release-venv/bin/python python/tests/test_canonical_baseline.py
+      - name: Verify built wheel (annotations + deterministic identity)
+        # OBS-AI-02 / OBS-DET-01 smoke checks. A release must not be publishable
+        # if the annotation contract or deterministic position identity regressed.
+        run: |
+          .release-venv/bin/python python/tests/test_deterministic_identity.py
+          .release-venv/bin/python python/tests/test_annotations.py
       - name: Create private-MVP GitHub Release
         uses: softprops/action-gh-release@v2
         with:
