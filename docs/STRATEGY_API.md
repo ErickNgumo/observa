@@ -366,3 +366,126 @@ Do not use any of these in new strategies.
 
 `bar_color` is accepted for backward compatibility only. It is not part of this
 public contract and receives no new functionality.
+
+# Run inspection (persisted runs)
+
+`observa.inspect_run(run_dir)` opens an **existing** persisted run and returns a
+read-only `PersistedRun`. Use it to ask what canonical history contains without
+re-running the engine, importing the strategy, or parsing `events.jsonl` by
+hand.
+
+```python
+import observa
+
+run = observa.inspect_run("runs/quickstart_20260918")
+
+run.meta                  # the persisted run.json (plain dict)
+run.metrics               # the persisted metrics.json, or None for a failed run
+
+run.events(event_type="order_rejected")
+run.events(bar_index=421)
+run.events(position_id=pid, start_event_seq=100)
+run.event(254)            # one canonical event by event_seq
+
+run.bar(421)              # every canonical event attributed to that bar
+run.position(pid)         # one position's full lifecycle
+run.order(17)             # one order's full lifecycle
+run.positions(open=None)  # every position summary, opening event_seq order
+run.trades()              # completed canonical trades
+run.rejections()          # rejected orders joined with their order parameters
+```
+
+## Authority and guarantees
+
+- **Artifacts are authoritative.** Everything comes from `run.json`,
+  `events.jsonl` and `metrics.json`. `events.jsonl` is the source of truth for
+  history.
+- **No engine execution.** Inspection never runs the engine, never imports or
+  executes a strategy, and never writes to the run directory. A persisted run
+  remains inspectable after its strategy code is gone.
+- **No recomputation.** Economics and metrics are never recomputed. `trades()`
+  copies the canonical `position_closed` values verbatim, so for a run created
+  in-process it is value-for-value identical to `RunResult.trades`.
+- **Plain data only.** Every result is composed of `dict`, `list`, `str`, `int`,
+  `float`, `bool` and `None`, is JSON-serializable, and is a fresh copy the
+  caller may mutate freely.
+- **Canonical ordering.** Every event collection preserves ascending
+  `event_seq`. `positions()` is ordered by the position's opening `event_seq`.
+  Nothing is ordered by identifier text.
+- **Opaque ids.** Current runs use deterministic UUIDv5 `position_id` values and
+  historical runs use UUIDv4; both are accepted and returned unchanged. Do not
+  parse an id or infer economics from its text.
+
+## `events(...)` filters
+
+| Filter | Semantics |
+| --- | --- |
+| `event_type` | exact canonical event type; an unknown type returns `[]` |
+| `event_seq` | exact primary key (agrees with `event()`) |
+| `bar_index` | **canonical chronology bucket** — identical to `bar(n)["events"]` |
+| `position_id` | events carrying that id (`position_opened` / `position_closed`) |
+| `order_seq` | every event carrying that sequence (order events + the `position_opened` it opened) |
+| `start_event_seq` / `end_event_seq` | inclusive range on `event_seq` |
+
+Filters combine with **AND**. No match returns `[]` (never `None`). A filter of
+the wrong type raises `TypeError`. There are no predicates, no OR expressions
+and no query language.
+
+## `bar(bar_index)`
+
+Returns canonical evidence for one bar: `bar_index`, `timestamp`, `ohlc`
+(`None` unless the dataset is safely recoverable), `ohlc_available`, the
+complete `events` list, plus grouped `strategy_decisions`, `drawings` (exact
+canonical specs), `orders` (created/pending/triggered/expired), `fills`,
+`rejections`, `positions_opened`, `positions_closed`, and `portfolio` (the
+canonical `portfolio_snapshot`, or `None`).
+
+Bar attribution follows the replay chronology rule: an event belongs to the bar
+whose `bar_processed` is open. Several event types carry no bar field at all and
+`order_created` stores `created_bar`, which is why a naive field match would be
+wrong. OHLC is only returned when the recorded `dataset.source` still hashes to
+the persisted `dataset.sha256`; otherwise the API degrades cleanly and never
+fabricates bars.
+
+## `position(position_id)`
+
+One lifecycle object for both open and closed positions: `position_id`,
+`status`, `opened`, `closed`, `opening_order` (the full order lifecycle),
+`closing_order`, `events`, `entry_bar_index`, `exit_bar_index`,
+`annotations_at_entry`, `annotations_at_exit`. A "trade" is simply a closed
+position, which is why there is no separate `trade()` accessor.
+
+## Error codes
+
+Inspection reuses the existing run codes and adds four lookup codes. Exceptions
+keep their normal Python classes; `exc.code` and `exc.details` carry the
+machine-readable form (`observa.error_code(exc)`).
+
+| Code | Class | When |
+| --- | --- | --- |
+| `RUN_DIR_NOT_FOUND` | `FileNotFoundError` | the run directory or its `run.json` is missing |
+| `RUN_ARTIFACTS_INVALID` | `ValueError` | `run.json`, `events.jsonl` or `metrics.json` cannot be parsed |
+| `EVENT_NOT_FOUND` | `KeyError` | `event(event_seq)` has no such event |
+| `BAR_NOT_FOUND` | `KeyError` | `bar(bar_index)` has no such bar |
+| `POSITION_NOT_FOUND` | `KeyError` | `position(position_id)` has no such position |
+| `ORDER_NOT_FOUND` | `KeyError` | `order(order_seq)` has no such order |
+
+Absent data is not an error: a failed run has `metrics is None`, a run without
+annotations yields `drawings == []`, and an unrecoverable dataset yields
+`ohlc_available is False`.
+
+## Current canonical-data limitations
+
+- **Strategy prose reason is unavailable.** `StrategySignal.reason` is not
+  persisted: `strategy_decision` carries only `signal_count` and `order_created`
+  carries no reason. Inspection reports this as absence — it never invents or
+  reconstructs reason text. The only canonical reason text belongs to
+  `order_rejected` events and is returned verbatim by `rejections()` and
+  `order()`.
+- **A position's closing order is not derivable.** `position_closed` carries no
+  `order_seq`, so `position(pid)["closing_order"]` is always `None`. It is never
+  inferred from side, quantity, timestamp, neighbouring events or bar
+  correlation.
+
+Both are limitations of the current event schema and require a separate schema
+ticket.

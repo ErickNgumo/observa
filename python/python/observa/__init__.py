@@ -29,6 +29,7 @@ from typing import Any, Optional, Sequence, Union
 
 from ._observa import RunResult, run as _run
 from .errors import coded, error_code
+from .inspection import PersistedRun, inspect_run
 from .replay import ReplayServer
 
 __version__ = "0.1.2"
@@ -334,6 +335,8 @@ __all__ = [
     "run",
     "replay",
     "run_summary",
+    "inspect_run",
+    "PersistedRun",
     "ReplayServer",
     "error_code",
     "sample_data_path",

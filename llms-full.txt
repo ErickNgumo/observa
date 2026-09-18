@@ -378,6 +378,77 @@ exception. The order is rejected in the canonical engine and appears as an
 events for rejection reasons (e.g. category/reason fields) instead of
 catching exceptions.
 
+## K2. Run inspection — reading a persisted run without re-running
+
+`observa.inspect_run(run_dir)` opens an existing persisted run and returns a
+read-only `PersistedRun`. Use it after a run has been saved, when the strategy
+code is gone, or in a fresh process / CI job.
+
+    import observa
+    run = observa.inspect_run("runs/quickstart_20260918")
+
+    run.meta            # persisted run.json (plain dict)
+    run.metrics         # persisted metrics.json, or None for a failed run
+
+    run.events(event_type="order_rejected")   # any canonical event type
+    run.events(bar_index=421)                 # == run.bar(421)["events"]
+    run.events(order_seq=17)
+    run.events(position_id=pid)
+    run.events(start_event_seq=100, end_event_seq=200)
+    run.event(254)                            # one event by event_seq
+
+    run.bar(421)        # everything canonical that happened on that bar
+    run.position(pid)   # full lifecycle (open or closed)
+    run.order(17)       # full lifecycle incl. rejection reason/category
+    run.positions(open=None)   # None=all, True=open, False=closed
+    run.trades()        # completed canonical trades
+    run.rejections()    # rejected orders + the parameters order_rejected lacks
+
+Task → call:
+
+    "list all trades"                    -> run.trades()
+    "inspect position X"                 -> run.position(pid)
+    "why was order 17 rejected?"         -> run.order(17) / run.rejections()
+    "what happened on bar 421?"          -> run.bar(421)
+    "every event for position X"         -> run.position(pid)["events"]
+    "annotations at entry"               -> run.position(pid)["annotations_at_entry"]
+    "portfolio after this fill"          -> run.bar(fill_bar)["portfolio"]
+
+Rules and guarantees:
+
+- Artifacts are authoritative; inspection reads only `run.json`,
+  `events.jsonl`, `metrics.json`. It NEVER runs the engine, never imports or
+  executes your strategy, and never writes to the run directory.
+- It NEVER recomputes economics or metrics. `trades()` is value-for-value
+  identical to `RunResult.trades` for the same run.
+- Every event collection preserves canonical `event_seq` order.
+- `bar_index` filtering uses canonical chronology buckets (events belong to the
+  bar whose `bar_processed` is open), so `run.events(bar_index=n)` and
+  `run.bar(n)["events"]` are always the same list.
+- Results are plain dicts/lists/str/int/float/bool/None — JSON-serializable.
+- `ohlc` is `None` with `ohlc_available == False` when the dataset cannot be
+  verified against the persisted hash. No bar is ever fabricated.
+- Failed runs inspect fine: `meta["status"] == "failed"`, `metrics is None`, and
+  the partial canonical history is available.
+
+Error codes (attached to ordinary exception classes; `observa.error_code(exc)`):
+
+    RUN_DIR_NOT_FOUND      FileNotFoundError   missing run dir / run.json
+    RUN_ARTIFACTS_INVALID  ValueError          unparseable artifacts
+    EVENT_NOT_FOUND        KeyError            event(seq) has no such event
+    BAR_NOT_FOUND          KeyError            bar(n) has no such bar
+    POSITION_NOT_FOUND     KeyError            position(pid) unknown
+    ORDER_NOT_FOUND        KeyError            order(seq) unknown
+
+Current canonical-data limitations (do NOT work around them by guessing):
+
+- A strategy's prose reason is NOT persisted (`strategy_decision` has only
+  `signal_count`; `order_created` has no reason). Inspection returns absence and
+  never invents reason text. Only `order_rejected` carries canonical reason text.
+- A position's closing order is NOT derivable: `position_closed` has no
+  `order_seq`, so `position(pid)["closing_order"]` is always `None`. Never infer
+  it from side, size, timestamp or neighbouring events.
+
 ## L. Complete working examples
 
 Quickstart A (bundled sample):

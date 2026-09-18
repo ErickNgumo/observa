@@ -32,6 +32,13 @@ ERROR_CODES = (
     "REPLAY_PORT_IN_USE",
     "REPLAY_PORT_INVALID",
     "REPLAY_RUN_NOT_PERSISTED",
+    # OBS-AI-03 run inspection: lookup misses. Run-level artifact problems keep
+    # using RUN_DIR_NOT_FOUND / RUN_ARTIFACTS_INVALID above rather than adding
+    # duplicate RUN_INSPECT_* codes.
+    "EVENT_NOT_FOUND",
+    "BAR_NOT_FOUND",
+    "POSITION_NOT_FOUND",
+    "ORDER_NOT_FOUND",
 )
 
 

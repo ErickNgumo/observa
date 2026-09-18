@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.22.6", features = ["extension-module", "abi3-py310"] }
 chrono = { version = "0.4", features = ["serde"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 observa-core = { path = "../crates/observa-core" }
 observa-data = { path = "../crates/observa-data" }
