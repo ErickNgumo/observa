@@ -35,3 +35,6 @@ python/target/
 
 # Cargo home used for wheel builds inside the sandbox
 .cargo-home/
+
+# Generated run artifacts (examples, demos, replay) are never committed.
+runs/
