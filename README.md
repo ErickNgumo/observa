@@ -12,16 +12,16 @@ way it did, instead of only trusting final statistics.
 > ⚠️ Do **not** `pip install observa`. The public PyPI name `observa` is an
 > unrelated project.
 >
-> 📦 **Private-MVP distribution:** Observa 0.1.1 is distributed as an official
+> 📦 **Private-MVP distribution:** Observa 0.1.2 is distributed as an official
 > wheel attached to the private-MVP GitHub Release. Install it with the URL
 > below. Building a wheel yourself is a contributor task, not a user task
 > (see Development below).
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.1-private-mvp/observa-0.1.1-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.2-private-mvp/observa-0.1.2-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-SHA-256: `9cb10ee386c41b6b8fe5b0ba553894d4a7ff3cafb74ff69b83ae0d3a65a26cf8`
+SHA-256: `b4c62f0e280fed133e89e5fd1ddbd18cee4fae6c106c831795e1d449c9674d34`
 
 For real-data examples, also install:
 
@@ -39,7 +39,7 @@ Verify you imported *this* Observa:
 ```python
 import observa
 
-print(observa.__version__)                      # must print 0.1.1
+print(observa.__version__)                      # must print 0.1.2
 print(observa.__file__)                         # .../site-packages/observa/__init__.py
 print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
 ```

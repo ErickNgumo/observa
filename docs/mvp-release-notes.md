@@ -22,16 +22,13 @@ the package version, runs the canonical deterministic baseline plus the
 annotation and deterministic-identity smoke checks, records the SHA-256, and
 uploads the wheel together with the example scripts.
 
-The exact wheel URL and SHA-256 for 0.1.2 are recorded here once the release
-asset has been published by that workflow:
+The published wheel and its SHA-256:
 
-<!-- The two lines below are replaced with the real published values. -->
-Wheel URL: `PENDING_RELEASE_WHEEL_URL`
-SHA-256: `PENDING_RELEASE_SHA256`
+Wheel URL: `https://github.com/ErickNgumo/observa/releases/download/observa-0.1.2-private-mvp/observa-0.1.2-cp310-abi3-manylinux_2_34_x86_64.whl`
+SHA-256: `b4c62f0e280fed133e89e5fd1ddbd18cee4fae6c106c831795e1d449c9674d34`
 
-Until that asset exists, the current installable tester build is 0.1.1 — see
-*Previous releases* below. Do **not** `pip install observa` (an unrelated PyPI
-package owns that name).
+0.1.2 is the current tester build. Do **not** `pip install observa` (an
+unrelated PyPI package owns that name).
 
 Real-data example dependency: `python -m pip install yfinance pandas`.
 

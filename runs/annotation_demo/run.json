@@ -1,0 +1,72 @@
+{
+  "config": {
+    "account": {
+      "currency": "USD",
+      "leverage": 100.0,
+      "starting_balance": 10000.0
+    },
+    "dataset": {
+      "bar_count": 200,
+      "end": "2024-01-03T01:45:00Z",
+      "hash": null,
+      "interval": "15m",
+      "source": "/home/erick/Documents/observa/python/target/qa/venv-live/lib/python3.13/site-packages/observa/samples/sample_m15.csv",
+      "start": "2024-01-01T00:00:00Z"
+    },
+    "execution": {
+      "commission": {
+        "flat_per_fill": 7.0,
+        "mode": "ROUND_TRIP",
+        "rate_per_unit": 0.0
+      },
+      "fill_mode": "NEXT_BAR_OPEN",
+      "order_model": {
+        "limit": true,
+        "market": true,
+        "stop": true
+      },
+      "slippage": 0.0001,
+      "spread": 0.0002
+    },
+    "instrument": {
+      "base_currency": "EUR",
+      "contract_size": 100000.0,
+      "max_quantity": 100.0,
+      "min_quantity": 0.01,
+      "pip_size": null,
+      "price_decimals": 5,
+      "quantity_step": 0.01,
+      "quote_currency": "USD",
+      "symbol": "EURUSD",
+      "tick_size": null
+    },
+    "strategy": {
+      "name": "AnnotationDemo",
+      "parameters": {},
+      "source": null,
+      "source_hash": null
+    },
+    "version": 1
+  },
+  "config_version": 1,
+  "dataset": {
+    "bar_count": 200,
+    "first_timestamp": "2024-01-01T00:00:00Z",
+    "last_timestamp": "2024-01-03T01:45:00Z",
+    "sha256": "b450e1e03e76aed8a5f95fc01a123345afdaca2d44d0e6e5dae457dad6e159e4",
+    "source": "/home/erick/Documents/observa/python/target/qa/venv-live/lib/python3.13/site-packages/observa/samples/sample_m15.csv"
+  },
+  "event_count": 807,
+  "final_balance": 10000.0,
+  "final_equity": 10723.000000000007,
+  "free_margin": 9614.040000000008,
+  "open_positions_remaining": 1,
+  "run_schema_version": 1,
+  "status": "completed",
+  "strategy": {
+    "name": "AnnotationDemo",
+    "params_sha256": "0b26e7db71542e63e2e30263262201ab15f62ca770f5defde4840166284f24b1",
+    "source": null
+  },
+  "used_margin": 1108.96
+}

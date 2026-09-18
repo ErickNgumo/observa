@@ -1,6 +1,6 @@
 ---
 name: MVP feedback
-about: Report feedback for the Observa 0.1.1 private MVP tester round
+about: Report feedback for the Observa 0.1.2 private MVP tester round
 title: "[MVP] <short summary>"
 labels: mvp-feedback
 assignees: ''
