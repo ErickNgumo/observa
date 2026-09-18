@@ -78,13 +78,15 @@ pub fn signal_from_py(py: Python, obj: &Bound<PyAny>) -> Result<StrategySignal, 
         }
     };
 
-    // reason is optional
+    // reason is optional. OBS-SCHEMA-01: an absent/None reason means "no reason
+    // given" and must never be replaced by placeholder prose, which would be
+    // indistinguishable from a real authored reason once persisted.
     let reason: String = dict
         .get_item("reason")
         .ok()
         .flatten()
         .and_then(|v| v.extract::<String>().ok())
-        .unwrap_or_else(|| "Python strategy signal".to_string());
+        .unwrap_or_default();
 
     // position ticket
     let ticket: Option<String> = dict.get_item("ticket").ok().flatten().and_then(|v| {

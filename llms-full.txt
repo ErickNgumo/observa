@@ -218,6 +218,32 @@ DRAWING_TIME_INVALID, DRAWING_REFERENCE_INVALID, DRAWING_LIMIT_EXCEEDED.
 
 Full contract with examples: `docs/STRATEGY_API.md` (Strategy annotations).
 
+## E3. Signal `reason` — the strategy's own words
+
+`reason` is optional strategy-authored text for **that** signal. Observa never
+generates or rewrites it; it is persisted verbatim on the canonical
+`strategy_decision` event so a saved run can be inspected later.
+
+    {"direction": "buy", "size": 1.0,
+     "reason": "price crossed above VWAP after z-score mean reversion"}
+
+- Omitted or `None` or `""` means **no reason**. There is no placeholder text.
+- Preserved exactly: no trimming, case folding or Unicode alteration.
+- Per signal, index-aligned: a bar with 3 signals persists 3 entries in signal
+  order, `null` for those without a reason.
+- Max **1024 UTF-8 bytes** per reason (encoded bytes, not characters). Longer
+  fails the run: `exc.code == "STRATEGY_REASON_TOO_LONG"` with
+  `details={bar_index, signal_index, actual_bytes, max_bytes}`. Never truncated.
+- Validated for the whole bar **before** anything is emitted or executed, so an
+  invalid reason causes no partial order processing.
+- Survives order rejection: it is recorded before execution, so a rejected
+  order's signal still has its reason. It is not copied onto `order_rejected`.
+- Descriptive only — never affects economics. Must be deterministic (it is part
+  of byte-reproducible history).
+- A deliberate hold emits zero signals, so there is no reason for inaction.
+
+Read it back with `run.bar(n)["strategy_decisions"][0]["signals"]` (see K2).
+
 ## F. Explicit-ticket closes
 
 Strong rule: never invent FIFO close behavior. To close a position, always
@@ -442,9 +468,10 @@ Error codes (attached to ordinary exception classes; `observa.error_code(exc)`):
 
 Current canonical-data limitations (do NOT work around them by guessing):
 
-- A strategy's prose reason is NOT persisted (`strategy_decision` has only
-  `signal_count`; `order_created` has no reason). Inspection returns absence and
-  never invents reason text. Only `order_rejected` carries canonical reason text.
+- A strategy's per-signal `reason` IS persisted on `strategy_decision`
+  (OBS-SCHEMA-01): `signals[k].signal_index` / `signals[k].reason`, omitted when
+  no signal supplied one. Runs produced before that schema have no `signals`
+  key — read it as absent, never back-filled.
 - A position's closing order is NOT derivable: `position_closed` has no
   `order_seq`, so `position(pid)["closing_order"]` is always `None`. Never infer
   it from side, size, timestamp or neighbouring events.

@@ -32,7 +32,10 @@ use observa_portfolio::portfolio::{
 };
 
 use crate::error::EngineError;
-use crate::runevents::{EngineEvent, EngineEventPayload, RejectionCategory, RunFailureCategory};
+use crate::runevents::{
+    EngineEvent, EngineEventPayload, RejectionCategory, RunFailureCategory, SignalReason,
+    MAX_STRATEGY_REASON_BYTES,
+};
 use crate::strategy::{OpenPositionView, PortfolioView, Strategy, StrategySignal};
 
 // ────────────────────────────────────────────────
@@ -642,9 +645,14 @@ impl Engine {
         }
         let drawings = strategy.take_drawings();
         self.validate_drawing_times(&drawings, index, bar_times, bar.timestamp.timestamp())?;
+        // OBS-SCHEMA-01: validate every signal's authored reason BEFORE the
+        // decision is emitted and before any signal is processed, so metadata
+        // validation can never leave partial economic side effects behind.
+        let signal_reasons = self.validate_signal_reasons(index, &signals)?;
         self.emit(EngineEventPayload::StrategyDecision {
             bar_index: index,
             signal_count: signals.len(),
+            signals: signal_reasons,
         })?;
         // Strategy annotations are descriptive only: they are recorded on the
         // canonical timeline (normal EventSeq) and never fed into order
@@ -761,6 +769,64 @@ impl Engine {
             }
         }
         Ok(())
+    }
+
+    /// Validates every signal's strategy-authored reason and returns the
+    /// canonical per-signal records (OBS-SCHEMA-01).
+    ///
+    /// All-or-nothing and side-effect free: it runs before the decision event
+    /// is emitted and before any signal is processed, so an invalid reason
+    /// cannot leave a partially processed callback behind. The returned vector
+    /// is empty when no signal carried a reason, which is what keeps
+    /// reason-less decisions byte-identical to their pre-change form.
+    ///
+    /// An empty reason means "no reason given" and is recorded as `null` so the
+    /// array stays index-aligned. Text is never trimmed, normalized or
+    /// truncated; an over-long reason fails the run deterministically. The
+    /// limit is measured in UTF-8 **bytes**.
+    fn validate_signal_reasons(
+        &self,
+        index: usize,
+        signals: &[StrategySignal],
+    ) -> Result<Vec<SignalReason>, EngineError> {
+        let mut records = Vec::new();
+        let mut any_reason = false;
+        for (signal_index, signal) in signals.iter().enumerate() {
+            if signal.reason.is_empty() {
+                records.push(SignalReason {
+                    signal_index,
+                    reason: None,
+                });
+                continue;
+            }
+            let actual_bytes = signal.reason.len();
+            if actual_bytes > MAX_STRATEGY_REASON_BYTES {
+                return Err(EngineError::StrategyFailure {
+                    bar_index: Some(index),
+                    message: format!(
+                        "signal {signal_index} reason is {actual_bytes} UTF-8 bytes; \
+                         the maximum is {MAX_STRATEGY_REASON_BYTES}"
+                    ),
+                    code: Some("STRATEGY_REASON_TOO_LONG".to_string()),
+                    details: Some(serde_json::json!({
+                        "bar_index": index,
+                        "signal_index": signal_index,
+                        "actual_bytes": actual_bytes,
+                        "max_bytes": MAX_STRATEGY_REASON_BYTES,
+                    })),
+                });
+            }
+            any_reason = true;
+            records.push(SignalReason {
+                signal_index,
+                reason: Some(signal.reason.clone()),
+            });
+        }
+        if any_reason {
+            Ok(records)
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     // ── Order sequence ───────────────────────────

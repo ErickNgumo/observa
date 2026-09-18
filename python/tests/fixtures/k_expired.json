@@ -63,6 +63,12 @@
       "bar_index": 1,
       "event_seq": 6,
       "signal_count": 1,
+      "signals": [
+        {
+          "reason": "fixture",
+          "signal_index": 0
+        }
+      ],
       "type": "strategy_decision"
     },
     {

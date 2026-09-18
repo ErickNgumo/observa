@@ -32,13 +32,17 @@ and callers cannot mutate the inspector's internal indexes.
 
 Current canonical-data limitations
 ----------------------------------
-**G11 — strategy prose reason is not persisted.** ``StrategySignal.reason`` is
-dropped by the engine: ``strategy_decision`` carries only ``signal_count`` and
-``order_created`` carries no strategy reason. Persisted inspection therefore
-cannot report *why* a strategy acted. No ``reason`` field is fabricated; the
-only canonical reason text in the model belongs to ``order_rejected`` events and
-is exposed verbatim by :meth:`PersistedRun.rejections` and
-:meth:`PersistedRun.order`. A future schema ticket is needed.
+**Strategy reasons are persisted per signal (OBS-SCHEMA-01).**
+``strategy_decision`` carries an optional ``signals`` array holding each
+signal's strategy-authored ``reason`` — the strategy's own text, verbatim, or
+``null`` when it gave none. The array is **omitted entirely** when no signal on
+the bar had a reason, so reason-less decisions stay byte-identical and
+historical runs simply lack the field. Reasons are descriptive metadata: they
+are recorded before order processing and never influence economics.
+
+A deliberate **hold** still has no canonical voice — a strategy that decides not
+to act emits zero signals, so there is no place to record a rationale for
+inaction.
 
 **G12 — a position's closing order is not derivable.** ``position_closed``
 carries no ``order_seq`` (only ``position_opened`` does), so

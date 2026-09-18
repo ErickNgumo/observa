@@ -53,6 +53,12 @@
       "bar_index": 0,
       "event_seq": 3,
       "signal_count": 1,
+      "signals": [
+        {
+          "reason": "fixture",
+          "signal_index": 0
+        }
+      ],
       "type": "strategy_decision"
     },
     {
@@ -115,6 +121,12 @@
       "bar_index": 1,
       "event_seq": 9,
       "signal_count": 1,
+      "signals": [
+        {
+          "reason": "fixture",
+          "signal_index": 0
+        }
+      ],
       "type": "strategy_decision"
     },
     {
@@ -177,6 +189,12 @@
       "bar_index": 2,
       "event_seq": 15,
       "signal_count": 1,
+      "signals": [
+        {
+          "reason": "fixture",
+          "signal_index": 0
+        }
+      ],
       "type": "strategy_decision"
     },
     {
@@ -239,6 +257,12 @@
       "bar_index": 3,
       "event_seq": 21,
       "signal_count": 1,
+      "signals": [
+        {
+          "reason": "fixture-close",
+          "signal_index": 0
+        }
+      ],
       "type": "strategy_decision"
     },
     {

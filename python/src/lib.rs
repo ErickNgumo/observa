@@ -683,9 +683,12 @@ fn signal_from_py(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<StrategySignal> {
     let intended_price = get_f("price")?.unwrap_or(0.0);
     let sl = get_f("sl")?;
     let tp = get_f("tp")?;
+    // OBS-SCHEMA-01: an absent/None reason means "no reason given" and must
+    // never be replaced by placeholder prose, which would be indistinguishable
+    // from a real authored reason once persisted.
     let reason = match d.get_item("reason")? {
         Some(v) if !v.is_none() => v.extract::<String>()?,
-        _ => "Python strategy signal".to_string(),
+        _ => String::new(),
     };
     let ticket = match d.get_item("ticket")? {
         Some(v) if !v.is_none() => Some(v.extract::<String>()?),

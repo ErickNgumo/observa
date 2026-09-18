@@ -562,18 +562,26 @@ def test_annotations_on_position(run, demo_dir):
 def test_g11_g12_limitations(run, rejected_dir):
     lifecycle = run.position(run.trades()[0]["position_id"])
     check("G12: closing_order is None (never inferred)", lifecycle["closing_order"] is None)
-    # G11: the strategy's prose reason is not persisted anywhere in the model.
+    # OBS-SCHEMA-01: the strategy's own per-signal reason IS now persisted on the
+    # canonical strategy_decision event and surfaces here verbatim.
     filled = run.order(0)
-    check("G11: a filled order exposes no invented strategy reason",
-          filled.get("reason") is None)
+    check("an order exposes no invented strategy reason", filled.get("reason") is None)
     decisions = run.events(event_type="strategy_decision")
-    check("G11: strategy_decision carries only the canonical signal_count",
-          all(set(e) == {"event_seq", "type", "bar_index", "signal_count"} for e in decisions),
+    allowed = {"event_seq", "type", "bar_index", "signal_count", "signals"}
+    check("strategy_decision carries only canonical fields",
+          all(set(e) <= allowed for e in decisions),
           sorted(decisions[0]) if decisions else None)
-    check("G11: order_created carries no reason field",
+    with_reason = [e for e in decisions if e.get("signals")]
+    check("a decision that carried a reason persists it",
+          with_reason and all(isinstance(e["signals"], list) and e["signals"] for e in with_reason),
+          len(with_reason))
+    check("persisted reasons are index-aligned with at least one non-null",
+          all([s["signal_index"] for s in e["signals"]] == list(range(len(e["signals"])))
+              and any(s["reason"] for s in e["signals"]) for e in with_reason))
+    check("order_created carries no reason field",
           all("reason" not in e for e in run.events(event_type="order_created")))
     rejections = observa.inspect_run(rejected_dir).events(event_type="order_rejected")
-    check("the only canonical reason text is the rejection reason",
+    check("a rejection keeps its own canonical reason text",
           rejections and all(isinstance(e.get("reason"), str) and e["reason"] for e in rejections))
 
 
