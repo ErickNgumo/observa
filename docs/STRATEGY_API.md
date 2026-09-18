@@ -487,9 +487,21 @@ fabricates bars.
 
 One lifecycle object for both open and closed positions: `position_id`,
 `status`, `opened`, `closed`, `opening_order` (the full order lifecycle),
-`closing_order`, `events`, `entry_bar_index`, `exit_bar_index`,
+`closing_order` (the full lifecycle of the canonical order that closed the
+position, or `None`), `events`, `entry_bar_index`, `exit_bar_index`,
 `annotations_at_entry`, `annotations_at_exit`. A "trade" is simply a closed
 position, which is why there is no separate `trade()` accessor.
+
+A closing order is recorded whenever one exists (OBS-SCHEMA-02):
+`position_closed.order_seq` is persisted for every explicit strategy/ticket
+close, in both fill modes, and `closing_order` resolves it through the same
+order index that `opening_order` uses. Protective SL/TP exits have no closing
+order in the current execution model — they are ordered by the fixed per-bar
+protective stage, are not strategy-generated orders, and their
+`position_closed` omits the key entirely. Symmetrically,
+`order(order_seq)["position_id"]` is the position that order **opened or
+closed**. `positions()` summaries expose `opening_order_seq` and
+`closing_order_seq` (`int` or `None`).
 
 ## Error codes
 
@@ -500,7 +512,7 @@ machine-readable form (`observa.error_code(exc)`).
 | Code | Class | When |
 | --- | --- | --- |
 | `RUN_DIR_NOT_FOUND` | `FileNotFoundError` | the run directory or its `run.json` is missing |
-| `RUN_ARTIFACTS_INVALID` | `ValueError` | `run.json`, `events.jsonl` or `metrics.json` cannot be parsed |
+| `RUN_ARTIFACTS_INVALID` | `ValueError` | `run.json`, `events.jsonl` or `metrics.json` cannot be parsed, or a canonical `order_seq` reference on a position resolves to no order |
 | `EVENT_NOT_FOUND` | `KeyError` | `event(event_seq)` has no such event |
 | `BAR_NOT_FOUND` | `KeyError` | `bar(bar_index)` has no such bar |
 | `POSITION_NOT_FOUND` | `KeyError` | `position(position_id)` has no such position |
@@ -517,10 +529,26 @@ annotations yields `drawings == []`, and an unrecoverable dataset yields
   absent and there are simply no reasons to read. Nothing is back-filled or
   re-run. A deliberate hold still has no canonical reason (see the reason
   contract above).
-- **A position's closing order is not derivable.** `position_closed` carries no
-  `order_seq`, so `position(pid)["closing_order"]` is always `None`. It is never
-  inferred from side, quantity, timestamp, neighbouring events or bar
-  correlation.
+- **Protective exits have no closing order.** A StopLoss/TakeProfit close is not
+  a strategy order: it allocates no `OrderSeq`, emits no `order_created` /
+  `order_filled`, and its `position_closed` omits `order_seq` entirely (never
+  `null`). `position(pid)["closing_order"]` is therefore `None` for those
+  closes, and `closing_order_seq` is `None` in the `positions()` summary.
+- **Runs created before OBS-SCHEMA-02 may have Signal closes without recorded
+  closing-order linkage.** Their `position_closed` has no `order_seq` at all, so
+  `closing_order` is `None` even though an order did close the position. The
+  historical closer is **never** guessed — not from side, quantity, timestamp,
+  adjacency, bar correlation or the opening order.
 
-Both are limitations of the current event schema and require a separate schema
-ticket.
+`closing_order` is therefore three-valued in practice, and the distinctions must
+not be collapsed:
+
+| `closing_order` | `exit_reason` | Meaning |
+| --- | --- | --- |
+| dict | `Signal` | the exact canonical closing order is recorded |
+| `None` | `StopLoss` / `TakeProfit` | protective exit — no order ever existed |
+| `None` | `Signal` | run predates OBS-SCHEMA-02 — the link was not recorded |
+
+A present, well-typed `order_seq` that resolves to no order is **not** a third
+kind of `None`: it is a corrupt artifact set and raises
+`RUN_ARTIFACTS_INVALID` when the run is opened.

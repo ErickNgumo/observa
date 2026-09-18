@@ -144,6 +144,7 @@
       "exit_reason": "Signal",
       "gross_realized_pnl": 50000.0,
       "net_realized_pnl": 50000.0,
+      "order_seq": 1,
       "position_id": "674dd589-8fc6-5b49-9a95-62483918d66e",
       "quantity_lots": 1.0,
       "side": "Buy",

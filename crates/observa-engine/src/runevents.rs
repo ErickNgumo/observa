@@ -184,8 +184,21 @@ pub enum EngineEventPayload {
         timestamp: DateTime<Utc>,
     },
     /// A position was fully closed.
+    ///
+    /// `order_seq` is the **canonical order that closed this position**
+    /// (OBS-SCHEMA-02), reusing the same identity space as
+    /// [`Self::PositionOpened::order_seq`]. It is `Some` for every explicit
+    /// strategy/ticket close (both `BAR_CLOSE` and `NEXT_BAR_OPEN`).
+    ///
+    /// It is `None` — and the key is **omitted entirely** from the wire form —
+    /// for protective SL/TP exits, which are ordered by the fixed per-bar
+    /// protective stage and are not strategy-generated orders, and for
+    /// historical events persisted before OBS-SCHEMA-02. OrderSeq `0` is a
+    /// valid order, so `None` is never encoded as `0`.
     PositionClosed {
         position_id: Uuid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        order_seq: Option<u64>,
         side: Direction,
         quantity_lots: f64,
         entry_price: f64,

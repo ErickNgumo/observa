@@ -472,9 +472,14 @@ Current canonical-data limitations (do NOT work around them by guessing):
   (OBS-SCHEMA-01): `signals[k].signal_index` / `signals[k].reason`, omitted when
   no signal supplied one. Runs produced before that schema have no `signals`
   key — read it as absent, never back-filled.
-- A position's closing order is NOT derivable: `position_closed` has no
-  `order_seq`, so `position(pid)["closing_order"]` is always `None`. Never infer
-  it from side, size, timestamp or neighbouring events.
+- A position's closing order IS persisted whenever one exists (OBS-SCHEMA-02):
+  `position_closed.order_seq`, omitted entirely when there is none.
+  `position(pid)["closing_order"]` resolves it through the order index, and
+  `order(X)["position_id"]` points back at the position it opened or closed.
+  The linkage is `None` in two different situations — a protective SL/TP exit
+  (no order ever existed) or a run produced before OBS-SCHEMA-02 (the link was
+  not recorded). Never infer it from side, size, timestamp, adjacency or
+  neighbouring events.
 
 ## L. Complete working examples
 

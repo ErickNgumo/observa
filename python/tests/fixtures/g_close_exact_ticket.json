@@ -296,6 +296,7 @@
       "exit_reason": "Signal",
       "gross_realized_pnl": 0.0,
       "net_realized_pnl": 0.0,
+      "order_seq": 3,
       "position_id": "e3367b6d-fcf4-58dd-a33f-0522d18d3009",
       "quantity_lots": 2.0,
       "side": "Buy",

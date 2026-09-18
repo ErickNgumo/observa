@@ -39,6 +39,22 @@ This document is a migration of the **current-state claims in the source knowled
   `exc.details`, and the `observa.error_code(exc)` helper. Order rejections
   remain canonical `order_rejected` events, not exceptions.
 
+### Run inspection
+- `observa.inspect_run(run_dir)` → `PersistedRun`: structured, read-only access
+  to a persisted run's canonical history (`meta`, `metrics`, `events`, `event`,
+  `bar`, `position`, `order`, `positions`, `trades`, `rejections`).
+- Events are parsed once and indexed by `event_seq`, bar chronology bucket,
+  `position_id` and `order_seq`; nothing is recomputed and the run directory is
+  never written to.
+- Canonical order linkage in both directions: `position(pid)["opening_order"]`
+  and `["closing_order"]` expose the full order lifecycle, and
+  `order(seq)["position_id"]` names the position that order opened or closed.
+- A closing order is recorded whenever one exists (`position_closed.order_seq`,
+  OBS-SCHEMA-02). It is absent for protective SL/TP exits, which are not orders,
+  and for runs produced before that linkage was persisted.
+- A present canonical `order_seq` reference that resolves to no order is
+  reported as `RUN_ARTIFACTS_INVALID`, never silently degraded to `None`.
+
 ### Execution
 - Market-order fills.
 - Fixed spread.

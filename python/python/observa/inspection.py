@@ -44,14 +44,35 @@ A deliberate **hold** still has no canonical voice — a strategy that decides n
 to act emits zero signals, so there is no place to record a rationale for
 inaction.
 
-**G12 — a position's closing order is not derivable.** ``position_closed``
-carries no ``order_seq`` (only ``position_opened`` does), so
-:meth:`PersistedRun.position` always reports ``closing_order = None``. It is
-never inferred from side, quantity, timestamp, neighbouring events or bar
-correlation.
+**Closing-order linkage (OBS-SCHEMA-02).** ``position_closed`` carries an
+optional ``order_seq``: the canonical order that closed the position. It is
+present for every explicit strategy/ticket close (both fill modes) and
+**omitted entirely** for protective SL/TP exits, which are ordered by the fixed
+per-bar protective stage and are not strategy-generated orders. The key is
+omitted rather than serialized as ``null``, so protective closes and historical
+events keep byte-identical payloads.
 
-Both are read-only limitations of the current event schema; OBS-AI-03 does not
-change the schema.
+:meth:`PersistedRun.position` therefore resolves ``closing_order`` from the
+persisted reference alone, via the same order index used for ``opening_order``.
+There is no fallback: it is never inferred from side, quantity, timestamp,
+neighbouring events, bar correlation, adjacency or the opening order. Three
+distinct outcomes are preserved rather than collapsed:
+
+* ``closing_order`` is a dict with ``exit_reason == "Signal"`` — the exact
+  canonical closing order was recorded;
+* ``closing_order`` is ``None`` with ``exit_reason`` ``"StopLoss"`` /
+  ``"TakeProfit"`` — a protective exit; no order ever existed;
+* ``closing_order`` is ``None`` with ``exit_reason == "Signal"`` — a run
+  produced before OBS-SCHEMA-02, where the link was not recorded. It is not
+  guessed.
+
+Canonical ``order_seq`` references are validated when the run is opened: a
+present, well-typed reference on ``position_opened`` or ``position_closed``
+that resolves to no order raises ``RUN_ARTIFACTS_INVALID``. ``None`` means "no
+canonical closing order exists", never "the reference was broken".
+
+The canonical limitations below are read-only properties of the current event
+schema; inspection never changes a run.
 
 Ordering
 --------
@@ -66,6 +87,21 @@ import os
 from .errors import coded
 
 __all__ = ["PersistedRun", "inspect_run"]
+
+
+def _invalid_artifacts(message, details):
+    """Builds the canonical ``RUN_ARTIFACTS_INVALID`` error.
+
+    Raised when the artifact set is internally inconsistent — in particular
+    when a canonical ``order_seq`` reference on ``position_opened`` or
+    ``position_closed`` resolves to no order. Absent linkage is **not** an
+    error; a broken reference is.
+    """
+    return coded(
+        ValueError("invalid run artifacts: %s" % (message,)),
+        "RUN_ARTIFACTS_INVALID",
+        details,
+    )
 
 #: Event types that belong to one order's lifecycle (all carry ``order_seq``).
 _ORDER_EVENT_TYPES = (
@@ -255,13 +291,54 @@ class PersistedRun:
                     seq = event.get("order_seq")
                     if _is_int(seq):
                         record["opening_order_seq"] = seq
-                        order_to_position[seq] = pid
+                        # An order opens the position it is linked to. A later
+                        # conflicting link is a corrupt artifact (checked below).
+                        order_to_position.setdefault(seq, pid)
             elif etype == "position_closed":
                 pid = event.get("position_id")
                 if isinstance(pid, str):
                     record = by_position.setdefault(pid, {"events": []})
                     record["closed"] = event
                     record["events"].append(event)
+                    # OBS-SCHEMA-02: the canonical closing order, when one
+                    # exists. Absence is `None`; it is never inferred.
+                    if "order_seq" in event:
+                        seq = event.get("order_seq")
+                        if seq is None:
+                            record["closing_order_seq"] = None
+                        elif _is_int(seq):
+                            record["closing_order_seq"] = seq
+                            order_to_position.setdefault(seq, pid)
+                        else:
+                            raise _invalid_artifacts(
+                                "position_closed has a non-integer order_seq",
+                                {"position_id": pid, "order_seq": seq},
+                            )
+
+        # Canonical references are validated eagerly: a well-typed reference
+        # that resolves to no order means the artifact set is internally
+        # inconsistent. `None` in `closing_order` means "no canonical closing
+        # order exists" — never "the reference was broken".
+        for pid, record in by_position.items():
+            for ref_key, label in (
+                ("opening_order_seq", "opening order"),
+                ("closing_order_seq", "closing order"),
+            ):
+                ref = record.get(ref_key)
+                if _is_int(ref) and ref not in by_order:
+                    raise _invalid_artifacts(
+                        "position %s references a %s that does not exist"
+                        % (pid, label),
+                        {"position_id": pid, "order_seq": ref},
+                    )
+            # An order cannot both open and close different positions.
+            for key in ("opening_order_seq", "closing_order_seq"):
+                ref = record.get(key)
+                if _is_int(ref) and order_to_position.get(ref) not in (None, pid):
+                    raise _invalid_artifacts(
+                        "order %s is linked to conflicting positions" % (ref,),
+                        {"position_id": pid, "order_seq": ref},
+                    )
 
         self._by_event_seq = by_event_seq
         self._by_bar = by_bar
@@ -473,9 +550,16 @@ class PersistedRun:
         Works for both open and closed positions. Keys: ``position_id``,
         ``status`` (``"open"``/``"closed"``), ``opened``, ``closed``,
         ``opening_order`` (the full order lifecycle, or ``None``),
-        ``closing_order`` (**always ``None``** — see the module docstring, G12),
-        ``events``, ``entry_bar_index``, ``exit_bar_index``,
-        ``annotations_at_entry``, ``annotations_at_exit``.
+        ``closing_order`` (the full lifecycle of the canonical order that closed
+        the position, or ``None`` — see the module docstring), ``events``,
+        ``entry_bar_index``, ``exit_bar_index``, ``annotations_at_entry``,
+        ``annotations_at_exit``.
+
+        ``closing_order`` is resolved **only** from the persisted
+        ``position_closed.order_seq``, never inferred from side, quantity,
+        timestamp, bar correlation or event adjacency. It is ``None`` for
+        protective SL/TP exits (no order exists) and for runs produced before
+        OBS-SCHEMA-02 (the link was never recorded).
 
         Position ids are opaque: historical UUIDv4 ids and current UUIDv5 ids
         are both accepted.
@@ -499,17 +583,22 @@ class PersistedRun:
 
         events = list(record.get("events") or [])
         opening_seq = record.get("opening_order_seq")
-        if _is_int(opening_seq):
-            for event in self._by_order.get(opening_seq, []):
-                events.append(event)
+        closing_seq = record.get("closing_order_seq")
+        for ref in (opening_seq, closing_seq):
+            if _is_int(ref):
+                for event in self._by_order.get(ref, []):
+                    events.append(event)
         events = _dedupe_by_event_seq(events)
 
         opening_order = None
         if _is_int(opening_seq):
-            try:
-                opening_order = self.order(opening_seq)
-            except KeyError:  # pragma: no cover - defensive
-                opening_order = None
+            opening_order = self.order(opening_seq)
+
+        # Canonical reference only. `closing_seq` is guaranteed to resolve:
+        # dangling references are rejected when the run is opened.
+        closing_order = None
+        if _is_int(closing_seq):
+            closing_order = self.order(closing_seq)
 
         entry_bar = opened.get("bar_index") if opened else None
         exit_bar = closed.get("bar_index") if closed else None
@@ -520,9 +609,10 @@ class PersistedRun:
             "opened": _copy(opened) if opened else None,
             "closed": _copy(closed) if closed else None,
             "opening_order": opening_order,
-            # G12: `position_closed` carries no `order_seq`, so the closing order
-            # is not canonically derivable. It is never inferred.
-            "closing_order": None,
+            # OBS-SCHEMA-02: the exact persisted closing order, or None when no
+            # canonical order closed this position (protective exit) or the run
+            # predates the linkage. Never inferred.
+            "closing_order": closing_order,
             "events": [_copy(e) for e in events],
             "entry_bar_index": entry_bar if _is_int(entry_bar) else None,
             "exit_bar_index": exit_bar if _is_int(exit_bar) else None,
@@ -568,6 +658,13 @@ class PersistedRun:
                             closed.get("net_realized_pnl") if closed else None
                         ),
                         "opening_order_seq": record.get("opening_order_seq"),
+                        # OBS-SCHEMA-02: the canonical closing order, or None
+                        # when no order closed the position.
+                        "closing_order_seq": (
+                            record.get("closing_order_seq")
+                            if _is_int(record.get("closing_order_seq"))
+                            else None
+                        ),
                         "opened_bar": opened.get("bar_index") if opened else None,
                         "closed_bar": closed.get("bar_index") if closed else None,
                         "entry_event_seq": seq if _is_int(seq) else None,
@@ -615,8 +712,9 @@ class PersistedRun:
 
         Keys: ``order_seq``, ``state`` (last canonical state event wins),
         ``created``/``pending``/``triggered``/``filled``/``rejected``/``expired``,
-        ``position_id`` (when canonically linked through
-        ``position_opened.order_seq``), ``events`` (every event carrying that
+        ``position_id`` (the position **opened or closed** by this order, when
+        canonically linked through ``position_opened.order_seq`` or
+        ``position_closed.order_seq``), ``events`` (every event carrying that
         sequence, including the linked ``position_opened``).
 
         Rejection ``category`` and ``reason`` are returned verbatim from the

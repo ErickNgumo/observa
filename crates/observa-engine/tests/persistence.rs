@@ -667,6 +667,160 @@ fn legacy_uuidv4_position_ids_still_deserialize() {
     }
 }
 
+// ── 3d. OBS-SCHEMA-02: closing-order linkage wire shape ──
+
+/// A historical `position_closed` (no `order_seq` key) must deserialize to
+/// `None`; the field is optional and no migration is performed.
+#[test]
+fn historical_position_closed_without_order_seq_reads_as_none() {
+    let historical = serde_json::json!({
+        "event_seq": 1,
+        "type": "position_closed",
+        "position_id": "9b2c60de-0501-46de-af96-efd0a267c4cc",
+        "side": "Buy",
+        "quantity_lots": 1.0,
+        "entry_price": 1.1,
+        "exit_price": 1.2,
+        "exit_reason": "Signal",
+        "gross_realized_pnl": 10000.0,
+        "total_commission": 0.0,
+        "net_realized_pnl": 10000.0,
+        "bar_index": 1,
+        "timestamp": "2023-11-14T22:28:20Z"
+    });
+    let ev: EngineEvent = serde_json::from_value(historical).unwrap();
+    match &ev.payload {
+        EngineEventPayload::PositionClosed { order_seq, .. } => assert_eq!(
+            *order_seq, None,
+            "a historical Signal close has no recorded linkage"
+        ),
+        other => panic!("unexpected payload: {other:?}"),
+    }
+}
+
+/// An explicit `null` is also accepted (absence and `null` mean the same thing
+/// to a reader); OrderSeq `0` is a valid order and must NOT be used as a
+/// sentinel.
+#[test]
+fn position_closed_order_seq_accepts_null_and_zero() {
+    let base = |order_seq: serde_json::Value| {
+        serde_json::json!({
+            "event_seq": 1,
+            "type": "position_closed",
+            "position_id": "9b2c60de-0501-46de-af96-efd0a267c4cc",
+            "order_seq": order_seq,
+            "side": "Buy",
+            "quantity_lots": 1.0,
+            "entry_price": 1.1,
+            "exit_price": 1.2,
+            "exit_reason": "Signal",
+            "gross_realized_pnl": 10000.0,
+            "total_commission": 0.0,
+            "net_realized_pnl": 10000.0,
+            "bar_index": 1,
+            "timestamp": "2023-11-14T22:28:20Z"
+        })
+    };
+    for (value, expected) in [
+        (serde_json::Value::Null, None),
+        (serde_json::json!(0), Some(0u64)),
+        (serde_json::json!(19), Some(19u64)),
+    ] {
+        let ev: EngineEvent = serde_json::from_value(base(value.clone())).unwrap();
+        match &ev.payload {
+            EngineEventPayload::PositionClosed { order_seq, .. } => assert_eq!(
+                *order_seq, expected,
+                "order_seq {value} must deserialize to {expected:?}"
+            ),
+            other => panic!("unexpected payload: {other:?}"),
+        }
+    }
+}
+
+/// The wire shape: an explicit close serializes `order_seq`; a protective close
+/// **omits the key entirely** rather than emitting `"order_seq": null`.
+#[test]
+fn position_closed_omits_order_seq_when_none() {
+    let close = |order_seq: Option<u64>| {
+        serde_json::to_value(EngineEvent {
+            event_seq: 7,
+            payload: EngineEventPayload::PositionClosed {
+                position_id: uuid::Uuid::parse_str("9b2c60de-0501-46de-af96-efd0a267c4cc").unwrap(),
+                order_seq,
+                side: Direction::Buy,
+                quantity_lots: 1.0,
+                entry_price: 1.1,
+                exit_price: 1.2,
+                exit_reason: observa_core::types::ExitReason::Signal,
+                gross_realized_pnl: 1.0,
+                total_commission: 0.0,
+                net_realized_pnl: 1.0,
+                bar_index: 1,
+                timestamp: chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+            },
+        })
+        .unwrap()
+    };
+
+    let with_order = close(Some(19));
+    assert_eq!(with_order["order_seq"], serde_json::json!(19));
+    // `serde_json::Value` orders keys lexically, so declaration order is checked
+    // on the real serialized text: `order_seq` must sit immediately after
+    // `position_id`, mirroring `position_opened` on the wire.
+    let text = serde_json::to_string(&EngineEvent {
+        event_seq: 7,
+        payload: EngineEventPayload::PositionClosed {
+            position_id: uuid::Uuid::parse_str("9b2c60de-0501-46de-af96-efd0a267c4cc").unwrap(),
+            order_seq: Some(19),
+            side: Direction::Buy,
+            quantity_lots: 1.0,
+            entry_price: 1.1,
+            exit_price: 1.2,
+            exit_reason: observa_core::types::ExitReason::Signal,
+            gross_realized_pnl: 1.0,
+            total_commission: 0.0,
+            net_realized_pnl: 1.0,
+            bar_index: 1,
+            timestamp: chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+        },
+    })
+    .unwrap();
+    assert!(
+        text.contains("\"position_id\":\"9b2c60de-0501-46de-af96-efd0a267c4cc\",\"order_seq\":19,"),
+        "declaration order wrong: {text}"
+    );
+
+    let without = close(None);
+    assert!(
+        without.get("order_seq").is_none(),
+        "protective closes must OMIT the key, got {:?}",
+        without.get("order_seq")
+    );
+    assert!(!without.as_object().unwrap().contains_key("order_seq"));
+    let text_none = serde_json::to_string(&EngineEvent {
+        event_seq: 7,
+        payload: EngineEventPayload::PositionClosed {
+            position_id: uuid::Uuid::parse_str("9b2c60de-0501-46de-af96-efd0a267c4cc").unwrap(),
+            order_seq: None,
+            side: Direction::Buy,
+            quantity_lots: 1.0,
+            entry_price: 1.1,
+            exit_price: 1.2,
+            exit_reason: observa_core::types::ExitReason::Signal,
+            gross_realized_pnl: 1.0,
+            total_commission: 0.0,
+            net_realized_pnl: 1.0,
+            bar_index: 1,
+            timestamp: chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+        },
+    })
+    .unwrap();
+    assert!(
+        !text_none.contains("order_seq"),
+        "omitted, never `null`: {text_none}"
+    );
+}
+
 // ── 4. Content-hash sensitivity ─────────────────
 
 #[test]
