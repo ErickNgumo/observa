@@ -234,11 +234,37 @@ function ok(name) { passed++; console.log('PASS ' + name); }
   ok('deterministic rebuild: backward/forward navigation stable');
 }
 
+// ── Frozen 0.1.1 fixture: historical UUIDv4 ids still replay (OBS-DET-01) ──
+{
+  const f = loadFixture('legacy_uuidv4_close_ticket');
+  const view = runAll(f);
+  assert.strictEqual(view.closedTrades.length, 1, 'historical run still closes one trade');
+  const closed = view.closedTrades[0];
+  assert.strictEqual(closed.quantity_lots, 2, 'exact-ticket close still selects the size-2 position');
+  const openSizes = [];
+  view.positions.forEach(p => { if (p.open) openSizes.push(p.quantity_lots); });
+  openSizes.sort((a, b) => a - b);
+  assert.deepStrictEqual(openSizes, [1, 3], 'the other two positions remain open');
+  assert.strictEqual(countOpen(view), 2);
+
+  // The frozen artifact keeps its original UUIDv4 identity: new code must read
+  // historical ids unchanged, with no migration and no version rewriting.
+  const ids = f.events.filter(e => e.position_id).map(e => e.position_id);
+  assert.ok(ids.length >= 4, 'fixture carries position ids');
+  assert.ok(ids.every(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)),
+    'historical ids are UUID-shaped');
+  assert.ok(ids.every(id => id[14] === '4'), 'historical ids are UUIDv4');
+  const openedIds = f.events.filter(e => e.type === 'position_opened').map(e => e.position_id);
+  const closedIds = f.events.filter(e => e.type === 'position_closed').map(e => e.position_id);
+  assert.ok(closedIds.every(id => openedIds.includes(id)), 'close pairs with an opened id');
+  ok('legacy_uuidv4_close_ticket: historical v4 ids still load and pair exactly');
+}
+
 function countOpen(view) {
   let n = 0;
   view.positions.forEach(p => { if (p.open) n++; });
   return n;
 }
 
-console.log('\n' + passed + '/16 replay test groups passed');
-process.exit(passed === 16 ? 0 : 1);
+console.log('\n' + passed + '/17 replay test groups passed');
+process.exit(passed === 17 ? 0 : 1);

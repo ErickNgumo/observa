@@ -45,6 +45,17 @@ class MyStrategy:
 - `sl`
 - `tp`
 
+### Position identity
+
+`ticket` (alias `position_id`) identifies the position for **explicit-ticket
+closes**. It is **deterministic and run-local**: the same dataset, config and
+strategy always produce the same id, so repeat runs are byte-identical and two
+runs can be compared position-by-position.
+
+Treat the id as an **opaque string** — do not parse it or infer anything
+economic from its text. Uniqueness is guaranteed within a run, not across runs.
+See `ticket` under [Signal fields](#signal-fields).
+
 ## History
 
 History is oldest-first and contains only bars available before the current strategy decision. The design intent is that future bars are structurally inaccessible.
@@ -83,7 +94,9 @@ drawings are never silently discarded.
 - `sl`: optional
 - `tp`: optional
 - `reason`: optional
-- `ticket`: required for `close`
+- `ticket`: required for `close` — the exact `position_id`/`ticket` of the
+  position to close (no FIFO fallback). Ids are deterministic and run-local, so
+  a ticket is reproducible across identical runs.
 
 ## Current gaps from the source KB
 

@@ -86,6 +86,13 @@ position dict: keys `position_id` (and alias `ticket`), `symbol`,
 Close positions ONLY by exact `position_id`/`ticket`. There is no implicit
 FIFO close.
 
+Position ids are **deterministic and run-local**: the same dataset, config and
+strategy always produce the same ids, so identical runs are byte-identical and
+two runs can be diffed directly (position 3 in run A is the same ordinal as
+position 3 in run B). Treat an id as an **opaque string** — never parse it or
+infer anything economic from its text. Uniqueness is guaranteed within a run,
+not across runs.
+
 ## E. Signals
 
 `on_bar` returns a list of signal dicts.
@@ -216,6 +223,11 @@ Full contract with examples: `docs/STRATEGY_API.md` (Strategy annotations).
 Strong rule: never invent FIFO close behavior. To close a position, always
 supply the exact `position_id` obtained from `portfolio["open_positions"]`.
 Multiple positions (including long + short on one symbol) are supported.
+
+Because ids are deterministic, a ticket is reproducible: re-running the same
+backtest yields the same id for the same position, so a close that worked in one
+run works identically in the next. Historical runs are unaffected — an id is an
+opaque string and old runs keep replaying unchanged.
 
 ## G. Data requirements
 

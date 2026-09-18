@@ -200,6 +200,40 @@ impl Strategy for FailAfter {
     }
 }
 
+/// Opens one position on the first bar, then fails on a later `on_bar`, so the
+/// failure artifacts contain a position whose identity must be deterministic.
+struct OpenThenFail {
+    seen: usize,
+    bought: bool,
+    error: Option<StrategyFailure>,
+}
+
+impl Strategy for OpenThenFail {
+    fn on_bar(
+        &mut self,
+        bar: &Bar,
+        _view: &PortfolioView,
+        _history: &[Bar],
+    ) -> Vec<StrategySignal> {
+        let seen = self.seen;
+        self.seen += 1;
+        if seen >= 1 {
+            // Second bar: fail, leaving the bar-0 position in the history.
+            self.error = Some(StrategyFailure::new(format!("scripted failure at call {seen}")));
+            return vec![];
+        }
+        if !self.bought {
+            self.bought = true;
+            return vec![buy_signal(bar, 1.0)];
+        }
+        vec![]
+    }
+
+    fn take_strategy_error(&mut self) -> Option<StrategyFailure> {
+        self.error.take()
+    }
+}
+
 // ── Artifact reading helpers ────────────────────
 
 fn read_run_json(dir: &Path) -> Value {
@@ -240,16 +274,6 @@ fn event_tag(payload: &EngineEventPayload) -> &'static str {
         EngineEventPayload::PositionClosed { .. } => "position_closed",
         EngineEventPayload::PortfolioSnapshot { .. } => "portfolio_snapshot",
     }
-}
-
-/// Deterministic-normalized event value: economics are deterministic, but
-/// position tickets are random UUIDs; drop them so two runs compare cleanly.
-fn normalized_event(v: &Value) -> Value {
-    let mut v = v.clone();
-    if let Value::Object(map) = &mut v {
-        map.remove("position_id");
-    }
-    v
 }
 
 fn run_once(bars: &[Bar], config: &BacktestConfig, strategy: &mut dyn Strategy) -> RunResult {
@@ -435,7 +459,7 @@ fn event_seq_strictly_increasing_with_expected_choreography() {
 // ── 3. Repeated-run determinism ─────────────────
 
 #[test]
-fn repeated_runs_are_deterministic_after_uuid_normalization() {
+fn repeated_runs_produce_identical_canonical_history() {
     let (bars, config) = (fixture_bars(), base_config(FillMode::BarClose));
     let bars = bars.clone();
 
@@ -463,16 +487,34 @@ fn repeated_runs_are_deterministic_after_uuid_normalization() {
         assert!((x.net_realized_pnl - y.net_realized_pnl).abs() < EPS);
     }
 
-    // Event histories: same length and identical after position-id stripping.
+    // Event histories must be identical in full — INCLUDING position ids.
+    // OBS-DET-01: position ids are deterministic UUIDv5 values, so nothing is
+    // normalized or stripped away here. If randomness returns, this fails.
     assert_eq!(a.events.len(), b.events.len());
     for (x, y) in a.events.iter().zip(b.events.iter()) {
-        let vx = normalized_event(&serde_json::to_value(x).unwrap());
-        let vy = normalized_event(&serde_json::to_value(y).unwrap());
-        assert_eq!(vx, vy);
+        assert_eq!(x, y);
+        assert_eq!(
+            serde_json::to_value(x).unwrap(),
+            serde_json::to_value(y).unwrap()
+        );
     }
+    let mut opened = 0usize;
+    for e in &a.events {
+        let position_id = match &e.payload {
+            EngineEventPayload::PositionOpened { position_id, .. } => position_id,
+            EngineEventPayload::PositionClosed { position_id, .. } => position_id,
+            _ => continue,
+        };
+        opened += 1;
+        assert_eq!(
+            position_id.get_version_num(),
+            5,
+            "position ids must be deterministic UUIDv5 values, got {position_id}"
+        );
+    }
+    assert!(opened > 0, "the scenario must actually open a position");
 
-    // Persisted artifacts: byte-identical for run.json/metrics.json; events
-    // identical modulo position UUIDs.
+    // Persisted artifacts: byte-identical for all three files.
     let (ta, tb) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let (da, db) = (ta.path().join("a"), tb.path().join("b"));
     persist(&da, &a, &bars, &config);
@@ -485,11 +527,142 @@ fn repeated_runs_are_deterministic_after_uuid_normalization() {
         fs::read(da.join("metrics.json")).unwrap(),
         fs::read(db.join("metrics.json")).unwrap()
     );
+    assert_eq!(
+        fs::read(da.join("events.jsonl")).unwrap(),
+        fs::read(db.join("events.jsonl")).unwrap(),
+        "events.jsonl must be byte-identical across identical runs"
+    );
     let ea = read_events(&da);
     let eb = read_events(&db);
     assert_eq!(ea.len(), eb.len());
-    for (x, y) in ea.iter().zip(eb.iter()) {
-        assert_eq!(normalized_event(x), normalized_event(y));
+    assert_eq!(ea, eb);
+}
+
+// ── 3b. Failed-run determinism (OBS-DET-01) ──────
+
+#[test]
+fn failed_run_with_open_position_is_byte_deterministic() {
+    let (bars, config) = (fixture_bars(), base_config(FillMode::BarClose));
+    let bars = bars.clone();
+
+    let make_run = || {
+        let mut engine = Engine::new(config.clone()).unwrap();
+        let mut strategy = OpenThenFail {
+            seen: 0,
+            bought: false,
+            error: None,
+        };
+        let err = engine.run(&bars, &mut strategy).unwrap_err();
+        (engine, err.to_string())
+    };
+    let (ea, erra) = make_run();
+    let (eb, errb) = make_run();
+
+    // A position really was opened before the failure, with a v5 id.
+    let opened: Vec<_> = ea
+        .events()
+        .iter()
+        .filter_map(|e| match &e.payload {
+            EngineEventPayload::PositionOpened { position_id, .. } => Some(*position_id),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !opened.is_empty(),
+        "the scenario must open a position before failing"
+    );
+    for id in &opened {
+        assert_eq!(id.get_version_num(), 5, "pre-failure id must be UUIDv5");
+    }
+
+    // Identical canonical history up to the failure point.
+    assert_eq!(ea.events(), eb.events());
+    assert_eq!(erra, errb);
+
+    // Failure artifacts are byte-identical (run.json + events.jsonl).
+    let (ta, tb) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (da, db) = (ta.path().join("a"), tb.path().join("b"));
+    persistence::persist_failed_run(
+        &da,
+        &config,
+        &bars,
+        ea.events(),
+        &erra,
+        "test.csv",
+    )
+    .unwrap();
+    persistence::persist_failed_run(
+        &db,
+        &config,
+        &bars,
+        eb.events(),
+        &errb,
+        "test.csv",
+    )
+    .unwrap();
+    assert_eq!(
+        fs::read(da.join("events.jsonl")).unwrap(),
+        fs::read(db.join("events.jsonl")).unwrap(),
+        "failed-run events.jsonl must be byte-identical"
+    );
+    assert_eq!(
+        fs::read(da.join("run.json")).unwrap(),
+        fs::read(db.join("run.json")).unwrap(),
+        "failed-run run.json must be byte-identical"
+    );
+    assert!(!da.join("metrics.json").exists());
+}
+
+// ── 3c. Backward compatibility: historical UUIDv4 ids ──
+
+#[test]
+fn legacy_uuidv4_position_ids_still_deserialize() {
+    // Events persisted by 0.1.1 carry random UUIDv4 position ids. The wire type
+    // and shape are unchanged, so the loader must keep reading them as-is; no
+    // migration and no re-writing of historical runs.
+    let v4 = "9b2c60de-0501-46de-af96-efd0a267c4cc";
+    let opened = serde_json::json!({
+        "event_seq": 0,
+        "type": "position_opened",
+        "position_id": v4,
+        "order_seq": 0,
+        "side": "Buy",
+        "quantity_lots": 1.0,
+        "entry_price": 1.1,
+        "stop_loss": null,
+        "take_profit": null,
+        "bar_index": 0,
+        "timestamp": "2023-11-14T22:13:20Z"
+    });
+    let closed = serde_json::json!({
+        "event_seq": 1,
+        "type": "position_closed",
+        "position_id": v4,
+        "side": "Buy",
+        "quantity_lots": 1.0,
+        "entry_price": 1.1,
+        "exit_price": 1.2,
+        "exit_reason": "Signal",
+        "gross_realized_pnl": 10000.0,
+        "total_commission": 0.0,
+        "net_realized_pnl": 10000.0,
+        "bar_index": 1,
+        "timestamp": "2023-11-14T22:28:20Z"
+    });
+
+    for (value, is_open) in [(opened, true), (closed, false)] {
+        let ev: EngineEvent = serde_json::from_value(value).unwrap();
+        let id = match &ev.payload {
+            EngineEventPayload::PositionOpened { position_id, .. } if is_open => *position_id,
+            EngineEventPayload::PositionClosed { position_id, .. } if !is_open => *position_id,
+            other => panic!("unexpected payload: {other:?}"),
+        };
+        assert_eq!(id.to_string(), v4, "historical id must round-trip unchanged");
+        assert_eq!(
+            id.get_version_num(),
+            4,
+            "historical ids keep their original UUID version"
+        );
     }
 }
 

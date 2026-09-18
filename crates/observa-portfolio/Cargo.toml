@@ -6,5 +6,7 @@ edition = "2021"
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0"
-uuid = { version = "1.0", features = ["v4", "serde"] }
+# `v5` is required for deterministic position ids (OBS-DET-01). `v4` remains
+# for the run/session identity that does not reach persisted artifacts.
+uuid = { version = "1.0", features = ["v4", "v5", "serde"] }
 observa-core = { path = "../observa-core" }

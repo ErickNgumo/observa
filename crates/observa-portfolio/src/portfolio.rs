@@ -297,6 +297,24 @@ pub struct PortfolioEvents {
 // PortfolioManager
 // ────────────────────────────────────────────────
 
+/// Fixed namespace for deterministic position identities (OBS-DET-01).
+///
+/// Derived once as `UUIDv5(NAMESPACE_DNS, "observa.dev/positions")` and frozen
+/// here, so it can never vary by machine, run, or time and never depends on the
+/// random `run_id`. Position ids are `UUIDv5` values in this namespace, keyed by
+/// the run-local position ordinal.
+pub const OBSERVA_POSITION_NAMESPACE: Uuid = Uuid::from_u128(0x8983_c16f_8d9d_5d2f_87f2_3f02_294b_00e9);
+
+/// Deterministic, run-local position id: `UUIDv5(namespace, ordinal)`.
+///
+/// The ordinal is the position's 1-based open order within the run. Identical
+/// runs therefore produce identical ids, which makes canonical history
+/// byte-reproducible. Uniqueness is guaranteed **within a run**, not across
+/// runs; the value stays an opaque UUID for every consumer.
+pub fn position_id_for_ordinal(ordinal: u64) -> Uuid {
+    Uuid::new_v5(&OBSERVA_POSITION_NAMESPACE, ordinal.to_string().as_bytes())
+}
+
 /// The single authoritative financial/position accounting object for a run.
 pub struct PortfolioManager {
     run_id: Uuid,
@@ -306,6 +324,10 @@ pub struct PortfolioManager {
     /// All positions ever opened for this run (open and closed), in open
     /// order. Closed positions are retained so history and events stay stable.
     positions: Vec<Position>,
+    /// Highest position ordinal committed so far (OBS-DET-01). Only a
+    /// successfully created position advances it, so rejected entries, failed
+    /// margin checks, invalid orders and closes never consume an ordinal.
+    next_position_seq: u64,
     /// Cumulative gross realized P&L (before commissions).
     realised_pnl_gross: f64,
     /// Number of fully closed positions.
@@ -322,6 +344,7 @@ impl PortfolioManager {
             run_id,
             balance: settings.initial_cash,
             positions: Vec::new(),
+            next_position_seq: 0,
             realised_pnl_gross: 0.0,
             total_trades: 0,
             commissions_paid: 0.0,
@@ -477,8 +500,13 @@ impl PortfolioManager {
             });
         }
 
+        // OBS-DET-01: deterministic run-local identity. The id is derived from
+        // the *next* ordinal, but the ordinal is only committed below, once the
+        // position is definitely created — so an error on the commission path
+        // cannot silently consume an ordinal.
+        let ordinal = self.next_position_seq + 1;
         let mut position = Position::new(
-            Uuid::new_v4(),
+            position_id_for_ordinal(ordinal),
             request.order_id,
             request.fill_id,
             self.settings.symbol.clone(),
@@ -500,6 +528,8 @@ impl PortfolioManager {
 
         let position_id = position.position_id;
         self.positions.push(position);
+        // Commit the ordinal only now that the position exists.
+        self.next_position_seq = ordinal;
 
         Ok(OpenPositionReport {
             position_id,
@@ -1572,5 +1602,203 @@ mod tests {
             .open_position(&open_request(1.10, 1.0, Direction::Close))
             .unwrap_err();
         assert!(matches!(err, PortfolioError::InvalidDirection { .. }));
+    }
+
+    // ── OBS-DET-01: deterministic, run-local position identity ──────────────
+
+    /// The ordinal a position id was derived from, by brute-force search over
+    /// the first few ordinals. Used to assert the exact derivation.
+    fn ordinal_of(id: Uuid) -> Option<u64> {
+        (1..=64).find(|n| position_id_for_ordinal(*n) == id)
+    }
+
+    #[test]
+    fn position_ids_are_deterministic_uuidv5_ordinals() {
+        let mut p = pm(100.0);
+        let ids: Vec<Uuid> = (0..3)
+            .map(|i| {
+                p.open_position(&open_request(1.10 + i as f64 * 0.001, 1.0, Direction::Buy))
+                    .unwrap()
+                    .position_id
+            })
+            .collect();
+
+        // 1-based, contiguous, in open order.
+        for (i, id) in ids.iter().enumerate() {
+            assert_eq!(
+                ordinal_of(*id),
+                Some(i as u64 + 1),
+                "position {i} must be ordinal {}",
+                i + 1
+            );
+            assert_eq!(id.get_version_num(), 5, "ids must be UUIDv5");
+        }
+        // Unique within the run.
+        let mut sorted = ids.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), ids.len(), "ids must be unique within a run");
+
+        // Pure function: same ordinal always yields the same id, and the
+        // namespace is a frozen constant (not machine/run/time dependent).
+        assert_eq!(position_id_for_ordinal(1), ids[0]);
+        assert_eq!(position_id_for_ordinal(2), ids[1]);
+        assert_eq!(position_id_for_ordinal(1), position_id_for_ordinal(1));
+        assert_ne!(position_id_for_ordinal(1), position_id_for_ordinal(2));
+        assert_eq!(
+            OBSERVA_POSITION_NAMESPACE,
+            Uuid::parse_str("8983c16f-8d9d-5d2f-87f2-3f02294b00e9").unwrap()
+        );
+        // The id must not depend on the (random) run/session id.
+        let mut q = PortfolioManager::try_new(Uuid::new_v4(), settings_eurusd(100.0)).unwrap();
+        let first = q
+            .open_position(&open_request(1.10, 1.0, Direction::Buy))
+            .unwrap()
+            .position_id;
+        assert_eq!(first, ids[0], "run_id must not influence position ids");
+    }
+
+    #[test]
+    fn rejected_opens_do_not_consume_an_ordinal() {
+        let mut p = pm(100.0);
+
+        // invalid quantity
+        assert!(p
+            .open_position(&open_request(1.10, 0.0, Direction::Buy))
+            .is_err());
+        assert!(p
+            .open_position(&open_request(1.10, f64::NAN, Direction::Buy))
+            .is_err());
+        // invalid price
+        assert!(p
+            .open_position(&open_request(f64::NAN, 1.0, Direction::Buy))
+            .is_err());
+        // invalid direction
+        assert!(p
+            .open_position(&open_request(1.10, 1.0, Direction::Close))
+            .is_err());
+        // invalid protective level
+        let mut bad_sl = open_request(1.10, 1.0, Direction::Buy);
+        bad_sl.stop_loss = Some(f64::INFINITY);
+        assert!(p.open_position(&bad_sl).is_err());
+
+        // Nothing above may have consumed an ordinal: the first successful
+        // open is still ordinal 1.
+        let first = p
+            .open_position(&open_request(1.10, 1.0, Direction::Buy))
+            .unwrap()
+            .position_id;
+        assert_eq!(ordinal_of(first), Some(1));
+    }
+
+    #[test]
+    fn insufficient_margin_does_not_consume_an_ordinal() {
+        // 2:1 leverage, 100k cash: 2 lots of EURUSD at 1.10 need 110k margin
+        // (220k notional / 2) and must be rejected; 1 lot (55k) fits.
+        let mut p = pm(2.0);
+        let err = p
+            .open_position(&open_request(1.10, 2.0, Direction::Buy))
+            .unwrap_err();
+        assert!(matches!(err, PortfolioError::InsufficientMargin { .. }));
+
+        let first = p
+            .open_position(&open_request(1.10, 1.0, Direction::Buy))
+            .unwrap()
+            .position_id;
+        assert_eq!(
+            ordinal_of(first),
+            Some(1),
+            "a margin rejection must not consume an ordinal"
+        );
+    }
+
+    #[test]
+    fn closes_do_not_consume_an_ordinal() {
+        let mut p = pm(100.0);
+        let first = p
+            .open_position(&open_request(1.10, 1.0, Direction::Buy))
+            .unwrap()
+            .position_id;
+        p.close_position(&ClosePositionRequest {
+            position_id: first,
+            quantity_lots: 1.0,
+            exit_price: 1.11,
+            exit_reason: ExitReason::Signal,
+            closed_at: ts(),
+            commission_amount: 0.0,
+        })
+        .unwrap();
+        let second = p
+            .open_position(&open_request(1.10, 1.0, Direction::Buy))
+            .unwrap()
+            .position_id;
+        assert_eq!(ordinal_of(first), Some(1));
+        assert_eq!(
+            ordinal_of(second),
+            Some(2),
+            "a close must not advance the position ordinal"
+        );
+    }
+
+    #[test]
+    fn simultaneous_and_hedged_positions_get_unique_ordinals() {
+        let mut p = pm(100.0);
+        let a = p
+            .open_position(&open_request(1.10, 1.0, Direction::Buy))
+            .unwrap()
+            .position_id;
+        let b = p
+            .open_position(&open_request(1.10, 1.0, Direction::Sell))
+            .unwrap()
+            .position_id;
+        let c = p
+            .open_position(&open_request(1.10, 1.0, Direction::Buy))
+            .unwrap()
+            .position_id;
+        assert_eq!(ordinal_of(a), Some(1));
+        assert_eq!(ordinal_of(b), Some(2));
+        assert_eq!(ordinal_of(c), Some(3));
+        assert_eq!(p.open_positions().len(), 3);
+        // Hedging: long and short coexist, each with its own identity.
+        assert_ne!(a, b);
+        assert_ne!(b, c);
+
+        // The same sequence in a second portfolio yields the same ids.
+        let mut q = pm(100.0);
+        let qa = q
+            .open_position(&open_request(1.10, 1.0, Direction::Buy))
+            .unwrap()
+            .position_id;
+        let qb = q
+            .open_position(&open_request(1.10, 1.0, Direction::Sell))
+            .unwrap()
+            .position_id;
+        assert_eq!((qa, qb), (a, b));
+    }
+
+    #[test]
+    fn position_order_is_insertion_order_not_id_order() {
+        // Ordinals ascend with insertion, and positions are kept in open order,
+        // so economic ordering can never depend on the UUID text.
+        let mut p = pm(100.0);
+        let ids: Vec<Uuid> = (0..4)
+            .map(|i| {
+                p.open_position(&open_request(1.10 + i as f64 * 0.001, 1.0, Direction::Buy))
+                    .unwrap()
+                    .position_id
+            })
+            .collect();
+        let stored: Vec<Uuid> = p.positions.iter().map(|x| x.position_id).collect();
+        assert_eq!(stored, ids, "positions must stay in insertion order");
+
+        let mut by_id = ids.clone();
+        by_id.sort();
+        if by_id != ids {
+            // The sort genuinely differs, so this is a real ordering test.
+            assert_eq!(
+                stored, ids,
+                "order must follow insertion, not the UUID value"
+            );
+        }
     }
 }

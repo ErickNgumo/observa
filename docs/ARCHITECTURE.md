@@ -53,6 +53,9 @@ These are the core architectural invariants carried forward from the source know
 
 - Every state-changing operation emits an event.
 - Same inputs produce the same outputs.
+- Economic object identity is deterministic and run-local, so a repeated run
+  reproduces `events.jsonl`, `run.json` and `metrics.json` byte-for-byte
+  (see §6b).
 - Future data is structurally unavailable to the strategy.
 - Execution realism is applied in the execution model / approved portfolio logic, not in presentation code.
 - Portfolio snapshots are emitted on every bar so the equity curve is mark-to-market.
@@ -162,6 +165,29 @@ observa-server
   marker, label) and never interprets strategy concepts such as "FVG"/"POC".
 - Malformed annotations fail the run with a coded error (`DRAWING_*`); they are
   never silently discarded.
+
+## 6b. Deterministic economic object identity (OBS-DET-01)
+
+- Orders, fills and positions are referenced by deterministic identifiers:
+  `order_seq` (a run-local counter) and `position_id` (a run-local identifier).
+- `position_id` is a UUIDv5 derived from a **fixed Observa namespace** and the
+  1-based ordinal of the position's open order within the run. It never depends
+  on random entropy, the machine, wall-clock time, or the random session
+  `run_id`.
+- The ordinal advances **only** when a position is actually created: rejected
+  entries, failed margin checks, invalid orders and closes never consume one.
+- Identity is referential metadata only. It never influences execution
+  ordering, acceptance/rejection, prices, spread/slippage, commission, SL/TP,
+  margin, P&L, metrics, `EventSeq` or `OrderSeq`. Nothing orders or sorts by
+  identifier value.
+- Uniqueness is guaranteed **within a run**, not globally across runs. Two
+  different runs may reuse the same ids.
+- Identifiers remain opaque strings at every boundary (persisted events, Python
+  API, replay frontend). Historical UUIDv4 runs from 0.1.1 stay readable with no
+  migration, and the wire type is unchanged.
+- Because identity is deterministic, a repeated run with identical dataset,
+  config and strategy reproduces `events.jsonl`, `run.json` and `metrics.json`
+  byte-for-byte.
 
 ## 7. Traceability
 
