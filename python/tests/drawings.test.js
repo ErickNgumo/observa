@@ -151,6 +151,41 @@ function bar(t, instructions) { return instructions; }
   ok('markers: lifecycle, chart shape mapping, canonical coexistence, toggle');
 }
 
+// ── Annotations toggle: the marker layer must react immediately ──
+// `renderMarkers` merges canonical execution markers with
+// `drawingMarkersFor(state, showAnnotations)`. The toggle must therefore
+// exclude/restore strategy markers with NO playback step or seek, while
+// canonical execution markers are never affected.
+{
+  const perBar = [
+    [{ id: 'm1', type: 'marker', time: iso(0), position: 'above', shape: 'arrow_up', color: '#3fb950', text: 'sig' }],
+  ];
+  const state = Drawings.fold(perBar, 0, times);
+  const canonical = [{ time: times[0], position: 'belowBar', shape: 'arrowUp', color: '#3fb950', text: 'B @ 1.10000' }];
+  const canonicalBefore = JSON.stringify(canonical);
+  const strategyCount = (list) => list.filter((m) => m.text === 'sig').length;
+
+  // Annotations ON
+  const on = canonical.concat(Renderer.drawingMarkersFor(state, true));
+  assert.strictEqual(strategyCount(on), 1, 'strategy marker present when annotations are on');
+  assert.strictEqual(on.length, 2, 'canonical + strategy markers coexist');
+
+  // Annotations OFF — same folded state, only the flag changes, no step/seek
+  const off = canonical.concat(Renderer.drawingMarkersFor(state, false));
+  assert.strictEqual(strategyCount(off), 0, 'strategy markers excluded immediately when toggled off');
+  assert.strictEqual(off.length, 1, 'only the canonical marker remains');
+  assert.strictEqual(off[0].text, 'B @ 1.10000', 'canonical execution marker is unaffected');
+
+  // Annotations ON again
+  const back = canonical.concat(Renderer.drawingMarkersFor(state, true));
+  assert.deepStrictEqual(back, on, 'strategy marker returns immediately when toggled on');
+
+  // gating must not mutate the folded state or the canonical collection
+  assert.strictEqual(JSON.stringify(canonical), canonicalBefore, 'canonical markers are not mutated');
+  assert.strictEqual(state.markers.length, 1, 'folded state is not mutated by gating');
+  ok('markers: toggle gating is immediate and leaves canonical markers untouched');
+}
+
 // ── colour handling (8-digit hex + opacity) ──
 {
   assert.strictEqual(Renderer.drawingFillColor('#3fb950', 0.14), 'rgba(63,185,80,0.14)');

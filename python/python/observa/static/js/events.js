@@ -189,6 +189,12 @@ function applyAnnotations(incremental) {
 function drawAnnotations(k, force) {
   var incremental = force ? false : foldAnnotations(k);
   applyAnnotations(incremental);
+  // Strategy markers live in the marker layer, not the series/primitives layer,
+  // so the toggle must refresh it too — otherwise marker visibility lags until
+  // the next playback step or seek. Canonical execution markers are unaffected:
+  // renderMarkers rebuilds them from canonical events and only merges the
+  // annotation markers through drawingMarkersFor(state).
+  renderMarkers(endEventOfBar(k));
 }
 
 function renderAccount(view) {
