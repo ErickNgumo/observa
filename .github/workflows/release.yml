@@ -63,6 +63,10 @@ jobs:
         run: |
           .release-venv/bin/python python/tests/test_deterministic_identity.py
           .release-venv/bin/python python/tests/test_annotations.py
+      - name: Verify built wheel (structured inspection)
+        run: .release-venv/bin/python python/tests/test_inspection.py
+      - name: Verify built wheel (strategy reasons)
+        run: .release-venv/bin/python python/tests/test_strategy_reason.py
       - name: Create private-MVP GitHub Release
         uses: softprops/action-gh-release@v2
         with:

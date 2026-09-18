@@ -37,6 +37,10 @@ jobs:
           .ci-venv/bin/python python/tests/test_annotations.py
           .ci-venv/bin/python python/tests/test_ai_interface.py
           .ci-venv/bin/python python/tests/test_onboarding_ai.py
+      - name: Structured inspection tests
+        run: .ci-venv/bin/python python/tests/test_inspection.py
+      - name: Strategy reason schema tests
+        run: .ci-venv/bin/python python/tests/test_strategy_reason.py
       - name: Quickstart smoke (installed wheel)
         run: |
           mkdir -p .ci-out && cd .ci-out
