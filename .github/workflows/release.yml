@@ -67,6 +67,19 @@ jobs:
         run: .release-venv/bin/python python/tests/test_inspection.py
       - name: Verify built wheel (strategy reasons)
         run: .release-venv/bin/python python/tests/test_strategy_reason.py
+      - name: Verify built wheel (MCP)
+        # OBS-MCP-01: the read-only MCP inspection server ships behind the
+        # optional `mcp` extra. A release must not be publishable if installing
+        # that extra from *this* wheel fails, or if the server contract
+        # regressed. The wheel comes from the SHA step, so the gate proves the
+        # exact artifact being published. Its own venv keeps the base release
+        # venv zero-dependency (the extra pulls a large optional tree).
+        run: |
+          python -m venv .release-mcp-venv
+          .release-mcp-venv/bin/python -m pip install --upgrade pip
+          WHEEL="${{ steps.sha.outputs.wheel }}"
+          .release-mcp-venv/bin/python -m pip install "${WHEEL}[mcp]"
+          .release-mcp-venv/bin/python python/tests/test_mcp.py
       - name: Create private-MVP GitHub Release
         uses: softprops/action-gh-release@v2
         with:
