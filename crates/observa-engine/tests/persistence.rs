@@ -4,7 +4,8 @@
 //!   * artifact persistence (`run.json` / `events.jsonl` / `metrics.json`);
 //!   * EventSeq ordering and structural invariants;
 //!   * known-answer economics (hand-derived from OBS-0005/6 contracts);
-//!   * repeated-run determinism (UUID-normalized byte comparisons);
+//!   * repeated-run determinism (strict byte-identical canonical artifacts —
+//!     no field is normalized, stripped or ignored);
 //!   * dataset / strategy content-hash sensitivity;
 //!   * no-silent-overwrite and failure artifacts.
 
