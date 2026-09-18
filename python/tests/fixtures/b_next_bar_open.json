@@ -37,6 +37,12 @@
       "bar_index": 0,
       "event_seq": 3,
       "signal_count": 1,
+      "signals": [
+        {
+          "reason": "fixture",
+          "signal_index": 0
+        }
+      ],
       "type": "strategy_decision"
     },
     {

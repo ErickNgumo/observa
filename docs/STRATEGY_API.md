@@ -93,10 +93,46 @@ drawings are never silently discarded.
 - `price`: optional
 - `sl`: optional
 - `tp`: optional
-- `reason`: optional
+- `reason`: optional strategy-authored text explaining **this signal** (see
+  *Reason contract* below). At most 1024 UTF-8 bytes; longer fails the run with
+  `STRATEGY_REASON_TOO_LONG`.
 - `ticket`: required for `close` — the exact `position_id`/`ticket` of the
   position to close (no FIFO fallback). Ids are deterministic and run-local, so
   a ticket is reproducible across identical runs.
+
+### Reason contract
+
+`reason` is the strategy's **own** text — Observa never generates, rewrites or
+interprets it. It is recorded per signal on the canonical `strategy_decision`
+event, so a persisted run can be inspected later for the strategy's stated
+rationale without re-running the strategy.
+
+- Optional. Omitting it (or passing `None`) records **no** reason; an empty
+  string is equivalent. There is no placeholder text.
+- **Preserved exactly**: no trimming, case folding, punctuation rewriting, space
+  collapsing or Unicode alteration. Leading/trailing whitespace and any Unicode
+  (including emoji) are stored as authored.
+- **Per signal**: a bar returning several signals gets one reason per signal,
+  index-aligned in the order the strategy returned them, with `null` for signals
+  that gave none.
+- **At most 1024 UTF-8 bytes**, measured in encoded bytes (not characters), so
+  multi-byte text reaches the limit sooner. Longer reasons fail the run with
+  `exc.code == "STRATEGY_REASON_TOO_LONG"` and `exc.details` carrying
+  `bar_index`, `signal_index`, `actual_bytes` and `max_bytes`. Reasons are never
+  truncated or silently dropped.
+- **All-or-nothing**: every reason on a bar is validated before the decision is
+  recorded or any signal is processed, so an invalid reason cannot leave a
+  partially executed callback behind.
+- **Survives rejection**: the reason is recorded before order processing, so a
+  signal whose resulting order is rejected still has its reason in canonical
+  history. The reason is not copied onto the rejection event.
+- **Descriptive only**: reasons never influence prices, fills, spread, slippage,
+  commissions, SL/TP, margin, P&L, position identity, ordering or metrics.
+- **Deterministic**: reasons become part of the byte-reproducible canonical
+  history, so they must not contain wall-clock, random or environment-derived
+  text.
+- A deliberate **hold** has no reason: a strategy that decides not to act emits
+  zero signals, so there is nothing to record.
 
 ## Current gaps from the source KB
 
@@ -476,12 +512,11 @@ annotations yields `drawings == []`, and an unrecoverable dataset yields
 
 ## Current canonical-data limitations
 
-- **Strategy prose reason is unavailable.** `StrategySignal.reason` is not
-  persisted: `strategy_decision` carries only `signal_count` and `order_created`
-  carries no reason. Inspection reports this as absence — it never invents or
-  reconstructs reason text. The only canonical reason text belongs to
-  `order_rejected` events and is returned verbatim by `rejections()` and
-  `order()`.
+- **Historical runs may lack reason data.** Runs produced before OBS-SCHEMA-01
+  have no `signals` on `strategy_decision`; `decision.get("signals")` is then
+  absent and there are simply no reasons to read. Nothing is back-filled or
+  re-run. A deliberate hold still has no canonical reason (see the reason
+  contract above).
 - **A position's closing order is not derivable.** `position_closed` carries no
   `order_seq`, so `position(pid)["closing_order"]` is always `None`. It is never
   inferred from side, quantity, timestamp, neighbouring events or bar

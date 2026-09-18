@@ -195,9 +195,19 @@ results are plain JSON-serializable dicts; a failed run inspects fine
 dataset hash. Unknown ids raise `KeyError` with `exc.code` of
 `EVENT_NOT_FOUND` / `BAR_NOT_FOUND` / `POSITION_NOT_FOUND` / `ORDER_NOT_FOUND`.
 
-Known canonical-data gaps, reported as absence rather than guessed: a strategy's
-prose reason is not persisted, and a position's `closing_order` is always `None`
-because `position_closed` carries no `order_seq`.
+The strategy's own per-signal `reason` is persisted on the canonical
+`strategy_decision` event, so a saved run can be inspected for *why* a strategy
+acted:
+
+```python
+run.bar(421)["strategy_decisions"][0]["signals"]
+# [{'signal_index': 0, 'reason': 'price crossed above VWAP'}]
+```
+
+Reasons are optional, per signal, at most 1024 UTF-8 bytes, preserved exactly as
+authored, and never influence execution. Runs produced before this schema simply
+have no `signals` key. One canonical gap remains: a position's `closing_order`
+is always `None` because `position_closed` carries no `order_seq`.
 
 ## Show the strategy's reasoning
 

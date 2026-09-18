@@ -23,6 +23,31 @@ pub const RUN_SCHEMA_VERSION: u32 = 1;
 /// Version of the persisted metrics schema (`metrics.json`).
 pub const METRICS_SCHEMA_VERSION: u32 = 1;
 
+/// Maximum size of one strategy-authored signal reason, in **UTF-8 bytes**
+/// (OBS-SCHEMA-01).
+///
+/// A larger reason fails the run with `STRATEGY_REASON_TOO_LONG` before the
+/// decision event is emitted or any signal is processed. The limit is measured
+/// in encoded bytes (not characters) so the bound on artifact growth is
+/// predictable for multi-byte text. Reasons are never truncated.
+pub const MAX_STRATEGY_REASON_BYTES: usize = 1024;
+
+/// The persisted reason for one signal of a strategy decision (OBS-SCHEMA-01).
+///
+/// Descriptive metadata only: it is recorded at decision time, never read by
+/// execution, and never influences prices, fills, spread/slippage, commissions,
+/// margin, P&L, ordering or metrics.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SignalReason {
+    /// Dense, 0-based index into the strategy's returned signal list, in the
+    /// exact order the strategy produced them.
+    pub signal_index: usize,
+    /// The strategy's own reason text, preserved verbatim, or `None` when the
+    /// strategy supplied none. Serialized explicitly as `null` so the array
+    /// stays index-aligned.
+    pub reason: Option<String>,
+}
+
 /// Structured category for order rejections (OBS-0008 §46).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -88,9 +113,17 @@ pub enum EngineEventPayload {
         timestamp: DateTime<Utc>,
     },
     /// The strategy returned N signals for a bar.
+    ///
+    /// `signals` carries the strategy's own per-signal reason text
+    /// (OBS-SCHEMA-01) and is **omitted entirely** when no signal on the bar
+    /// supplied a reason, so reason-less decisions keep byte-identical
+    /// payloads. When present it is dense and index-aligned with the strategy's
+    /// returned signal list: `signals[k].signal_index == k`.
     StrategyDecision {
         bar_index: usize,
         signal_count: usize,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        signals: Vec<SignalReason>,
     },
     /// Strategy-produced visual annotations for a bar (OBS-AI-02).
     ///

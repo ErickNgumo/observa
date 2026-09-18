@@ -123,6 +123,10 @@ observa-server
 - BarReceivedEvent
 
 ### Strategy
+- `strategy_decision` carries `bar_index`, `signal_count` and — when at least
+  one signal supplied one — an index-aligned `signals` array of
+  `{signal_index, reason}` records (OBS-SCHEMA-01). The field is omitted
+  entirely when no reason exists.
 - StrategyDecisionEvent (per-bar signal count)
 - DrawingsEmittedEvent (strategy annotations; canonical `drawings_emitted`)
 
@@ -207,10 +211,13 @@ observa-server
   `bar(n)["events"]` always agree.
 - Canonical ordering (`event_seq` ascending) is preserved everywhere; nothing is
   ordered by identifier text or hash iteration.
-- Known canonical-data limitations are reported rather than papered over: a
-  strategy's prose `reason` is not persisted (G11), and a position's closing
-  order is not derivable because `position_closed` carries no `order_seq` (G12).
-  Both need separate schema tickets.
+- The strategy's own per-signal `reason` is persisted on `strategy_decision`
+  (OBS-SCHEMA-01) as an optional, index-aligned `signals` array that is omitted
+  when no signal supplied one, so reason-less decisions stay byte-identical.
+  Reasons are descriptive only and never influence execution.
+- A remaining canonical-data limitation is reported rather than papered over: a
+  position's closing order is not derivable because `position_closed` carries no
+  `order_seq` (OBS-SCHEMA-02).
 
 ## 7. Traceability
 
