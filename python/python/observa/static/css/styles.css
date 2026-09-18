@@ -253,3 +253,13 @@ body.is-inspecting #equity-context { box-shadow: inset 3px 0 var(--negative); }
 .direction-badge.long { background: color-mix(in srgb, var(--positive) 18%, transparent); color: var(--positive); }
 .direction-badge.short { background: color-mix(in srgb, var(--negative) 18%, transparent); color: var(--negative); }
 #stat-equity, #stat-open { color: var(--text); }
+
+/* ── Strategy series legend (OBS-AI-02) ───────── */
+.series-legend { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 6px; text-transform: none; letter-spacing: 0; }
+.series-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 7px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface); color: var(--text); font-size: 10px; font-weight: 600;
+}
+.series-chip em { color: var(--faint); font-style: normal; font-size: 9px; }
+.series-swatch { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }

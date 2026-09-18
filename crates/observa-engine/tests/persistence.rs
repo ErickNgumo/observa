@@ -24,7 +24,7 @@ use observa_engine::engine::{Engine, RunResult};
 use observa_engine::persistence::{self, PersistenceError};
 use observa_engine::runevents::{EngineEvent, EngineEventPayload, RejectionCategory};
 use observa_engine::sha256::Sha256;
-use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
+use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal, StrategyFailure};
 use serde_json::Value;
 
 const EPS: f64 = 1e-9;
@@ -177,7 +177,7 @@ impl Strategy for Noop {
 struct FailAfter {
     seen: usize,
     fail_after: usize,
-    error: Option<String>,
+    error: Option<StrategyFailure>,
 }
 
 impl Strategy for FailAfter {
@@ -190,12 +190,12 @@ impl Strategy for FailAfter {
         let seen = self.seen;
         self.seen += 1;
         if seen >= self.fail_after {
-            self.error = Some(format!("scripted failure at call {seen}"));
+            self.error = Some(StrategyFailure::new(format!("scripted failure at call {seen}")));
         }
         vec![]
     }
 
-    fn take_strategy_error(&mut self) -> Option<String> {
+    fn take_strategy_error(&mut self) -> Option<StrategyFailure> {
         self.error.take()
     }
 }
@@ -229,6 +229,7 @@ fn event_tag(payload: &EngineEventPayload) -> &'static str {
         EngineEventPayload::StrategyTeardown { .. } => "strategy_teardown",
         EngineEventPayload::BarProcessed { .. } => "bar_processed",
         EngineEventPayload::StrategyDecision { .. } => "strategy_decision",
+        EngineEventPayload::DrawingsEmitted { .. } => "drawings_emitted",
         EngineEventPayload::OrderCreated { .. } => "order_created",
         EngineEventPayload::OrderPending { .. } => "order_pending",
         EngineEventPayload::OrderTriggered { .. } => "order_triggered",

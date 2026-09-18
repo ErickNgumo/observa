@@ -21,7 +21,9 @@ jobs:
           cargo test --workspace
           cargo build --workspace
       - name: Frontend replay tests
-        run: node python/tests/replay.test.js
+        run: |
+          node python/tests/replay.test.js
+          node python/tests/drawings.test.js
       - name: Build wheel
         run: |
           python -m pip install maturin
@@ -32,6 +34,7 @@ jobs:
           .ci-venv/bin/pip install python/target/wheels/*.whl
           .ci-venv/bin/python python/tests/test_observa.py
           .ci-venv/bin/python python/tests/test_canonical_baseline.py
+          .ci-venv/bin/python python/tests/test_annotations.py
           .ci-venv/bin/python python/tests/test_ai_interface.py
           .ci-venv/bin/python python/tests/test_onboarding_ai.py
       - name: Quickstart smoke (installed wheel)

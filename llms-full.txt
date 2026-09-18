@@ -108,6 +108,109 @@ Rules:
 - Python specifies intent. The Rust Engine determines triggering, fill
   timing, spread/slippage, and P&L. Do NOT implement execution.
 
+## E2. Strategy annotations (drawings) — show what the strategy saw
+
+A human may never read your generated strategy code. Annotations are how the
+replay explains it. They are **descriptive only**: they never affect orders,
+fills, SL/TP, margin, portfolio, metrics or event ordering.
+
+Return them alongside signals (a plain signal list still works):
+
+    return {
+        "signals": [...],
+        "drawings": [
+            {"id": "ema_20", "type": "series", "value": ema20,
+             "color": "#58a6ff", "label": "EMA 20"},
+        ],
+    }
+
+Every drawing has a stable `id` (`^[A-Za-z0-9_.:-]{1,64}$`), an optional
+`action` (`add` default | `update` | `remove`), and one `type`.
+Colours are `#RRGGBB` / `#RRGGBBAA`; `width` is 1|2|3. Timestamps must be real
+bar timestamps (`bar["timestamp"]`). At most 256 instructions per bar.
+
+A malformed drawing FAILS the run with `exc.code` (never silently dropped):
+DRAWING_TYPE_INVALID, DRAWING_FIELD_MISSING, DRAWING_VALUE_INVALID,
+DRAWING_ID_INVALID, DRAWING_ACTION_INVALID, DRAWING_PANE_INVALID,
+DRAWING_TIME_INVALID, DRAWING_REFERENCE_INVALID, DRAWING_LIMIT_EXCEEDED.
+
+### Types
+
+    # continuous per-bar value: same id every bar, one point per bar
+    {"id": "ema_20", "type": "series", "value": ema20,
+     "series_type": "line",      # line | histogram
+     "line_style": "solid",      # solid | dashed | dotted
+     "width": 1, "color": "#58a6ff",
+     "pane": "price",            # price | separate
+     "label": "EMA 20"}
+
+    # horizontal level (POC/VAH/VAL/support/resistance) — extended automatically
+    {"id": "poc", "type": "hline", "price": 1.0972,
+     "color": "#d29922", "line_style": "dashed", "width": 1, "label": "POC"}
+
+    # straight segment: x1/y1/x2/y2 ALL required (no infinite rays)
+    {"id": "trend_1", "type": "line", "x1": t1, "y1": 1.0950, "x2": t2, "y2": 1.0975,
+     "color": "#8957e5", "line_style": "solid", "width": 1}
+
+    # price zone; time_end=None extends right as replay advances
+    {"id": "zone_1", "type": "rectangle", "time_start": t1, "time_end": None,
+     "price_top": 1.0990, "price_bot": 1.0981,
+     "color": "#3fb950", "opacity": 0.14, "border": "#3fb950", "label": "FVG"}
+
+    # time window (session/news/research) — no price semantics
+    {"id": "london", "type": "region", "time_start": t1, "time_end": t2,
+     "color": "#58a6ff", "opacity": 0.10, "label": "London"}
+
+    # strategy marker (signal/anomaly); NOT a substitute for execution markers
+    {"id": "sig_1", "type": "marker", "time": t1,
+     "position": "below",        # above | below
+     "shape": "arrow_up",        # circle | square | arrow_up | arrow_down
+     "color": "#3fb950", "text": "long condition true"}
+
+    # text callout
+    {"id": "note_1", "type": "label", "time": t1, "price": 1.0980,
+     "text": "RSI 27", "color": "#f85149",
+     "position": "below"}        # above | below | left | right
+
+### Rules
+
+- `series`: emit one instruction per bar with the SAME id. `value: null` (or
+  not emitting) is a GAP — never 0, never interpolated. Use gaps for warm-up.
+  `update` on a series is invalid; `remove` stops the series.
+- Lifecycle is strategy-driven: `{"id": "zone_1", "action": "remove"}` when a
+  zone is filled/invalidated. `update` replaces an existing id (same type).
+- Use `pane: "separate"` for values on a different scale (z-score, spread,
+  RSI-like). Use `pane: "price"` for overlays (EMA, VWAP, bands).
+- A shaded band is just three series (upper/mid/lower); there is no band type.
+- Execution markers are Observa-owned; do not emit markers to fake fills.
+- `style` is a deprecated ALIAS for `line_style` (it IS honoured).
+  `persist` / `fill_price` / `extend` / `bg_color` are accepted but IGNORED —
+  they have no effect. Do not use any of them in new strategies.
+
+### Recipes
+
+    # EMA / VWAP overlay
+    {"id": "ema_20", "type": "series", "value": ema20, "color": "#58a6ff", "label": "EMA 20"}
+    {"id": "vwap",   "type": "series", "value": vwap,  "color": "#d29922", "label": "VWAP"}
+
+    # ±2σ bands = three series (no fill primitive needed)
+    {"id": "bb_up", "type": "series", "value": mid + 2*sd, "color": "#58a6ff", "label": "+2σ"}
+    {"id": "bb_dn", "type": "series", "value": mid - 2*sd, "color": "#58a6ff", "label": "-2σ"}
+
+    # POC / VAH / VAL
+    {"id": "poc", "type": "hline", "price": poc, "color": "#d29922", "label": "POC"}
+
+    # z-score on its own pane
+    {"id": "zscore", "type": "series", "value": z, "pane": "separate",
+     "color": "#8957e5", "label": "z-score"}
+
+    # FVG: add on the gap bar, remove when price trades back in
+    {"id": "fvg_1", "type": "rectangle", "time_start": bar["timestamp"], "time_end": None,
+     "price_top": gap_high, "price_bot": gap_low, "color": "#3fb950", "opacity": 0.14}
+    {"id": "fvg_1", "action": "remove"}
+
+Full contract with examples: `docs/STRATEGY_API.md` (Strategy annotations).
+
 ## F. Explicit-ticket closes
 
 Strong rule: never invent FIFO close behavior. To close a position, always

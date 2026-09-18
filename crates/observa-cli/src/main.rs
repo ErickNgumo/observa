@@ -12,7 +12,6 @@ use observa_core::config::{
     AccountConfig, BacktestConfig, BarInterval, CommissionConfig, CommissionMode, DatasetConfig,
     ExecutionConfig as CoreExecutionConfig, FillMode, InstrumentConfig, StrategyConfig,
 };
-use observa_core::drawings::DrawingInstruction;
 use observa_data::csv_reader::CsvReader;
 use observa_engine::engine::Engine;
 use observa_engine::persistence::{self, PersistenceError};
@@ -286,6 +285,7 @@ fn event_type_label(payload: &EngineEventPayload) -> &'static str {
         EngineEventPayload::StrategyTeardown { .. } => "strategy_teardown",
         EngineEventPayload::BarProcessed { .. } => "bar_processed",
         EngineEventPayload::StrategyDecision { .. } => "strategy_decision",
+        EngineEventPayload::DrawingsEmitted { .. } => "drawings_emitted",
         EngineEventPayload::OrderCreated { .. } => "order_created",
         EngineEventPayload::OrderPending { .. } => "order_pending",
         EngineEventPayload::OrderTriggered { .. } => "order_triggered",
@@ -373,8 +373,6 @@ fn replay_payload_for(
     metrics: &serde_json::Value,
     symbol: &str,
 ) -> serde_json::Value {
-    let drawings: Vec<Vec<DrawingInstruction>> =
-        result.bars.iter().map(|b| b.drawings.clone()).collect();
     let meta = RunMeta {
         status: "completed".to_string(),
         total_bars: result.total_bars,
@@ -384,11 +382,7 @@ fn replay_payload_for(
         instrument_symbol: Some(symbol.to_string()),
         ..Default::default()
     };
-    replay_mod::replay_payload(bars, &result.events, &drawings, &meta, Some(metrics))
-}
-
-fn vec_of_empty_drawings(n: usize) -> Vec<Vec<DrawingInstruction>> {
-    (0..n).map(|_| Vec::new()).collect()
+    replay_mod::replay_payload(bars, &result.events, &meta, Some(metrics))
 }
 
 /// Best-effort recovery of the canonical dataset bars for a persisted run.
@@ -480,11 +474,9 @@ fn replay_command(args: &[String]) {
     };
     let meta = replay_mod::run_meta_from_run_json(&loaded.run_json);
     let bars = recover_bars(&loaded.run_json);
-    let drawings = vec_of_empty_drawings(bars.len());
     let payload = replay_mod::replay_payload(
         &bars,
         &loaded.events,
-        &drawings,
         &meta,
         loaded.metrics.as_ref(),
     );

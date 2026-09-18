@@ -15,7 +15,7 @@ use observa_core::config::{
 };
 use observa_core::types::{Direction, OrderKind, OrderState};
 use observa_engine::engine::{Engine, FillReason};
-use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal};
+use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal, StrategyFailure};
 use serde_json::json;
 
 const EPS: f64 = 1e-6;
@@ -562,8 +562,8 @@ fn strategy_error_fails_the_run() {
         ) -> Vec<StrategySignal> {
             vec![]
         }
-        fn take_strategy_error(&mut self) -> Option<String> {
-            Some("strategy exploded".to_string())
+        fn take_strategy_error(&mut self) -> Option<StrategyFailure> {
+            Some(StrategyFailure::new("strategy exploded"))
         }
     }
     let bars = vec![bar(0, 1.1, 1.11, 1.09, 1.105)];

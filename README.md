@@ -161,6 +161,33 @@ canonical events — fills, position pairing, SL/TP prices and account state
 all come from the run's event log, never recomputed in the browser. The chart
 library is bundled, so replay works offline.
 
+## Show the strategy's reasoning
+
+`on_bar` may return annotations next to signals, and replay renders them over
+the candles so a human can see **what the strategy was looking at** — without
+reading the code:
+
+```python
+def on_bar(self, bar, portfolio, history):
+    return {
+        "signals": [...],
+        "drawings": [
+            {"id": "ema_20", "type": "series", "value": ema20,
+             "color": "#58a6ff", "label": "EMA 20"},
+            {"id": "zone_1", "type": "rectangle", "time_start": bar["timestamp"],
+             "time_end": None, "price_top": high, "price_bot": low,
+             "color": "#3fb950", "opacity": 0.14, "label": "FVG"},
+            {"id": "poc", "type": "hline", "price": poc, "color": "#d29922", "label": "POC"},
+        ],
+    }
+```
+
+Series (EMA, VWAP, z-score, spread), levels, zones, regions, markers and
+labels are supported. Annotations are descriptive only — they never affect
+fills, P&L or execution. Use the **Annotations** button in replay to show or
+hide them. A malformed drawing fails the run with a coded error (`exc.code`)
+instead of disappearing. Full contract: [`docs/STRATEGY_API.md`](docs/STRATEGY_API.md).
+
 ## Use Observa with AI
 
 You can give Observa's official AI guide to a coding agent and describe your

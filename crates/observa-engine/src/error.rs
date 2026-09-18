@@ -25,6 +25,11 @@ pub enum EngineError {
         bar_index: Option<usize>,
         /// Structured message from the strategy bridge.
         message: String,
+        /// Stable machine-readable code (OBS-AI-02 drawing validation, …).
+        /// `None` falls back to the generic `STRATEGY_ERROR` in Python.
+        code: Option<String>,
+        /// Structured context for `code` (never parsed out of `message`).
+        details: Option<serde_json::Value>,
     },
 
     /// The portfolio rejected or failed a financial operation.

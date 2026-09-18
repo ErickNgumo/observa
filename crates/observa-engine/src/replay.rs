@@ -19,7 +19,7 @@ use thiserror::Error;
 use observa_core::bar::Bar;
 use observa_core::drawings::DrawingInstruction;
 
-use crate::runevents::EngineEvent;
+use crate::runevents::{EngineEvent, EngineEventPayload};
 
 /// Run-level facts presented alongside the event stream (never recomputed).
 #[derive(Debug, Clone, Default)]
@@ -50,22 +50,43 @@ fn event_to_json(e: &EngineEvent) -> Value {
         .unwrap_or_else(|_| json!({ "event_seq": e.event_seq, "type": "unserializable_event" }))
 }
 
+/// Reconstructs per-bar strategy annotations from the canonical event stream.
+///
+/// This is the **single source of truth** for replay drawings (OBS-AI-02):
+/// annotations are persisted as `drawings_emitted` canonical events and never
+/// carried as side-channel state. The returned vector is index-aligned with
+/// the bar series; bars without annotations get an empty vector. Events whose
+/// `bar_index` is outside the bar range are ignored defensively.
+pub fn drawings_by_bar(bars_len: usize, events: &[EngineEvent]) -> Vec<Vec<DrawingInstruction>> {
+    let mut out: Vec<Vec<DrawingInstruction>> = (0..bars_len).map(|_| Vec::new()).collect();
+    for event in events {
+        if let EngineEventPayload::DrawingsEmitted {
+            bar_index, drawings, ..
+        } = &event.payload
+        {
+            if let Some(slot) = out.get_mut(*bar_index) {
+                slot.extend(drawings.iter().cloned());
+            }
+        }
+    }
+    out
+}
+
 /// Builds the deterministic replay payload consumed by the frontend.
 ///
-/// * `drawings_by_bar` is index-aligned with `bars` (each bar's Engine
-///   recorded drawings, or empty).
-/// * `metrics` is the canonical derived metrics object (may be `None` for
-///   failed runs).
+/// Both the in-process and the persisted-replay paths call this with the same
+/// canonical events, so both produce equivalent drawing payloads.
+/// `metrics` is the canonical derived metrics object (may be `None` for
+/// failed runs).
 pub fn replay_payload(
     bars: &[Bar],
     events: &[EngineEvent],
-    drawings_by_bar: &[Vec<DrawingInstruction>],
     run: &RunMeta,
     metrics: Option<&Value>,
 ) -> Value {
     let bar_values: Vec<Value> = bars.iter().map(bar_to_json).collect();
     let event_values: Vec<Value> = events.iter().map(event_to_json).collect();
-    let drawings: Vec<Value> = drawings_by_bar
+    let drawings: Vec<Value> = drawings_by_bar(bars.len(), events)
         .iter()
         .map(|d| serde_json::to_value(d).unwrap_or(Value::Array(Vec::new())))
         .collect();
@@ -212,6 +233,7 @@ pub fn run_meta_from_run_json(run_json: &Value) -> RunMeta {
 
 #[cfg(test)]
 mod tests {
+    use crate::strategy::StrategyFailure;
     use super::*;
     use std::collections::BTreeMap;
     use std::io::Write;
@@ -320,8 +342,6 @@ mod tests {
     #[test]
     fn payload_preserves_all_events_in_order() {
         let (bars, result, _cfg) = run_fixture();
-        let drawings: Vec<Vec<DrawingInstruction>> =
-            result.bars.iter().map(|b| b.drawings.clone()).collect();
         let meta = RunMeta {
             status: "completed".to_string(),
             total_bars: result.total_bars,
@@ -330,7 +350,7 @@ mod tests {
             open_positions: Some(result.final_state.open_positions_remaining),
             ..Default::default()
         };
-        let payload = replay_payload(&bars, &result.events, &drawings, &meta, None);
+        let payload = replay_payload(&bars, &result.events, &meta, None);
 
         let evs = payload["events"].as_array().unwrap();
         assert_eq!(evs.len(), result.events.len(), "no event loss");
@@ -396,8 +416,8 @@ mod tests {
             ) -> Vec<StrategySignal> {
                 vec![]
             }
-            fn take_strategy_error(&mut self) -> Option<String> {
-                Some("scripted failure".to_string())
+            fn take_strategy_error(&mut self) -> Option<StrategyFailure> {
+                Some(StrategyFailure::new("scripted failure"))
             }
         }
         let mut s = Failing;

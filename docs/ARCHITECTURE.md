@@ -120,9 +120,8 @@ observa-server
 - BarReceivedEvent
 
 ### Strategy
-- SignalEmittedEvent
-- IndicatorUpdatedEvent
-- DrawingsEmitted
+- StrategyDecisionEvent (per-bar signal count)
+- DrawingsEmittedEvent (strategy annotations; canonical `drawings_emitted`)
 
 ### Order
 - OrderIntentCreatedEvent
@@ -146,6 +145,23 @@ observa-server
 
 ### Annotation
 - JournalEntryAddedEvent
+
+## 6a. Strategy annotations (OBS-AI-02)
+
+- Annotations are **descriptive only**: they never influence order creation,
+  fills, spread/slippage, SL/TP, margin, portfolio accounting, metrics or
+  event ordering.
+- They are recorded on the single canonical timeline as `drawings_emitted`
+  events (normal EventSeq) and appear **only** when a strategy returned at
+  least one instruction, so a strategy that draws nothing adds no events (the
+  deterministic no-drawing baseline is byte-identical).
+- Replay reconstructs annotation state from canonical events; there is no
+  second timeline and no `drawings.jsonl`, and the replay payload's `drawings`
+  array is derived from those events.
+- Observa renders generic primitives (series, hline, line, rectangle, region,
+  marker, label) and never interprets strategy concepts such as "FVG"/"POC".
+- Malformed annotations fail the run with a coded error (`DRAWING_*`); they are
+  never silently discarded.
 
 ## 7. Traceability
 
