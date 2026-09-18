@@ -180,3 +180,37 @@ implementation stage.
 
 The `drawings_emitted` event is emitted **only** when a bar returned at least
 one instruction, which is what keeps no-drawing runs unchanged.
+
+## MCP inspection server (OBS-MCP-01)
+
+`python/tests/test_mcp.py` gates the read-only MCP server. It starts the server
+as a real subprocess and drives it through a **real MCP v2 client over actual
+stdio** — the protocol transport is never mocked.
+
+What it locks in:
+
+| Area | Coverage |
+| --- | --- |
+| Tool surface | exactly the ten documented tools; no write/execution tool; every schema object-rooted, with `run` required where applicable |
+| Delegation fidelity | every read tool's payload equals the corresponding `PersistedRun` / `run_summary` call |
+| Discovery | `list_runs` reports artifact facts, ignores non-runs, surfaces malformed runs in `errors`, exposes no absolute path, and never populates the cache |
+| Path security | `..`, absolute, unknown and symlink-escape identifiers all report the same `RUN_DIR_NOT_FOUND`; no server-side path is disclosed |
+| Pagination | default 100, clamped to 1000, `next_cursor` semantics, and a full page walk equal to the complete filtered result with no gaps or duplicates |
+| Errors | each coded error maps to the structured `{"error": {code, message, details}}` envelope; unexpected exceptions are not swallowed |
+| Read-only | artifact hashes are identical before and after a full tool sweep, with no new files |
+| History | UUIDv4 runs, runs without reasons, runs without closing linkage, protective exits, failed runs, unverifiable datasets |
+| stdout hygiene | a tee captures every server stdout line and requires each to be valid JSON-RPC |
+| Concurrency / cache | eight concurrent calls agree deterministically; eight concurrent first-loads instantiate exactly once |
+
+It runs in CI in its **own** virtualenv (`.mcp-venv`), installing the built
+wheel with its optional extra — `pip install "<wheel>[mcp]"`. Keeping it
+separate means a dependency problem in the MCP stack cannot destabilise the core
+zero-dependency gates.
+
+Run it locally the same way:
+
+```bash
+pip install "dist/observa-<version>-<tag>.whl[mcp]"
+python python/tests/test_mcp.py
+```
+

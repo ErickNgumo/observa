@@ -15,6 +15,12 @@ classifiers = [
     "Programming Language :: Rust",
 ]
 
+# Optional additive surfaces. The base package stays dependency-free: the
+# `mcp` extra is only installed when a user explicitly asks for it, and nothing
+# in observa/__init__.py imports it.
+[project.optional-dependencies]
+mcp = ["mcp>=2.2,<3"]
+
 [tool.maturin]
 module-name = "observa._observa"
 python-source = "python"

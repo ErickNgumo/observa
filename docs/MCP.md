@@ -1,0 +1,276 @@
+# Observa MCP — read-only run inspection server
+
+`observa mcp` exposes **persisted Observa runs** to any MCP client (Claude
+Desktop, Codex, or a generic MCP host) as structured, canonical evidence.
+
+It is a **thin adapter**. Every answer comes from `observa.inspect_run(...)` or
+`observa.run_summary(...)` — the same read-only inspection API you would call
+from Python. The server does not re-run strategies, does not re-parse
+`events.jsonl` on its own, does not reimplement chronology bucketing, does not
+infer closing orders, and does not interpret strategy reasons. It also cannot
+change anything: the whole surface is read-only.
+
+---
+
+## Install
+
+MCP support is an **optional extra**, so the base package keeps its
+zero-dependency install:
+
+```bash
+pip install observa          # core: no third-party dependencies
+pip install "observa[mcp]"   # core + the official MCP SDK
+```
+
+From a downloaded release wheel:
+
+```bash
+pip install "observa-0.1.2-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+```
+
+Without the extra, `observa` and `observa replay` work exactly as before — only
+`observa mcp` needs it, and it says so clearly if the extra is missing:
+
+```
+error: MCP support is not installed.
+hint: install the optional dependency with: pip install "observa[mcp]"
+```
+
+---
+
+## Start the server
+
+stdio transport only (the transport MCP clients spawn locally — no port, no
+listener):
+
+```bash
+observa mcp --runs-dir runs/
+# equivalent:
+python -m observa.mcp_server --runs-dir runs/
+```
+
+`--runs-dir` is required and is the **only** place the server will look. At
+startup it resolves that path and prints a one-line banner **to stderr**:
+
+```
+Observa MCP
+Runs root: /abs/path/to/runs
+Tools: 10
+```
+
+stdout is reserved exclusively for the MCP protocol stream, so the server is
+safe to launch as a subprocess.
+
+### Generic MCP client configuration
+
+```json
+{
+  "mcpServers": {
+    "observa": {
+      "command": "observa",
+      "args": ["mcp", "--runs-dir", "/abs/path/to/runs"]
+    }
+  }
+}
+```
+
+Any MCP host that can launch a stdio server works with that block; substitute
+`python -m observa.mcp_server` for the command if `observa` is not on `PATH`.
+
+---
+
+## Tools
+
+Ten read-only tools. Every tool except `list_runs` takes an explicit `run`
+identifier; there is no implicit "current run".
+
+| Tool | Purpose |
+| --- | --- |
+| `list_runs()` | Valid runs under the runs root, with per-run errors |
+| `get_run_summary(run)` | Persisted `run.json` / `metrics.json` facts |
+| `list_events(run, ...)` | Canonical events, filtered and paginated |
+| `get_event(run, event_seq)` | One canonical event |
+| `get_bar(run, bar_index)` | Everything canonical recorded for a bar |
+| `list_positions(run, open?)` | Position summaries (`open = null/true/false`) |
+| `get_position(run, position_id)` | One position's full lifecycle |
+| `get_order(run, order_seq)` | One order's lifecycle |
+| `list_trades(run)` | Completed canonical trades |
+| `list_rejections(run)` | Rejected orders plus what was rejected |
+
+### Common questions
+
+| Question | Call |
+| --- | --- |
+| What runs are available? | `list_runs()` |
+| Summarise this run. | `get_run_summary(run)` |
+| List all trades. | `list_trades(run)` |
+| Inspect position X. | `get_position(run, pid)` |
+| Which exact order closed this position? | `get_position(run, pid)["closing_order"]` |
+| Inspect order Y. | `get_order(run, seq)` |
+| Why was order Y rejected? | `get_order(run, seq)["rejected"]` |
+| What happened on bar N? | `get_bar(run, n)` |
+| What strategy reason was recorded? | `list_events(run, bar_index=n, event_type="strategy_decision")` |
+| What annotations were present at entry? | `get_position(run, pid)["annotations_at_entry"]` |
+
+### `list_events` filters and pagination
+
+Filters mirror the Python API exactly and combine with AND semantics:
+`event_type`, `event_seq`, `bar_index`, `position_id`, `order_seq`,
+`start_event_seq`, `end_event_seq`. `bar_index` uses canonical
+chronology-bucket attribution, so it returns exactly `get_bar(run, n)["events"]`.
+
+`limit` defaults to **100** and is clamped to **1000**. `cursor` means *start
+strictly after this `event_seq`* — the canonical ordering key, so pages are
+deterministic.
+
+```jsonc
+{
+  "run": "sample", "total": 4862, "returned": 1000, "limit": 1000,
+  "next_cursor": 999, "events": [ /* ascending event_seq */ ]
+}
+```
+
+`total` counts everything matching the filters *ignoring* the cursor.
+`next_cursor` is `null` only when the result is complete, so truncation is never
+silent. Walking pages with `next_cursor` reproduces the full filtered result
+exactly — no gaps and no duplicates.
+
+### Output shape
+
+Every tool returns a JSON **object** (never a bare list), for example
+`{"run": "...", "count": 47, "trades": [...]}`. List payloads are nested under
+a named key, which keeps a result in a single structured block.
+
+---
+
+## Expected errors
+
+Anticipated failures are **returned as data**, because MCP has no structured
+error channel of its own:
+
+```jsonc
+{
+  "error": {
+    "code": "POSITION_NOT_FOUND",
+    "message": "no position with position_id='...'",
+    "details": {"position_id": "..."}
+  }
+}
+```
+
+The codes are Observa's existing ones — the server invents no MCP-specific
+duplicates:
+
+| Code | Meaning |
+| --- | --- |
+| `RUN_DIR_NOT_FOUND` | Unknown `run`, or a path refused by the root policy |
+| `RUN_ARTIFACTS_INVALID` | Artifacts present but unreadable/inconsistent |
+| `EVENT_NOT_FOUND` | No such `event_seq` |
+| `BAR_NOT_FOUND` | No such `bar_index` |
+| `POSITION_NOT_FOUND` | No such `position_id` |
+| `ORDER_NOT_FOUND` | No such `order_seq` |
+
+Because the failure is returned rather than raised, the protocol-level
+`is_error` flag stays `false`. **Clients should inspect `response.error`** for
+expected domain failures. Genuinely unexpected exceptions are *not* converted:
+they propagate and surface as real MCP tool errors, so a bug stays visible
+instead of looking like a plausible answer.
+
+---
+
+## Security model
+
+The server reads only inside one configured runs root.
+
+- A `run` identifier is a **path relative to that root** (for example
+  `sample` or `2026-01/morning`). Nested layouts are supported.
+- Refused before any filesystem access: non-strings, empty identifiers,
+  absolute paths, and any `..` component.
+- After joining, symlinks are resolved and the result must remain inside the
+  resolved root, so a symlink pointing outside is refused.
+- Only directories containing a `run.json` are opened.
+- **An escape is indistinguishable from a missing run**: both report
+  `RUN_DIR_NOT_FOUND` with the same message, so the server never reveals
+  whether a path outside the root exists.
+- No tool accepts a filesystem path, and no response contains an absolute
+  filesystem path — path-shaped values are made run-relative or reduced to
+  basenames. `list_runs` reports the dataset as a bare filename.
+
+There is no network listener: stdio only. That is the entire attack surface for
+this MVP — no auth, TLS, or remote transport is implemented.
+
+---
+
+## Read-only guarantee
+
+No tool runs a strategy, creates/edits/deletes a run, changes configuration,
+adds notes, or writes anything at all. This is tested: hashing every artifact
+before and after a full tool sweep must produce identical hashes and no new
+files.
+
+---
+
+## Caching and artifact changes
+
+Loaded runs are cached in the server process, keyed by resolved run path, and
+never invalidated — persisted runs are treated as immutable. If you change a
+run's artifacts, **restart the server** to observe the change. There is no
+watcher, no mtime polling and no background refresh.
+
+Cache access is thread-safe, because MCP may execute synchronous tools on
+worker threads.
+
+`list_runs` deliberately does **not** populate the cache: discovery reads only
+`run.json` / `metrics.json` (about 0.4 ms per run) instead of parsing full event
+histories (about 100 ms and 5 MB per run).
+
+---
+
+## Historical compatibility
+
+Nothing is migrated and nothing is required to be current:
+
+- current deterministic UUIDv5 runs and historical UUIDv4 runs;
+- runs from before persisted strategy reasons (no `signals` key — read as
+  absent, never back-filled);
+- runs from before closing-order linkage (`closing_order` is `null`);
+- protective SL/TP exits;
+- runs with no drawings;
+- failed runs (`metrics` is `null`, partial history still available);
+- runs whose dataset can no longer be verified (`ohlc` is `null` and
+  `ohlc_available` is `false` — no bar is ever fabricated).
+
+### `closing_order` is three-valued
+
+`get_position` passes the persisted linkage through verbatim. Do not blur these:
+
+| `closing_order` | `exit_reason` | Meaning |
+| --- | --- | --- |
+| dict | `Signal` | The exact canonical closing order was recorded |
+| `null` | `StopLoss` / `TakeProfit` | Protective exit — **no order ever existed** |
+| `null` | `Signal` | Run predates the linkage — the closing order **was not recorded** |
+
+The server never infers it from side, quantity, timestamp, adjacency or the
+opening order.
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause / fix |
+| --- | --- |
+| `MCP support is not installed` | Install the extra: `pip install "observa[mcp]"` |
+| `error: runs directory does not exist or is not a directory: ... [RUN_DIR_NOT_FOUND]` | Pass an existing `--runs-dir` |
+| Every `run` returns `RUN_DIR_NOT_FOUND` | The identifier must be relative to the configured root — check `list_runs()` |
+| A run does not appear in `list_runs` | It has no `run.json`, or it lives outside the root; see the `errors` array for unreadable runs |
+| Stale numbers after re-running | Restart the server (the cache is never invalidated) |
+| `ohlc` is `null` | The dataset is no longer verifiable against its persisted hash; everything else still works |
+
+---
+
+## See also
+
+- [`docs/STRATEGY_API.md`](STRATEGY_API.md) — the Python inspection API this
+  server delegates to
+- [`llms-full.txt`](../llms-full.txt) §K2 (inspection) and §K3 (MCP)
+- [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) §6c/§6d — architectural invariants

@@ -481,6 +481,99 @@ Current canonical-data limitations (do NOT work around them by guessing):
   not recorded). Never infer it from side, size, timestamp, adjacency or
   neighbouring events.
 
+## K3. MCP inspection server — read-only access for external agents
+
+Observa ships a read-only MCP server over persisted runs. It is a thin adapter
+over `observa.inspect_run` / `observa.run_summary`: it never runs a strategy,
+never writes to a run directory, and never infers canonical facts.
+
+Install (optional extra — the base package stays dependency-free):
+
+    pip install "observa[mcp]"
+
+Start it over stdio (the transport MCP clients launch locally):
+
+    observa mcp --runs-dir runs/
+    python -m observa.mcp_server --runs-dir runs/     # equivalent
+
+Generic MCP client configuration:
+
+    {"command": "observa", "args": ["mcp", "--runs-dir", "/abs/path/to/runs"]}
+
+Tools (exactly ten, all read-only, all returning JSON objects):
+
+    list_runs()                       valid runs under the root (+ per-run errors)
+    get_run_summary(run)              run.json / metrics.json facts
+    list_events(run, ...filters, limit, cursor)
+    get_event(run, event_seq)
+    get_bar(run, bar_index)
+    list_positions(run, open?)        open = null | true | false
+    get_position(run, position_id)
+    get_order(run, order_seq)
+    list_trades(run)
+    list_rejections(run)
+
+Every tool except `list_runs` requires an explicit `run` identifier (a path
+relative to the configured runs root). There is no implicit "current run".
+
+Task → call:
+
+    "list runs"                          -> list_runs()
+    "summarize this run"                 -> get_run_summary(run)
+    "list trades"                        -> list_trades(run)
+    "inspect position P"                 -> get_position(run, P)
+    "which order closed P?"              -> get_position(run, P)["closing_order"]
+    "inspect order 17"                   -> get_order(run, 17)
+    "why was order 17 rejected?"         -> get_order(run, 17)["rejected"]
+    "what happened on bar 421?"          -> get_bar(run, 421)
+    "what reason was recorded?"          -> list_events(run, bar_index=n,
+                                              event_type="strategy_decision")
+    "annotations at entry"               -> get_position(run, P)["annotations_at_entry"]
+
+Pagination (`list_events` only): `limit` defaults to 100 and is clamped to
+1000; `cursor` means "start strictly after this event_seq". The response gives
+`total` (filtered count ignoring the cursor), `returned`, `limit` and
+`next_cursor`; `next_cursor` is `null` only when the result is complete, so
+truncation is never silent. Walking pages with `next_cursor` reproduces the
+full filtered result exactly — no gaps, no duplicates.
+
+Errors: anticipated coded failures are RETURNED as data, because MCP has no
+structured error channel of its own:
+
+    {"error": {"code": "POSITION_NOT_FOUND", "message": "...", "details": {...}}}
+
+Codes are the existing ones (`RUN_DIR_NOT_FOUND`, `RUN_ARTIFACTS_INVALID`,
+`EVENT_NOT_FOUND`, `BAR_NOT_FOUND`, `POSITION_NOT_FOUND`, `ORDER_NOT_FOUND`).
+Because the failure is returned rather than raised, protocol-level `is_error`
+stays false — inspect `response.error` for expected domain failures. Unexpected
+exceptions propagate and become real MCP tool errors.
+
+Security model: the server is scoped to one runs root. Absolute paths, `..`
+components and symlink escapes are refused, and an escape is indistinguishable
+from a missing run, so the boundary never reveals whether an outside path
+exists. No absolute filesystem paths appear in any tool response (path-shaped
+values are made run-relative or reduced to basenames).
+
+Read-only guarantee: no tool creates, edits or deletes anything; a full tool
+sweep leaves every run artifact byte-identical.
+
+Caching: loaded runs are cached for the process lifetime with no invalidation
+(runs are immutable). Restart the server to observe artifact changes.
+
+Historical compatibility: works unchanged with UUIDv5 and historical UUIDv4
+runs, runs without persisted reasons, runs without closing-order linkage,
+protective exits, failed runs (`metrics` null) and runs whose dataset can no
+longer be verified (`ohlc` null, `ohlc_available` false). No migration.
+
+Three-way `closing_order` semantics (preserved verbatim from inspection; the
+server never guesses): a dict with `exit_reason == "Signal"` means the exact
+closing order was recorded; `null` with `StopLoss`/`TakeProfit` means a
+protective exit where no order ever existed; `null` with `exit_reason ==
+"Signal"` means the run predates the linkage and it was not recorded.
+
+stdio hygiene: stdout carries only MCP protocol traffic. The startup banner,
+diagnostics and errors all go to stderr.
+
 ## L. Complete working examples
 
 Quickstart A (bundled sample):
