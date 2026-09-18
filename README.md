@@ -216,6 +216,45 @@ recorded whenever one exists — protective SL/TP exits have no closing order in
 the current execution model, and runs produced before this linkage was
 persisted report `None` rather than guessing.
 
+## Inspect a persisted run over MCP
+
+Observa ships a **read-only MCP server** so an external agent can interrogate
+saved runs without learning the artifact formats. It is a thin adapter over
+`observa.inspect_run(...)` and `observa.run_summary(...)`: it never runs a
+strategy, never writes to a run directory, and never infers anything.
+
+MCP support is an **optional extra**, so the base package stays
+dependency-free:
+
+```bash
+pip install "observa[mcp]"          # adds the official MCP SDK
+```
+
+Start it over **stdio** (the transport MCP clients launch locally):
+
+```bash
+observa mcp --runs-dir runs/
+# equivalently:
+python -m observa.mcp_server --runs-dir runs/
+```
+
+The server is scoped to one runs root; runs are addressed by their path
+relative to it. Ten read-only tools are exposed: `list_runs`,
+`get_run_summary`, `list_events`, `get_event`, `get_bar`, `list_positions`,
+`get_position`, `get_order`, `list_trades`, `list_rejections`.
+
+```jsonc
+// generic MCP client configuration (stdio)
+{ "command": "observa", "args": ["mcp", "--runs-dir", "/abs/path/to/runs"] }
+```
+
+Answers that come back are canonical evidence, e.g.
+`get_position(pid)["closing_order"]` for "which order closed this position?",
+or `list_events(bar_index=n, event_type="strategy_decision")` for the recorded
+per-signal reason. All human-facing output goes to stderr, so stdout carries
+only protocol traffic. Full reference, security model and client setup:
+[`docs/MCP.md`](docs/MCP.md).
+
 ## Show the strategy's reasoning
 
 `on_bar` may return annotations next to signals, and replay renders them over

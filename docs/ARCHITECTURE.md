@@ -228,6 +228,34 @@ observa-server
   produced before OBS-SCHEMA-02 have no recorded closing-order linkage even for
   signal closes.
 
+## 6d. MCP inspection server (OBS-MCP-01)
+
+- `observa/mcp_server.py` is a **thin adapter** over `observa.inspect_run` and
+  `observa.run_summary`. It exposes canonical persisted evidence to an MCP
+  client over **stdio only** — no HTTP/SSE transport, no network listener.
+- It is **read-only**: no tool runs a strategy, creates/edits/deletes a run, or
+  writes anything. A full tool sweep leaves every artifact byte-identical.
+- It **never re-derives canonical facts**: it does not parse `events.jsonl`
+  itself, does not reimplement chronology bucketing, does not infer closing
+  orders, and does not interpret strategy reasons. Every read delegates to the
+  inspection API, and every tool payload *is* that API's output.
+- The server is scoped to **one configured runs root** (`--runs-dir`). Runs are
+  addressed by their path relative to that root; absolute paths, `..`
+  components and symlink escapes are refused, and an escape is externally
+  indistinguishable from a missing run (`RUN_DIR_NOT_FOUND`), so the boundary
+  never reveals whether an outside path exists.
+- Only the optional `observa[mcp]` extra pulls in the MCP SDK. `import observa`
+  and `observa.cli` never import it, so the base package keeps its
+  zero-dependency import path; the CLI imports the server lazily for
+  `observa mcp` alone.
+- stdio makes stdout a protocol channel: every human-facing line (startup
+  banner, diagnostics, errors) goes to stderr. A single stray stdout write
+  corrupts the stream.
+- Anticipated coded Observa errors are **returned** as structured data
+  (`{"error": {"code", "message", "details"}}`) because the protocol carries no
+  structured error channel of its own; unexpected exceptions propagate so
+  genuine bugs surface as real tool errors rather than plausible-looking data.
+
 ## 7. Traceability
 
 The intended chain for a normal trade is:

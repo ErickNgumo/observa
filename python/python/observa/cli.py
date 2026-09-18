@@ -1,20 +1,32 @@
 """Console entry point for the installed ``observa`` package.
 
-Primary command::
+Commands::
 
     observa replay <run-dir> [--port <port>]
+    observa mcp --runs-dir <path>
 
-Replays a persisted canonical run created with ``observa.run(..., output=...)``.
-Without ``--port`` a free port is chosen automatically; ``--port N`` is strict
-(a busy port exits with a concise error and status 2). No repository, Cargo,
-or Rust toolchain is required.
+``replay`` serves a persisted canonical run created with
+``observa.run(..., output=...)``. Without ``--port`` a free port is chosen
+automatically; ``--port N`` is strict (a busy port exits with a concise error
+and status 2).
+
+``mcp`` runs the read-only MCP inspection server over stdio. It needs the
+optional ``observa[mcp]`` dependency, which is imported **lazily**: neither
+``import observa`` nor the other commands ever require it. No repository,
+Cargo, or Rust toolchain is needed for either command.
 """
 
 from __future__ import annotations
 
 import sys
 
-USAGE = "usage: observa replay <run-dir> [--port <port>]"
+USAGE = (
+    "usage: observa <command> [options]\n"
+    "commands:\n"
+    "  replay <run-dir> [--port <port>]   replay a persisted canonical run\n"
+    "  mcp --runs-dir <path>              read-only MCP inspection server (stdio)\n"
+    "run 'observa mcp --help' for MCP options"
+)
 
 
 def main(argv=None) -> int:
@@ -25,6 +37,8 @@ def main(argv=None) -> int:
         return 0
 
     command = args.pop(0)
+    if command == "mcp":
+        return _mcp(args)
     if command != "replay":
         print("unknown command '%s' — %s" % (command, USAGE), file=sys.stderr)
         return 2
@@ -84,3 +98,23 @@ def main(argv=None) -> int:
             print("error: %s" % message, file=sys.stderr)
         return 2
     return 0
+
+
+def _mcp(args) -> int:
+    """Runs the read-only MCP server, importing it only for this branch.
+
+    Keeping the import here is what lets the base package stay
+    dependency-free: ``observa`` and ``observa replay`` never touch ``mcp``.
+    """
+    try:
+        from .mcp_server import main as mcp_main
+    except ModuleNotFoundError as exc:
+        if (exc.name or "").split(".")[0] == "mcp":
+            print(
+                "error: MCP support is not installed.\n"
+                'hint: install the optional dependency with: pip install "observa[mcp]"',
+                file=sys.stderr,
+            )
+            return 2
+        raise
+    return mcp_main(args)
