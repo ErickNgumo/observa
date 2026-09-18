@@ -121,6 +121,13 @@ appear as additional `fills` (95) and as `position_closed` events with
 mix of signal exits (40) and stop-loss exits (7), and both winning (7) and
 losing (40) trades, so win/loss and drawdown metric paths are exercised.
 
+Since OBS-SCHEMA-02 the 40 signal closes also carry the canonical
+`position_closed.order_seq` of the order that closed them; the 7 stop-loss
+closes carry no `order_seq` at all (the key is omitted, not `null`) because the
+protective stage allocates no order. The event count (4862), order count (88)
+and fill count (95) are unchanged by the linkage, `run.json` and `metrics.json`
+stay byte-identical, and only `events.jsonl` changes.
+
 The fixture is synthetic: these numbers are a regression oracle, not a
 performance claim.
 

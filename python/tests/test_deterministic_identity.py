@@ -163,6 +163,27 @@ def main():
               not [e for e in events_of(h1) if e["type"] == "order_rejected"],
               [e for e in events_of(h1) if e["type"] == "order_rejected"][:1])
 
+        # ── 6b. OBS-SCHEMA-02: the hedge close links its exact order ────────
+        hedge_run = observa.inspect_run(h1)
+        lifecycle = hedge_run.position(closed_id)
+        closer = lifecycle["closing_order"]
+        check("the hedged close records its canonical closing order",
+              closer is not None and isinstance(closer["order_seq"], int),
+              closer and closer.get("order_seq"))
+        check("the closing order is distinct from the opening order",
+              closer["order_seq"] != lifecycle["opening_order"]["order_seq"],
+              (closer["order_seq"], lifecycle["opening_order"]["order_seq"]))
+        check("the closing order resolves back to the closed position",
+              hedge_run.order(closer["order_seq"])["position_id"] == closed_id)
+        check("the still-open hedge leg has no closing order",
+              all(p["closing_order_seq"] is None
+                  for p in hedge_run.positions(open=True)))
+        check("the positional close event carries the linkage",
+              lifecycle["closed"]["order_seq"] == closer["order_seq"])
+        check("closing-order linkage is identical across repeated hedged runs",
+              observa.inspect_run(h2).position(closed_id)["closing_order"]
+              == closer)
+
         # ── 13. historical UUIDv4 runs still load ───────────────────────────
         legacy = os.path.join(tmp, "legacy")
         shutil.copytree(a, legacy)

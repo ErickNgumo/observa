@@ -206,8 +206,15 @@ run.bar(421)["strategy_decisions"][0]["signals"]
 
 Reasons are optional, per signal, at most 1024 UTF-8 bytes, preserved exactly as
 authored, and never influence execution. Runs produced before this schema simply
-have no `signals` key. One canonical gap remains: a position's `closing_order`
-is always `None` because `position_closed` carries no `order_seq`.
+have no `signals` key.
+
+Every explicit ticket close is also linked to its exact order: `position_closed`
+carries the canonical `order_seq` of the order that closed the position, so
+`run.position(pid)["closing_order"]` returns that order's full lifecycle and
+`run.order(seq)["position_id"]` points back at the position. A closing order is
+recorded whenever one exists — protective SL/TP exits have no closing order in
+the current execution model, and runs produced before this linkage was
+persisted report `None` rather than guessing.
 
 ## Show the strategy's reasoning
 

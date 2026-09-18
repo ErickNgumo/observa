@@ -400,7 +400,9 @@ impl Engine {
     /// 3. **Protective exits** — SL/TP of exactly the positions captured in
     ///    step 1 are evaluated with the OBS-0006 opening-gap precedence and
     ///    SL-first intrabar convention, per position in creation order; each
-    ///    hit closes that exact position by ticket.
+    ///    hit closes that exact position by ticket. Protective exits are **not**
+    ///    strategy orders: they allocate no `OrderSeq`, emit no order events,
+    ///    and their `position_closed` carries no `order_seq` (OBS-SCHEMA-02).
     /// 4. **Strategy observation** — the completed bar `B` and a read-only
     ///    portfolio view (all open positions, valued at `B`'s close) are
     ///    presented to the strategy with strictly-prior history.
@@ -409,7 +411,8 @@ impl Engine {
     ///    `B`'s close under `BAR_CLOSE` or queue for `B+1`'s open under
     ///    `NEXT_BAR_OPEN`. LIMIT/STOP orders rest (with their SL/TP) and are
     ///    first evaluated on later bars. Close signals require an explicit
-    ///    ticket.
+    ///    ticket, and the closing order's `OrderSeq` is recorded on the
+    ///    resulting `position_closed` (OBS-SCHEMA-02).
     /// 6. **End of bar** — history advances and an end-of-bar mark-to-market
     ///    portfolio snapshot (all positions) is recorded.
     ///
@@ -623,6 +626,9 @@ impl Engine {
                         pos.quantity_lots,
                         fill.executed_price,
                         reason,
+                        // C1 — protective SL/TP: no canonical order exists, and
+                        // none is synthesized. The linkage stays absent.
+                        None,
                         bar.timestamp,
                     )?;
                 }
@@ -1031,6 +1037,8 @@ impl Engine {
                     market.quantity_lots,
                     fill.executed_price,
                     ExitReason::Signal,
+                    // C2 — queued NEXT_BAR_OPEN explicit ticket close.
+                    Some(market.seq),
                     bar.timestamp,
                 )?;
             }
@@ -1243,6 +1251,12 @@ impl Engine {
         }
     }
 
+    /// Closes one position and emits the canonical `PositionClosed` event.
+    ///
+    /// `closing_order_seq` is the canonical order responsible for this close
+    /// (OBS-SCHEMA-02). It is `Some(seq)` on both explicit-ticket close paths
+    /// and `None` for the protective SL/TP stage, which has no order — the
+    /// field is then omitted from the event entirely.
     fn execute_close_by_id(
         &mut self,
         bar_index: usize,
@@ -1250,6 +1264,7 @@ impl Engine {
         quantity_lots: f64,
         exit_price: f64,
         exit_reason: ExitReason,
+        closing_order_seq: Option<u64>,
         timestamp: DateTime<Utc>,
     ) -> Result<(), EngineError> {
         let request = observa_portfolio::portfolio::ClosePositionRequest {
@@ -1263,13 +1278,15 @@ impl Engine {
         match self.portfolio.close_position(&request) {
             Ok(report) => {
                 self.push_trade(bar_index, &report);
-                // Canonical PositionClosed; strategy-close correlation is
-                // via the preceding OrderFilled event (protective SL/TP exits
-                // have none).
+                // Canonical PositionClosed. The closing order is linked
+                // explicitly via `order_seq`; protective SL/TP exits have no
+                // order and therefore carry none (never inferred from
+                // chronology, side, quantity or adjacency).
                 if let Some(pos) = self.portfolio.position(&report.position_id) {
                     let pos = pos.clone();
                     self.emit(EngineEventPayload::PositionClosed {
                         position_id: report.position_id,
+                        order_seq: closing_order_seq,
                         side: pos.direction,
                         quantity_lots: report.quantity_lots,
                         entry_price: pos.entry_price,
@@ -1564,6 +1581,8 @@ impl Engine {
                     signal.size,
                     fill.executed_price,
                     ExitReason::Signal,
+                    // C3 — BAR_CLOSE explicit ticket close.
+                    Some(seq),
                     bar.timestamp,
                 )?;
             }

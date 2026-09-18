@@ -215,9 +215,18 @@ observa-server
   (OBS-SCHEMA-01) as an optional, index-aligned `signals` array that is omitted
   when no signal supplied one, so reason-less decisions stay byte-identical.
   Reasons are descriptive only and never influence execution.
-- A remaining canonical-data limitation is reported rather than papered over: a
-  position's closing order is not derivable because `position_closed` carries no
-  `order_seq` (OBS-SCHEMA-02).
+- `position_closed` carries an optional `order_seq` (OBS-SCHEMA-02): the exact
+  canonical order that closed the position, in the same identity space as
+  `position_opened.order_seq`. It is present for every explicit strategy/ticket
+  close (both fill modes) and **omitted entirely** for protective SL/TP exits,
+  which allocate no `OrderSeq`, emit no order events, and are not strategy
+  orders. The reference is never inferred — not from side, quantity, timestamp,
+  adjacency, bar correlation or the opening order — and a present reference that
+  resolves to no order is an invalid artifact set, not a `None`.
+- A canonical-data limitation is reported rather than papered over: a protective
+  SL/TP exit has no closing order in the current execution model, and runs
+  produced before OBS-SCHEMA-02 have no recorded closing-order linkage even for
+  signal closes.
 
 ## 7. Traceability
 
@@ -236,6 +245,23 @@ PositionClosedEvent
 ```
 
 The event IDs and run ID provide traceability across the chain.
+
+In the persisted canonical history (OBS-0008) the same chain is joined by
+`OrderSeq`, which is the only order identity that reaches an artifact:
+
+```text
+strategy_decision
+  → order_created(order_seq=X)
+  → order_filled(order_seq=X)
+  → position_opened(position_id=P, order_seq=X)      # opening linkage
+  → position_closed(position_id=P, order_seq=X')     # closing linkage (OBS-SCHEMA-02)
+```
+
+`X'` is the order that performed the close and is only present when such an
+order exists. Protective SL/TP exits appear as
+`position_closed(position_id=P, exit_reason=StopLoss|TakeProfit)` with no
+`order_seq`, because the protective stage is not an order. `inspect_run`
+resolves both links through the same `order_seq` index, in both directions.
 
 ## 8. Financial execution invariants
 

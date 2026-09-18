@@ -14,7 +14,8 @@ use observa_core::config::{
     StrategyConfig,
 };
 use observa_core::types::{Direction, OrderKind, OrderState};
-use observa_engine::engine::{Engine, FillReason};
+use observa_engine::engine::{Engine, FillReason, RunResult};
+use observa_engine::runevents::EngineEventPayload;
 use observa_engine::strategy::{PortfolioView, Strategy, StrategySignal, StrategyFailure};
 use serde_json::json;
 
@@ -1036,4 +1037,659 @@ fn bar_close_no_retroactive_protective() {
     assert_eq!(trade.bar_index, 1, "no retroactive close on the entry bar");
     assert_eq!(trade.exit_reason, observa_core::types::ExitReason::StopLoss);
     assert!((trade.exit_price - 1.0948).abs() < EPS);
+}
+
+// ─────────────────────────────────────────────────
+// OBS-SCHEMA-02 — canonical closing-order linkage
+// ─────────────────────────────────────────────────
+
+/// Closing-order linkage per position id: `Some(seq)` for the canonical order
+/// that closed the position, `None` when no order exists (protective SL/TP) or
+/// the link was never recorded.
+fn closing_orders(result: &RunResult) -> BTreeMap<String, Option<u64>> {
+    let mut out = BTreeMap::new();
+    for event in &result.events {
+        if let EngineEventPayload::PositionClosed {
+            position_id,
+            order_seq,
+            ..
+        } = &event.payload
+        {
+            out.insert(position_id.to_string(), *order_seq);
+        }
+    }
+    out
+}
+
+/// Opening-order linkage per position id (the pre-existing OBS-DET-01 shape).
+fn opening_orders(result: &RunResult) -> BTreeMap<String, Option<u64>> {
+    let mut out = BTreeMap::new();
+    for event in &result.events {
+        if let EngineEventPayload::PositionOpened {
+            position_id,
+            order_seq,
+            ..
+        } = &event.payload
+        {
+            out.insert(position_id.to_string(), *order_seq);
+        }
+    }
+    out
+}
+
+/// The raw serialized `position_closed` payloads, so tests can prove the key is
+/// **omitted** (absent) rather than serialized as `null`.
+fn serialized_closes(result: &RunResult) -> Vec<serde_json::Value> {
+    result
+        .events
+        .iter()
+        .map(|e| serde_json::to_value(e).unwrap())
+        .filter(|v| v["type"] == json!("position_closed"))
+        .collect()
+}
+
+/// The canonical order events carrying `order_seq`.
+fn order_event_types(result: &RunResult, seq: u64) -> Vec<String> {
+    result
+        .events
+        .iter()
+        .filter_map(|e| {
+            let v = serde_json::to_value(e).unwrap();
+            if v["order_seq"] == json!(seq) {
+                Some(v["type"].as_str().unwrap().to_string())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Explicit close signal for one ticket.
+fn close_signal(ticket: &str, size: f64) -> StrategySignal {
+    StrategySignal {
+        direction: Direction::Close,
+        order_type: OrderKind::Market,
+        size,
+        intended_price: 0.0,
+        sl: None,
+        tp: None,
+        reason: "close".to_string(),
+        ticket: Some(ticket.to_string()),
+    }
+}
+
+/// Opens one market position on bar 0, then closes it by exact ticket on the
+/// next bar the position is observed open.
+struct OpenThenCloseByTicket {
+    opened: bool,
+}
+
+impl Strategy for OpenThenCloseByTicket {
+    fn on_bar(
+        &mut self,
+        _bar: &Bar,
+        portfolio: &PortfolioView,
+        _history: &[Bar],
+    ) -> Vec<StrategySignal> {
+        if !self.opened {
+            self.opened = true;
+            return vec![buy_signal(&bar(0, 1.1, 1.11, 1.09, 1.10))];
+        }
+        if let Some(pos) = portfolio.open_positions.first() {
+            return vec![close_signal(&pos.ticket, pos.size)];
+        }
+        vec![]
+    }
+}
+
+// ── 1. BAR_CLOSE explicit close links its exact order ──
+
+#[test]
+fn bar_close_explicit_close_links_its_exact_order() {
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1000, 1.1010, 1.0990, 1.1010),
+    ];
+    let mut engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
+    let result = engine
+        .run(&bars, &mut OpenThenCloseByTicket { opened: false })
+        .unwrap();
+
+    // Entry order 0 (bar 0 close), close order 1 (bar 1 close).
+    assert_eq!(result.orders.len(), 2);
+    assert_eq!(result.trades.len(), 1);
+
+    let closes = closing_orders(&result);
+    assert_eq!(closes.len(), 1);
+    let (pid, closer) = closes.iter().next().unwrap();
+    assert_eq!(*closer, Some(1), "BAR_CLOSE close must link its own order");
+    assert_eq!(opening_orders(&result)[pid], Some(0));
+
+    // The closer's full lifecycle exists and is distinct from the opener's.
+    let types = order_event_types(&result, 1);
+    assert!(types.contains(&"order_created".to_string()), "{types:?}");
+    assert!(types.contains(&"order_filled".to_string()), "{types:?}");
+    assert_ne!(opening_orders(&result)[pid], *closer);
+
+    // The runtime order log agrees: order 1 closed exactly this position.
+    let rec = result.orders.iter().find(|o| o.seq == 1).unwrap();
+    assert_eq!(rec.position_id.unwrap().to_string(), *pid);
+
+    // ... and the event was never serialized as `null`.
+    let serialized = serialized_closes(&result);
+    assert_eq!(serialized.len(), 1);
+    assert_eq!(serialized[0]["order_seq"], json!(1));
+}
+
+// ── 2. NEXT_BAR_OPEN explicit close links its exact order ──
+
+#[test]
+fn next_bar_open_explicit_close_links_its_exact_order() {
+    // Decision bar 0 → fill bar 1; close decision bar 1 → fill bar 2.
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1000, 1.1010, 1.0990, 1.1010),
+        bar(2, 1.1010, 1.1020, 1.1000, 1.1015),
+    ];
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let result = engine
+        .run(&bars, &mut OpenThenCloseByTicket { opened: false })
+        .unwrap();
+
+    assert_eq!(result.orders.len(), 2);
+    let closes = closing_orders(&result);
+    let (pid, closer) = closes.iter().next().unwrap();
+    assert_eq!(*closer, Some(1));
+    assert_eq!(opening_orders(&result)[pid], Some(0));
+
+    // The closing order was CREATED on an earlier bar than the close itself:
+    // proximity/authoring assumptions about `order_created` are invalid, which
+    // is exactly why the link is persisted rather than inferred.
+    let close_event_bar = result
+        .events
+        .iter()
+        .find_map(|e| match &e.payload {
+            EngineEventPayload::PositionClosed { bar_index, .. } => Some(*bar_index),
+            _ => None,
+        })
+        .unwrap();
+    let rec = result.orders.iter().find(|o| o.seq == 1).unwrap();
+    assert_eq!(rec.created_bar, 1);
+    assert_eq!(rec.filled_bar, Some(2));
+    assert_eq!(close_event_bar, 2);
+    assert_ne!(rec.created_bar, close_event_bar);
+}
+
+// ── 3. Close the second of two positions (never FIFO) ──
+
+#[test]
+fn closing_order_links_the_second_position_not_the_first() {
+    // Reuses the OBS-0007 scenario: two longs, close the SECOND ticket.
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1010, 1.1020, 1.1000, 1.1010),
+        bar(2, 1.1015, 1.1025, 1.1005, 1.1020),
+        bar(3, 1.1020, 1.1030, 1.1010, 1.1025),
+    ];
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+
+    struct OpenTwoThenCloseSecond;
+    impl Strategy for OpenTwoThenCloseSecond {
+        fn on_bar(&mut self, bar: &Bar, p: &PortfolioView, _h: &[Bar]) -> Vec<StrategySignal> {
+            if p.open_positions.is_empty() {
+                let mut a = buy_signal(bar);
+                let mut b = buy_signal(bar);
+                b.size = 2.0;
+                vec![a, b]
+            } else if p.open_positions.len() == 2 {
+                let second = &p.open_positions[1];
+                vec![close_signal(&second.ticket, second.size)]
+            } else {
+                vec![]
+            }
+        }
+    }
+
+    let result = engine.run(&bars, &mut OpenTwoThenCloseSecond).unwrap();
+    assert_eq!(result.trades.len(), 1);
+    assert_eq!(result.final_state.open_positions_remaining, 1);
+
+    let opens = opening_orders(&result);
+    let closes = closing_orders(&result);
+    assert_eq!(opens.len(), 2, "both positions were opened");
+    assert_eq!(closes.len(), 1, "exactly one position closed");
+
+    // Opening orders 0 (1 lot, A) and 1 (2 lots, B); close order 2.
+    let (closed_pid, closer) = closes.iter().next().unwrap();
+    assert_eq!(*closer, Some(2));
+    assert_eq!(opens[closed_pid], Some(1), "the SECOND entry was closed");
+
+    // The still-open position (A, 1 lot) has NO closing linkage at all.
+    let open_pid = opens
+        .iter()
+        .find(|(pid, _)| !closes.contains_key(*pid))
+        .map(|(pid, _)| pid.clone())
+        .unwrap();
+    assert!(!closes.contains_key(&open_pid));
+    assert_eq!(opens[&open_pid], Some(0));
+}
+
+// ── 4. Two closes on the same bar stay unambiguous ──
+
+#[test]
+fn same_bar_multiple_closes_link_their_own_orders() {
+    // bar 0: three entries (A, B, C) → fill bar 1.
+    // bar 1: close A and C → orders 3 and 4, both fill at bar 2's open.
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1010, 1.1020, 1.1000, 1.1010),
+        bar(2, 1.1015, 1.1025, 1.1005, 1.1020),
+        bar(3, 1.1020, 1.1030, 1.1010, 1.1025),
+    ];
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+
+    struct CloseTwoOnOneBar {
+        tickets: Vec<(String, f64)>,
+    }
+    impl Strategy for CloseTwoOnOneBar {
+        fn on_bar(&mut self, bar: &Bar, p: &PortfolioView, _h: &[Bar]) -> Vec<StrategySignal> {
+            if p.open_positions.is_empty() {
+                return vec![buy_signal(bar), buy_signal(bar), buy_signal(bar)];
+            }
+            if p.open_positions.len() == 3 {
+                self.tickets = p
+                    .open_positions
+                    .iter()
+                    .map(|o| (o.ticket.clone(), o.size))
+                    .collect();
+                // Close the first and the third, in strategy order.
+                let (t0, s0) = self.tickets[0].clone();
+                let (t2, s2) = self.tickets[2].clone();
+                return vec![close_signal(&t0, s0), close_signal(&t2, s2)];
+            }
+            vec![]
+        }
+    }
+
+    let mut s = CloseTwoOnOneBar { tickets: vec![] };
+    let result = engine.run(&bars, &mut s).unwrap();
+    assert_eq!(result.trades.len(), 2);
+    assert_eq!(result.final_state.open_positions_remaining, 1);
+
+    let opens = opening_orders(&result);
+    let closes = closing_orders(&result);
+    assert_eq!(opens.len(), 3);
+    assert_eq!(closes.len(), 2, "two closes on one bar");
+
+    // Entries are orders 0/1/2; the two closes are orders 3 and 4.
+    let (a_pid, _) = opens.iter().find(|(_, s)| **s == Some(0)).unwrap();
+    let (b_pid, _) = opens.iter().find(|(_, s)| **s == Some(1)).unwrap();
+    let (c_pid, _) = opens.iter().find(|(_, s)| **s == Some(2)).unwrap();
+    assert_eq!(closes[a_pid], Some(3), "first close signal → first close order");
+    assert_eq!(closes[c_pid], Some(4), "second close signal → second close order");
+    assert!(!closes.contains_key(b_pid), "B stays open");
+
+    let seqs: std::collections::BTreeSet<_> = closes.values().flatten().copied().collect();
+    assert_eq!(seqs, [3u64, 4].into_iter().collect());
+
+    // Both closes belong to the same bar, so same-bar matching could never
+    // disambiguate them: only the persisted seq can.
+    let bars_of: Vec<u64> = result
+        .events
+        .iter()
+        .filter_map(|e| match &e.payload {
+            EngineEventPayload::PositionClosed { bar_index, .. } => Some(*bar_index as u64),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(bars_of, vec![2, 2]);
+}
+
+// ── 5. Long + short hedge: only the closed side is linked ──
+
+#[test]
+fn hedge_close_links_only_the_closed_side() {
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1005, 1.1015, 1.0995, 1.1010),
+        bar(2, 1.1010, 1.1020, 1.1000, 1.1015),
+    ];
+    let mut engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
+
+    struct HedgeThenCloseShort;
+    impl Strategy for HedgeThenCloseShort {
+        fn on_bar(&mut self, bar: &Bar, p: &PortfolioView, _h: &[Bar]) -> Vec<StrategySignal> {
+            if p.open_positions.is_empty() {
+                let long = buy_signal(bar);
+                let mut short = buy_signal(bar);
+                short.direction = Direction::Sell;
+                short.size = 0.5;
+                return vec![long, short];
+            }
+            if p.open_positions.len() == 2 {
+                // Close the SHORT (second) only; the long must stay open.
+                let short = p
+                    .open_positions
+                    .iter()
+                    .find(|o| o.direction == Direction::Sell)
+                    .unwrap();
+                return vec![close_signal(&short.ticket, short.size)];
+            }
+            vec![]
+        }
+    }
+
+    let result = engine.run(&bars, &mut HedgeThenCloseShort).unwrap();
+    assert_eq!(result.trades.len(), 1);
+    assert_eq!(result.final_state.open_positions_remaining, 1);
+
+    let opens = opening_orders(&result);
+    let closes = closing_orders(&result);
+    assert_eq!(opens.len(), 2);
+    assert_eq!(closes.len(), 1);
+
+    // The closed position is the 0.5-lot short (entry order 1), closed by 2.
+    let (closed_pid, closer) = closes.iter().next().unwrap();
+    assert_eq!(opens[closed_pid], Some(1));
+    assert_eq!(*closer, Some(2));
+    let short_open = result
+        .events
+        .iter()
+        .find_map(|e| match &e.payload {
+            EngineEventPayload::PositionOpened {
+                position_id,
+                side: Direction::Sell,
+                quantity_lots,
+                ..
+            } if position_id.to_string() == *closed_pid => Some(*quantity_lots),
+            _ => None,
+        })
+        .unwrap();
+    assert!((short_open - 0.5).abs() < EPS);
+
+    // The long remains open with no close event of any kind.
+    let long_pid = opens
+        .iter()
+        .find(|(pid, _)| !closes.contains_key(*pid))
+        .map(|(pid, _)| pid.clone())
+        .unwrap();
+    assert_eq!(opens[&long_pid], Some(0));
+}
+
+// ── 6-8. Protective SL/TP exits carry NO closing order ──
+
+/// Every protective exit in the run must: exist, carry no `order_seq` key at
+/// all (not `null`), allocate no order, and add no order events.
+fn assert_protective_exit_has_no_order(result: &RunResult, expected_reason: &str) {
+    let serialized = serialized_closes(result);
+    assert_eq!(serialized.len(), 1, "exactly one close");
+    let close = &serialized[0];
+    assert_eq!(close["exit_reason"], json!(expected_reason));
+    assert!(
+        close.get("order_seq").is_none(),
+        "order_seq must be OMITTED, got {:?}",
+        close.get("order_seq")
+    );
+    assert!(
+        !close.as_object().unwrap().contains_key("order_seq"),
+        "key must be absent"
+    );
+    assert_eq!(closing_orders(result).len(), 1);
+    assert_eq!(
+        closing_orders(result).values().next().unwrap(),
+        &None,
+        "protective closes are orderless"
+    );
+    // No synthetic order lifecycle: one entry order only, and no `order_created`
+    // beyond it.
+    assert_eq!(result.orders.len(), 1, "no synthetic protective order");
+    assert_eq!(
+        result
+            .events
+            .iter()
+            .filter(|e| matches!(e.payload, EngineEventPayload::OrderCreated { .. }))
+            .count(),
+        1
+    );
+    // No order event of ANY kind refers to a sequence other than the single
+    // entry order (seq 0): a protective exit allocates nothing, queues nothing,
+    // and fills nothing order-wise.
+    let mut referenced: Vec<u64> = vec![];
+    for e in &result.events {
+        if let Ok(v) = serde_json::to_value(e) {
+            if let Some(seq) = v.get("order_seq").and_then(|s| s.as_u64()) {
+                referenced.push(seq);
+            }
+        }
+    }
+    assert!(
+        referenced.iter().all(|s| *s == 0),
+        "only the entry order may exist, found seqs {referenced:?}"
+    );
+    assert!(
+        !referenced.is_empty(),
+        "the entry order's own events must still carry seq 0"
+    );
+    // The protective exit is still an economic fill (the 88/95 asymmetry).
+    assert!(result.fills.len() >= 2);
+    assert!(result
+        .fills
+        .iter()
+        .any(|f| f.order_seq.is_none() && f.reason != FillReason::MarketEntry));
+}
+
+#[test]
+fn protective_stop_loss_intrabar_has_no_closing_order() {
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1000, 1.1010, 1.0940, 1.1000), // low crosses SL 1.0960
+    ];
+    let mut engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
+    let mut signal = buy_signal(&bars[0]);
+    signal.sl = Some(1.0960);
+    let mut s = OnceOnBar::new(0, vec![signal]);
+    let result = engine.run(&bars, &mut s).unwrap();
+    assert_eq!(result.trades.len(), 1);
+    assert_eq!(
+        result.trades[0].exit_reason,
+        observa_core::types::ExitReason::StopLoss
+    );
+    assert_protective_exit_has_no_order(&result, "StopLoss");
+}
+
+#[test]
+fn protective_stop_loss_gap_has_no_closing_order() {
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1005),
+        bar(1, 1.1005, 1.1010, 1.0995, 1.1000),
+        bar(2, 1.0930, 1.0940, 1.0920, 1.0935), // gaps below SL 1.0950
+    ];
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let signal = StrategySignal {
+        direction: Direction::Buy,
+        order_type: OrderKind::Market,
+        size: 1.0,
+        intended_price: 0.0,
+        sl: Some(1.0950),
+        tp: None,
+        reason: "buy with SL".to_string(),
+        ticket: None,
+    };
+    let mut s = OnceOnBar::new(0, vec![signal]);
+    let result = engine.run(&bars, &mut s).unwrap();
+    assert_eq!(
+        result.trades[0].exit_reason,
+        observa_core::types::ExitReason::StopLoss
+    );
+    assert_protective_exit_has_no_order(&result, "StopLoss");
+}
+
+#[test]
+fn protective_take_profit_has_no_closing_order() {
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1000, 1.1010, 1.0990, 1.1005),
+        bar(2, 1.1005, 1.1120, 1.0995, 1.1100), // high crosses TP 1.1100
+    ];
+    let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+    let signal = StrategySignal {
+        direction: Direction::Buy,
+        order_type: OrderKind::Market,
+        size: 1.0,
+        intended_price: 0.0,
+        sl: None,
+        tp: Some(1.1100),
+        reason: "buy with TP".to_string(),
+        ticket: None,
+    };
+    let mut s = OnceOnBar::new(0, vec![signal]);
+    let result = engine.run(&bars, &mut s).unwrap();
+    assert_eq!(
+        result.trades[0].exit_reason,
+        observa_core::types::ExitReason::TakeProfit
+    );
+    assert_protective_exit_has_no_order(&result, "TakeProfit");
+}
+
+// ── 9. Rejected closes never become a closing order ──
+
+#[test]
+fn rejected_closes_produce_no_position_closed() {
+    // Three rejection variants: unparseable ticket, unknown ticket, and a
+    // quantity mismatch. None may close a position.
+    for (label, ticket, size) in [
+        ("unparseable", "not-a-uuid".to_string(), 1.0),
+        (
+            "unknown",
+            "11111111-2222-3333-4444-555555555555".to_string(),
+            1.0,
+        ),
+    ] {
+        let bars = vec![
+            bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+            bar(1, 1.1000, 1.1010, 1.0990, 1.1005),
+        ];
+        let mut engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
+        struct RejectThenClose {
+            opened: bool,
+            ticket: String,
+            size: f64,
+        }
+        impl Strategy for RejectThenClose {
+            fn on_bar(&mut self, bar: &Bar, p: &PortfolioView, _h: &[Bar]) -> Vec<StrategySignal> {
+                if !self.opened {
+                    self.opened = true;
+                    return vec![buy_signal(bar)];
+                }
+                if p.open_positions.is_empty() {
+                    return vec![];
+                }
+                vec![close_signal(&self.ticket, self.size)]
+            }
+        }
+        let mut s = RejectThenClose {
+            opened: false,
+            ticket,
+            size,
+        };
+        let result = engine.run(&bars, &mut s).unwrap();
+        assert!(result.trades.is_empty(), "{label}: no trade");
+        assert!(result.final_state.open_positions_remaining == 1, "{label}");
+        assert!(
+            closing_orders(&result).is_empty(),
+            "{label}: no position_closed"
+        );
+        assert!(
+            result
+                .events
+                .iter()
+                .any(|e| matches!(e.payload, EngineEventPayload::OrderRejected { .. })),
+            "{label}: rejection recorded"
+        );
+        // The rejected order still consumes its OrderSeq (pre-existing
+        // behaviour, deliberately unchanged).
+        assert_eq!(result.orders.len(), 2, "{label}");
+        assert_eq!(result.orders[1].state, OrderState::Rejected, "{label}");
+    }
+
+    // Quantity mismatch on a real ticket.
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1000, 1.1010, 1.0990, 1.1005),
+    ];
+    let mut engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
+    struct Mismatch {
+        opened: bool,
+    }
+    impl Strategy for Mismatch {
+        fn on_bar(&mut self, bar: &Bar, p: &PortfolioView, _h: &[Bar]) -> Vec<StrategySignal> {
+            if !self.opened {
+                self.opened = true;
+                return vec![buy_signal(bar)];
+            }
+            match p.open_positions.first() {
+                Some(pos) => vec![close_signal(&pos.ticket, pos.size + 1.0)],
+                None => vec![],
+            }
+        }
+    }
+    let result = engine.run(&bars, &mut Mismatch { opened: false }).unwrap();
+    assert!(result.trades.is_empty());
+    assert!(closing_orders(&result).is_empty());
+    assert!(result
+        .events
+        .iter()
+        .any(|e| matches!(e.payload, EngineEventPayload::OrderRejected { .. })));
+}
+
+// ── 10. An open position has no closing order ──
+
+#[test]
+fn open_position_has_no_closing_linkage() {
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1000, 1.1010, 1.0990, 1.1005),
+    ];
+    let mut engine = Engine::new(config(FillMode::BarClose, None)).unwrap();
+    let mut signal = buy_signal(&bars[0]);
+    signal.sl = Some(1.0500); // never reached
+    let mut s = OnceOnBar::new(0, vec![signal]);
+    let result = engine.run(&bars, &mut s).unwrap();
+    assert_eq!(result.final_state.open_positions_remaining, 1);
+    assert!(closing_orders(&result).is_empty());
+    assert!(serialized_closes(&result).is_empty());
+    assert_eq!(opening_orders(&result).len(), 1);
+}
+
+// ── 11-12. Determinism of the linkage ──
+
+#[test]
+fn closing_order_linkage_is_deterministic_across_runs() {
+    let bars = vec![
+        bar(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        bar(1, 1.1010, 1.1020, 1.1000, 1.1010),
+        bar(2, 1.1015, 1.1025, 1.1005, 1.1020),
+    ];
+    let run = || {
+        let mut engine = Engine::new(config(FillMode::NextBarOpen, None)).unwrap();
+        engine
+            .run(&bars, &mut OpenThenCloseByTicket { opened: false })
+            .unwrap()
+    };
+    let a = run();
+    let b = run();
+    assert_eq!(closing_orders(&a), closing_orders(&b));
+    assert_eq!(closing_orders(&a).values().next().unwrap(), &Some(1));
+    // Byte-identical canonical serialization (same inputs, same OrderSeq).
+    let ja: Vec<String> = a
+        .events
+        .iter()
+        .map(|e| serde_json::to_string(e).unwrap())
+        .collect();
+    let jb: Vec<String> = b
+        .events
+        .iter()
+        .map(|e| serde_json::to_string(e).unwrap())
+        .collect();
+    assert_eq!(ja, jb);
 }
