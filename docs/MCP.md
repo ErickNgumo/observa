@@ -263,7 +263,7 @@ opening order.
 
 | Symptom | Cause / fix |
 | --- | --- |
-| `MCP support is not installed` | Install the extra: `pip install "observa[mcp]"` |
+| `MCP support is not installed` | Install the extra **from the wheel reference**: `pip install "./observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"` (never bare `pip install "observa[mcp]"`, which resolves an unrelated PyPI project) |
 | `error: runs directory does not exist or is not a directory: ... [RUN_DIR_NOT_FOUND]` | Pass an existing `--runs-dir` |
 | Every `run` returns `RUN_DIR_NOT_FOUND` | The identifier must be relative to the configured root — check `list_runs()` |
 | A run does not appear in `list_runs` | It has no `run.json`, or it lives outside the root; see the `errors` array for unreadable runs |

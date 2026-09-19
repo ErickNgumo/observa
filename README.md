@@ -21,8 +21,7 @@ way it did, instead of only trusting final statistics.
 python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-SHA-256: `PENDING` — published by the release workflow with the 0.1.3 asset;
-verify it against the value printed in the GitHub Release before installing.
+SHA-256: `e92feed284d2fcba84455b6c4d4ef84fe02f641da7d35de5652ceb5592216534`
 
 For real-data examples, also install:
 

@@ -20,8 +20,7 @@ PyPI package.
 python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-SHA-256: `PENDING` — published with the 0.1.3 asset; check the GitHub Release
-page for the exact value before installing.
+SHA-256: `e92feed284d2fcba84455b6c4d4ef84fe02f641da7d35de5652ceb5592216534`
 
 For the real-data example also:
 

@@ -29,9 +29,8 @@ GitHub Release:
 
     python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl"
 
-SHA-256 of this exact private-MVP wheel: `PENDING` — published with the 0.1.3
-asset; read it from the GitHub Release page before installing if you want to
-verify the download (optional check; not required for basic use).
+SHA-256 of this exact private-MVP wheel: `e92feed284d2fcba84455b6c4d4ef84fe02f641da7d35de5652ceb5592216534` (optional check;
+not required for basic use).
 
 Real-data examples also need: `python -m pip install yfinance pandas`.
 
@@ -488,9 +487,15 @@ Observa ships a read-only MCP server over persisted runs. It is a thin adapter
 over `observa.inspect_run` / `observa.run_summary`: it never runs a strategy,
 never writes to a run directory, and never infers canonical facts.
 
-Install (optional extra — the base package stays dependency-free):
+Install (optional extra — the base package stays dependency-free). The extra
+attaches to a wheel reference, never to the bare package name:
 
-    pip install "observa[mcp]"
+    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+
+    # or, from a downloaded wheel:
+    pip install "./observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+
+Never `pip install "observa[mcp]"` — that resolves an unrelated PyPI project.
 
 Start it over stdio (the transport MCP clients launch locally):
 

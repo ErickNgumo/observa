@@ -26,8 +26,7 @@ example scripts.
 The published wheel and its SHA-256:
 
 Wheel URL: `https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl`
-SHA-256: `PENDING` — published by the release workflow with the 0.1.3 asset;
-read the exact value from the GitHub Release page before installing.
+SHA-256: `e92feed284d2fcba84455b6c4d4ef84fe02f641da7d35de5652ceb5592216534`
 
 0.1.3 is the current tester build. Do **not** `pip install observa` (an
 unrelated PyPI package owns that name).
