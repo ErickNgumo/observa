@@ -216,6 +216,32 @@ recorded whenever one exists — protective SL/TP exits have no closing order in
 the current execution model, and runs produced before this linkage was
 persisted report `None` rather than guessing.
 
+## Writing a strategy with an AI agent
+
+The strategy authoring contract ships **inside the wheel**, so an agent working
+in a fresh environment with no repository checkout can discover it directly:
+
+```python
+import observa
+observa.agent_spec()          # canonical machine-readable contract (dict)
+observa.agent_spec_path()     # bundled spec.json
+observa.agent_guide_path()    # short authoring guide
+observa.agent_example_path()  # gold example to imitate
+```
+
+```bash
+observa agent-spec --json                        # same contract, on stdout
+observa validate-strategy strategy.py --json     # structured, repairable errors
+observa validate-strategy strategy.py --smoke    # + 6 deterministic bars
+```
+
+`validate-strategy` exits `0` valid, `1` invalid strategy, `2` usage/setup
+error, and reports problems as coded entries (`SIGNAL_FIELD_UNKNOWN`,
+`STRATEGY_RETURN_INVALID`, `CLOSE_TICKET_REQUIRED`, …) that a model can repair
+without a human explaining Observa syntax. See
+[`docs/agent/strategy-authoring.md`](docs/agent/strategy-authoring.md) and
+[`examples/ai_starter/`](examples/ai_starter/).
+
 ## Inspect a persisted run over MCP
 
 Observa ships a **read-only MCP server** so an external agent can interrogate

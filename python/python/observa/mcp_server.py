@@ -11,9 +11,10 @@ Start it with either form (stdio transport only)::
     observa mcp --runs-dir runs/
     python -m observa.mcp_server --runs-dir runs/
 
-Requires the optional dependency::
+Requires the optional extra on **this wheel** — never the bare PyPI name, which
+is an unrelated project::
 
-    pip install "observa[mcp]"
+    python -m pip install "<path-or-url-to-the-observa-wheel>[mcp]"
 
 Contracts this module guarantees
 --------------------------------
@@ -95,7 +96,11 @@ MAX_SCAN_DEPTH = 3
 
 _MISSING_EXTRA_HINT = (
     "error: MCP support is not installed.\n"
-    'hint: install the optional dependency with: pip install "observa[mcp]"'
+    "hint: reinstall the same Observa wheel with the optional [mcp] extra.\n"
+    "      Example for a local wheel:\n"
+    '      python -m pip install "./observa-<version>-...whl[mcp]"\n'
+    '      Do not run `pip install observa` or `pip install "observa[mcp]"`;\n'
+    "      the PyPI project is unrelated."
 )
 
 USAGE = "usage: observa mcp --runs-dir <path>  (stdio transport)"

@@ -1,14 +1,56 @@
 # Observa
 
-Deterministic, bar-based backtesting engine with a canonical event history and
-visual replay. Python API over a canonical Rust Engine.
+Deterministic, bar-based backtesting with a canonical event history and visual
+replay. Python strategies over a canonical Rust Engine — the Engine owns fills,
+spread, slippage, SL/TP, margin and P&L; Python specifies intent only.
 
-## Start here
-- Complete agent guide: llms-full.txt
-- Getting started: docs/getting-started.md
-- Strategy contract: docs/strategy-contract.md
-- Execution model: docs/execution-model.md
-- Data format: docs/data-format.md
-- Examples: examples/ (quickstart.py, ema_observa.py, rsi_mean_reversion.py)
-- Known limitations: docs/known-limitations.md
-- GitHub/source: https://github.com/ErickNgumo/observa
+**Prefer the assets installed with your wheel over these GitHub files.** They are
+the same contract, and the installed copies cannot drift from the code you have.
+
+## If you want to WRITE and RUN a strategy
+
+1. `python -c "import observa,json;print(json.dumps(observa.agent_spec(),indent=2))"`
+   — the canonical machine-readable contract (`strategy_api_version`).
+2. `python -c "import observa;print(observa.agent_guide_path())"` — short guide.
+3. `python -c "import observa;print(observa.agent_example_path())"` — gold example.
+4. `observa validate-strategy strategy.py --json` — validate and repair
+   (`--smoke` also runs 6 deterministic bars; exit 0 valid, 1 invalid, 2 setup).
+5. Run it: `observa.run(Strategy(), data, config=..., output="runs/…")`.
+
+Copies in this repository: `docs/agent/strategy-authoring.md`,
+`examples/agent_example.py`, `examples/ai_starter/`.
+
+## If you want to INSPECT a completed run
+
+* Python: `observa.inspect_run(run_dir)` / `observa.run_summary(run_dir)`
+* MCP (read-only, stdio, optional extra): `observa mcp --runs-dir runs/`
+* Reference: `docs/MCP.md`, and section K2/K3 of `llms-full.txt`
+
+## If you need EXECUTION assumptions
+
+* Fill modes, spread/slippage, SL-first, margin, commission: `docs/execution-model.md`
+* Full strategy/drawings reference: `docs/STRATEGY_API.md`
+
+## For the DEEP reference
+
+`llms-full.txt` — the complete guide (installation, contract, annotations,
+reasons, execution, persistence, replay, inspection, MCP, examples, common
+mistakes, agent rules).
+
+## Install
+
+Observa ships as a wheel on the private-MVP GitHub Release, **not** from PyPI:
+
+    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-<version>-private-mvp/observa-<version>-cp310-abi3-manylinux_2_34_x86_64.whl"
+
+Add the optional MCP extra to that **same wheel reference** (never to the bare
+package name):
+
+    python -m pip install "…/observa-<version>-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+
+**Never** run `pip install observa` or `pip install "observa[mcp]"` — the public
+PyPI project named `observa` is unrelated. Exact current URL:
+`observa.agent_spec()["installation"]`.
+
+Verified: Linux x86_64 (glibc >= 2.34), CPython >= 3.10 (abi3). Windows, macOS
+and Colab are not runtime-verified.

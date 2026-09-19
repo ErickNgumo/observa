@@ -17,6 +17,14 @@ The public surface is intentionally small::
     print(result.final_equity)
     result.save("runs/test-01")
 
+Agents should not need a human to explain the contract. Everything they need is
+discoverable from the installed package alone::
+
+    observa.agent_spec()          # canonical machine-readable contract (dict)
+    observa.agent_guide_path()    # short authoring guide
+    observa.agent_example_path()  # gold example to imitate
+    observa.validate_strategy("strategy.py", smoke=True)   # structured errors
+
 Everything is executed by the canonical Rust Engine; Python only supplies the
 strategy callbacks and reads the resulting (read-only) views.
 """
@@ -28,9 +36,18 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Optional, Sequence, Union
 
 from ._observa import RunResult, run as _run
+from ._agent import (
+    STRATEGY_API_VERSION,
+    agent_agents_template_path,
+    agent_example_path,
+    agent_guide_path,
+    agent_spec,
+    agent_spec_path,
+)
 from .errors import coded, error_code
 from .inspection import PersistedRun, inspect_run
 from .replay import ReplayServer
+from .validation import validate_strategy
 
 __version__ = "0.1.3"
 
@@ -355,4 +372,12 @@ __all__ = [
     "PER_SIDE",
     "ROUND_TRIP",
     "__version__",
+    # Agent authoring contract (OBS-AI-04)
+    "STRATEGY_API_VERSION",
+    "agent_spec",
+    "agent_spec_path",
+    "agent_guide_path",
+    "agent_example_path",
+    "agent_agents_template_path",
+    "validate_strategy",
 ]

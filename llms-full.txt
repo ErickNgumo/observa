@@ -49,42 +49,137 @@ Verify you imported the correct package:
     print(observa.__file__)      # .../site-packages/observa/__init__.py
     print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
 
-## C. Strategy contract
+## C. Strategy contract (generated from `observa.agent_spec()`)
 
-A strategy is a plain Python class with three lifecycle methods:
+<!-- BEGIN GENERATED: strategy-contract -->
+**strategy_api_version `1`** (observa 0.1.3). This block is generated from `observa.agent_spec()`; edit the contract, not this text.
 
-    class MyStrategy:
-        def initialize(self, params=None): ...
-        def on_bar(self, bar, portfolio, history): ...
-        def teardown(self): ...
+A strategy is a plain Python class (subclassing `observa.Strategy` is optional):
 
-- `initialize(params)` — called once before the first bar with the resolved
-  parameters dict (empty dict when none configured).
-- `on_bar(bar, portfolio, history)` — called once per closed bar, in
-  chronological order. `history` contains strictly earlier bars only (no
-  lookahead). Return a list of signal dicts (empty list = do nothing).
-- `teardown()` — called once after the last bar; raising here fails the run.
-- Any Python exception in a callback fails the run with the message. It is
-  never silently treated as "no signal".
+```python
+class MyStrategy:
+    def initialize(self, params=None): ...
+    def on_bar(self, bar, portfolio, history): ...
+    def teardown(self): ...
+```
+
+Lifecycle order: initialize(params) once before the first bar; on_bar(bar, portfolio, history) once per closed bar; teardown() once after the last bar.
+
+* A plain class with the three methods works; subclassing is optional.
+* TRAP: if you subclass observa.Strategy you must still override on_bar - the base class returns [] and a missing override silently produces a zero-trade run.
+* initialize receives the resolved params dict ({} when none are set).
+* Raising from any callback fails the run (code STRATEGY_ERROR).
+
+`on_bar` must return:
+
+* `[]  # no action`
+* `[{...signal...}, ...]`
+* `{'signals': [...], 'drawings': [...]}`
+
+Never return:
+
+* TRAP: a bare signal dict {'direction': 'buy', 'size': 1.0} - the engine reads only the 'signals' key, so it is ignored. Wrap it in a list.
+* TRAP: None - return [] for 'no action'; None is ambiguous.
+* {'signal': [...]} - misspelled envelope key.
+* str, tuple, number - anything not a list or dict.
+
+### Fields (exact)
+
+`bar` — dict (read-only):
+
+| Key | Meaning |
+| --- | --- |
+| `close` | float |
+| `high` | float |
+| `low` | float |
+| `open` | float |
+| `timestamp` | str, RFC 3339 |
+| `volume` | float or None |
+
+No bar_index and no symbol. Use bar['close'], not bar.close.
+
+`portfolio` — dict (read-only):
+
+| Key | Meaning |
+| --- | --- |
+| `balance` | float, realised cash |
+| `equity` | float, balance + unrealised P&L |
+| `free_margin` | float |
+| `has_open_position` | bool |
+| `open_positions` | list of position dicts |
+| `unrealised_pnl` | float |
+| `used_margin` | float |
+
+each `position` — dict (read-only), from portfolio['open_positions'][i]:
+
+| Key | Meaning |
+| --- | --- |
+| `direction` | 'Buy' or 'Sell' - OUTPUT is capitalised |
+| `entry_price` | float |
+| `position_id` | str, the exact ticket to close with |
+| `quantity` | float, alias of size |
+| `size` | float, lots |
+| `stop_loss` | float or None - OUTPUT name |
+| `symbol` | str |
+| `take_profit` | float or None - OUTPUT name |
+| `ticket` | str, alias of position_id |
+| `unrealised_pnl` | float |
+| `unrealized_pnl` | float, alias of unrealised_pnl |
+
+TRAP: signal INPUT uses lowercase 'buy' and keys size/sl/tp; position OUTPUT uses 'Buy' and stop_loss/take_profit. quantity is an output alias only - the input key is size.
+
+`history` — strictly PRIOR bars only. No lookahead is possible. Guard warm-up yourself: if len(history) < period: return []. It is all prior bars, not a fixed window, so slice history[-period:].
+
+### Signal fields
+
+Required: `direction`, `size`.
+
+| Key | Meaning |
+| --- | --- |
+| `direction` | 'buy' | 'sell' | 'close' (lowercase, case-insensitive on input) |
+| `order_type` | 'market' (default) | 'limit' | 'stop' |
+| `price` | float; limit/stop trigger price |
+| `reason` | str, persisted, max 1024 UTF-8 bytes |
+| `size` | float, lots (INPUT quantity field - not 'quantity') |
+| `sl` | float, protective stop loss (entries) |
+| `ticket` | str, REQUIRED for close - use position['position_id'] |
+| `tp` | float, protective take profit (entries) |
+
+TRAP: only those eight keys are read. Any other key (stop_loss, take_profit, quantity, qty, sl_price) is silently ignored, so a typo silently drops your stop loss. validate-strategy reports SIGNAL_FIELD_UNKNOWN.
+
+Order types: `market`, `limit`, `stop` (default `market`); limit/stop trigger price goes in `price`.
+
+Rejections (bad size, bad SL/TP distance, insufficient margin) are canonical order_rejected EVENTS, not Python exceptions.
+
+Closing: `{'direction': 'close', 'size': pos['size'], 'ticket': pos['position_id']}` — requires a ticket: True; FIFO: False. No FIFO, no 'close oldest', no implicit close. A close without a valid ticket is rejected as an event, not raised.
+
+`reason`: max 1024 UTF-8 bytes, code `STRATEGY_REASON_TOO_LONG`, persisted: True. Recorded on the canonical strategy_decision event; visible in replay and via inspect_run/MCP. Over-long reasons fail the whole run.
+
+### Annotations (drawings)
+
+Types: `series`, `hline`, `line`, `rectangle`, `region`, `marker`, `label`, `bar_color`. Maximum **256 per bar**. `id`: 1-64 chars from [A-Za-z0-9_.:-]. `time`: any 'time' must be an already-seen bar timestamp (no future bars).
+
+Descriptive only - never affects orders, fills, P&L or chronology. Malformed drawings fail the run.
+
+### Execution authority
+
+The Engine owns:
+
+* `order creation, scheduling and triggering`
+* `fill timing and price (fill_mode)`
+* `spread and slippage`
+* `SL/TP evaluation and outcome`
+* `commission and margin`
+* `position identity and lifecycle`
+* `balance, equity, drawdown and all metrics`
+
+The strategy owns: intent only: direction, size, protective levels, reason.
+<!-- END GENERATED: strategy-contract -->
 
 The canonical bundled sample class lives in
-`observa.samples.sample_strategy.SampleEma`.
-
-## D. bar / portfolio / position fields (exact)
-
-bar: read-only dict with keys `timestamp` (RFC 3339 string), `open`, `high`,
-`low`, `close`, `volume` (float or None).
-
-portfolio: read-only dict with keys `balance`, `equity`, `used_margin`,
-`free_margin`, `has_open_position`, `open_positions` (list of position dicts),
-`unrealised_pnl`.
-
-position dict: keys `position_id` (and alias `ticket`), `symbol`,
-`direction` ("Buy"/"Sell"), `quantity` (alias `size`), `entry_price`,
-`stop_loss`, `take_profit`, `unrealized_pnl`.
-
-Close positions ONLY by exact `position_id`/`ticket`. There is no implicit
-FIFO close.
+`observa.samples.sample_strategy.SampleEma`. The gold *authoring* example is
+bundled at `observa.agent_example_path()`, with a short guide beside it at
+`observa.agent_guide_path()`.
 
 Position ids are **deterministic and run-local**: the same dataset, config and
 strategy always produce the same ids, so identical runs are byte-identical and
@@ -93,27 +188,8 @@ position 3 in run B). Treat an id as an **opaque string** — never parse it or
 infer anything economic from its text. Uniqueness is guaranteed within a run,
 not across runs.
 
-## E. Signals
-
-`on_bar` returns a list of signal dicts.
-
-Direction + optional order type and protective levels:
-
-    {"direction": "buy",  "size": 1.0}                                  # MARKET buy
-    {"direction": "sell", "size": 1.0}                                  # MARKET sell
-    {"direction": "buy",  "size": 1.0, "order_type": "limit", "price": 1.05,
-     "sl": 1.02, "tp": 1.10}                                            # LIMIT buy
-    {"direction": "sell", "size": 1.0, "order_type": "stop", "price": 1.10}
-                                                                        # STOP sell
-    {"direction": "close", "size": pos["size"], "ticket": pos["position_id"]}
-
-Rules:
-- direction: "buy" | "sell" | "close".
-- MARKET is the default order_type.
-- LIMIT/STOP use the `price` field as their trigger/limit price.
-- `sl` / `tp` are optional protective levels on entries.
-- Python specifies intent. The Rust Engine determines triggering, fill
-  timing, spread/slippage, and P&L. Do NOT implement execution.
+Validate a strategy before running it: `observa validate-strategy FILE --json`
+(exit 0 valid, 1 invalid, 2 setup error). See `docs/agent/strategy-authoring.md`.
 
 ## E2. Strategy annotations (drawings) — show what the strategy saw
 

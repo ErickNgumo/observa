@@ -39,6 +39,38 @@ ERROR_CODES = (
     "BAR_NOT_FOUND",
     "POSITION_NOT_FOUND",
     "ORDER_NOT_FOUND",
+    # OBS-AI-02 annotations and OBS-SCHEMA-01 reasons: these codes are attached
+    # to real exceptions raised from a strategy callback/signal, so they belong
+    # in the enumerable set (OBS-AI-04 completeness fix).
+    "DRAWING_TYPE_INVALID",
+    "DRAWING_FIELD_MISSING",
+    "DRAWING_VALUE_INVALID",
+    "DRAWING_ID_INVALID",
+    "DRAWING_ACTION_INVALID",
+    "DRAWING_REFERENCE_INVALID",
+    "DRAWING_PANE_INVALID",
+    "DRAWING_TIME_INVALID",
+    "DRAWING_LIMIT_EXCEEDED",
+    "STRATEGY_REASON_TOO_LONG",
+    # OBS-AI-04 strategy authoring validation (raised only by
+    # observa.validate_strategy / `observa validate-strategy`, never by
+    # observa.run).
+    "STRATEGY_FILE_NOT_FOUND",
+    "STRATEGY_SYNTAX_ERROR",
+    "STRATEGY_CLASS_NOT_FOUND",
+    "STRATEGY_METHOD_MISSING",
+    "STRATEGY_METHOD_SIGNATURE",
+    "STRATEGY_NOT_IMPORTABLE",
+    "STRATEGY_RETURN_INVALID",
+    "STRATEGY_SMOKE_RUN_FAILED",
+    "SIGNAL_FIELD_UNKNOWN",
+    "SIGNAL_FIELD_MISSING",
+    "SIGNAL_FIELD_TYPE_INVALID",
+    "SIGNAL_DIRECTION_INVALID",
+    "SIGNAL_ORDER_TYPE_INVALID",
+    "CLOSE_TICKET_REQUIRED",
+    "SIGNAL_TICKET_UNKNOWN",
+    "STRATEGY_CLASS_AMBIGUOUS",
 )
 
 

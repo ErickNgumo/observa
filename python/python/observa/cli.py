@@ -4,6 +4,8 @@ Commands::
 
     observa replay <run-dir> [--port <port>]
     observa mcp --runs-dir <path>
+    observa agent-spec [--json] [--out <file>]
+    observa validate-strategy <file> [--class <name>] [--json] [--smoke]
 
 ``replay`` serves a persisted canonical run created with
 ``observa.run(..., output=...)``. Without ``--port`` a free port is chosen
@@ -11,13 +13,23 @@ automatically; ``--port N`` is strict (a busy port exits with a concise error
 and status 2).
 
 ``mcp`` runs the read-only MCP inspection server over stdio. It needs the
-optional ``observa[mcp]`` dependency, which is imported **lazily**: neither
-``import observa`` nor the other commands ever require it. No repository,
-Cargo, or Rust toolchain is needed for either command.
+optional ``mcp`` extra, which is imported **lazily**: neither ``import observa``
+nor the other commands ever require it. No repository, Cargo, or Rust toolchain
+is needed for any command.
+
+``agent-spec`` prints the canonical machine-readable strategy authoring contract
+(OBS-AI-04) and ``validate-strategy`` validates a strategy file before it is run.
+
+Machine-readable modes print **JSON only** on stdout; every diagnostic goes to
+stderr, so an agent can pipe stdout straight into a JSON parser.
+
+Exit codes for ``validate-strategy``: 0 valid, 1 invalid strategy, 2 usage or
+setup error.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 
 USAGE = (
@@ -25,7 +37,19 @@ USAGE = (
     "commands:\n"
     "  replay <run-dir> [--port <port>]   replay a persisted canonical run\n"
     "  mcp --runs-dir <path>              read-only MCP inspection server (stdio)\n"
+    "  agent-spec [--json] [--out FILE]   print the strategy authoring contract\n"
+    "  validate-strategy FILE [--class NAME] [--json] [--smoke]\n"
+    "                                     validate a strategy before running it\n"
     "run 'observa mcp --help' for MCP options"
+)
+
+MCP_EXTRA_HINT = (
+    "error: MCP support is not installed.\n"
+    "hint: reinstall the same Observa wheel with the optional [mcp] extra.\n"
+    "      Example for a local wheel:\n"
+    '      python -m pip install "./observa-<version>-...whl[mcp]"\n'
+    '      Do not run `pip install observa` or `pip install "observa[mcp]"`;\n'
+    "      the PyPI project is unrelated."
 )
 
 
@@ -39,6 +63,10 @@ def main(argv=None) -> int:
     command = args.pop(0)
     if command == "mcp":
         return _mcp(args)
+    if command == "agent-spec":
+        return _agent_spec(args)
+    if command == "validate-strategy":
+        return _validate_strategy(args)
     if command != "replay":
         print("unknown command '%s' — %s" % (command, USAGE), file=sys.stderr)
         return 2
@@ -104,17 +132,145 @@ def _mcp(args) -> int:
     """Runs the read-only MCP server, importing it only for this branch.
 
     Keeping the import here is what lets the base package stay
-    dependency-free: ``observa`` and ``observa replay`` never touch ``mcp``.
+    dependency-free: ``observa`` and the other commands never touch ``mcp``.
     """
     try:
         from .mcp_server import main as mcp_main
     except ModuleNotFoundError as exc:
         if (exc.name or "").split(".")[0] == "mcp":
-            print(
-                "error: MCP support is not installed.\n"
-                'hint: install the optional dependency with: pip install "observa[mcp]"',
-                file=sys.stderr,
-            )
+            print(MCP_EXTRA_HINT, file=sys.stderr)
             return 2
         raise
     return mcp_main(args)
+
+
+def _agent_spec(args) -> int:
+    """Prints the canonical strategy authoring contract (JSON)."""
+    from ._agent.contract import render_spec
+
+    out_path = None
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg in ("--json", "-j"):
+            pass  # the default output is already JSON
+        elif arg == "--out":
+            i += 1
+            if i >= len(args):
+                print("error: --out requires a path — %s" % USAGE, file=sys.stderr)
+                return 2
+            out_path = args[i]
+        elif arg in ("-h", "--help"):
+            print(
+                "usage: observa agent-spec [--json] [--out FILE]\n"
+                "Prints the canonical machine-readable strategy authoring contract "
+                "(strategy_api_version).",
+                file=sys.stderr,
+            )
+            return 0
+        else:
+            print("unknown argument '%s' — %s" % (arg, USAGE), file=sys.stderr)
+            return 2
+        i += 1
+
+    from . import __version__
+
+    text = render_spec(__version__)
+    if out_path is not None:
+        try:
+            with open(out_path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+        except OSError as exc:
+            print("error: cannot write %s: %s" % (out_path, exc), file=sys.stderr)
+            return 2
+        print("wrote %s" % out_path, file=sys.stderr)
+        return 0
+    sys.stdout.write(text)
+    return 0
+
+
+def _human_report(report) -> str:
+    lines = []
+    status = "VALID" if report["valid"] else "INVALID"
+    lines.append("%s  %s%s" % (
+        status,
+        report.get("file") or "<class>",
+        (" :: %s" % report["class"]) if report.get("class") else "",
+    ))
+    lines.append("tiers run: %s" % ", ".join(report.get("tiers_run") or []))
+    for entry in report.get("errors", []):
+        lines.append("")
+        lines.append("error [%s] %s" % (entry.get("code"), entry.get("path") or ""))
+        if entry.get("message"):
+            lines.append("  %s" % entry["message"])
+        for key in ("received", "expected", "allowed", "line"):
+            if key in entry:
+                lines.append("  %s: %s" % (key, json.dumps(entry[key])))
+    for entry in report.get("warnings", []):
+        lines.append("")
+        lines.append("warning [%s] %s" % (entry.get("code"), entry.get("path") or ""))
+        if entry.get("message"):
+            lines.append("  %s" % entry["message"])
+    smoke = report.get("smoke")
+    if smoke:
+        lines.append("")
+        lines.append(
+            "smoke: %d bar(s), %d on_bar call(s), %d signal(s) observed"
+            % (smoke["bars"], smoke["on_bar_calls"], smoke["signals_observed"])
+        )
+        lines.append("  %s" % smoke["note"])
+    return "\n".join(lines)
+
+
+def _validate_strategy(args) -> int:
+    from . import validate_strategy
+
+    path = None
+    class_name = None
+    as_json = False
+    smoke = False
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--class":
+            i += 1
+            if i >= len(args):
+                print("error: --class requires a name — %s" % USAGE, file=sys.stderr)
+                return 2
+            class_name = args[i]
+        elif arg in ("--json", "-j"):
+            as_json = True
+        elif arg == "--smoke":
+            smoke = True
+        elif arg in ("-h", "--help"):
+            print(
+                "usage: observa validate-strategy FILE [--class NAME] [--json] [--smoke]\n"
+                "exit codes: 0 valid, 1 invalid strategy, 2 usage/setup error",
+                file=sys.stderr,
+            )
+            return 0
+        elif path is None and not arg.startswith("-"):
+            path = arg
+        else:
+            print("unknown argument '%s' — %s" % (arg, USAGE), file=sys.stderr)
+            return 2
+        i += 1
+
+    if not path:
+        print("error: a strategy file is required — %s" % USAGE, file=sys.stderr)
+        return 2
+
+    try:
+        report = validate_strategy(path, class_name=class_name, smoke=smoke)
+    except FileNotFoundError as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 2
+    except Exception as exc:  # noqa: BLE001 - setup problems are exit 2
+        print("error: %s: %s" % (type(exc).__name__, exc), file=sys.stderr)
+        return 2
+
+    if as_json:
+        sys.stdout.write(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    else:
+        print(_human_report(report))
+    return 0 if report["valid"] else 1
