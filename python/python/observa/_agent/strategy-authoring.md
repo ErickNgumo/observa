@@ -183,11 +183,18 @@ observa validate-strategy strategy.py --json       # machine output (repair loop
 observa validate-strategy strategy.py --smoke      # + run 6 deterministic bars
 ```
 
-Tiers: **A** structure (no code execution) → **B** imported class (no engine
-run) → **C** smoke (real Engine on 6 bundled bars, validating the *raw* value
-your `on_bar` returns). Smoke proves shape and integration only — it does not
-prove your logic, and a strategy that emits zero signals in six bars is still
-valid.
+Tiers: **A** structure (parses the source only — it does **not** import or
+execute your code) → **B** imported class (**B imports the strategy module**, so
+top-level Python code in it may execute; B never calls `on_bar`) → **C** smoke
+(the real Engine executes your `on_bar`, validating the *raw* value it returns).
+
+Smoke proves shape and integration only — it does not prove your logic, and a
+strategy that emits zero signals in six bars is still valid.
+
+> ⚠️ **Security: validation is not a sandbox.** Tier B imports the strategy
+> module, which may execute top-level Python code, and Tier C additionally
+> executes the strategy's `on_bar()` through the real Observa Engine. Only
+> validate strategy code you trust.
 
 Exit codes: `0` valid, `1` invalid strategy, `2` usage/setup error. With
 `--json`, stdout carries JSON only; diagnostics go to stderr.

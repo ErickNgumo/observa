@@ -256,6 +256,14 @@
       "2": "usage/setup error"
     },
     "python": "observa.validate_strategy(path_or_class, class_name=None, smoke=False)",
+    "security": {
+      "sandboxed": false,
+      "tier_a": "parses source only; does not import or execute the strategy",
+      "tier_b": "IMPORTS the strategy module - top-level Python code may execute",
+      "tier_c": "EXECUTES on_bar() through the real Observa Engine",
+      "trusted_code_only": true,
+      "warning": "validate-strategy is not a sandbox. Tier B imports the strategy module, which may execute top-level Python code. Tier C additionally executes the strategy's on_bar() through the real Observa Engine. Only validate strategy code you trust."
+    },
     "tiers": {
       "A": "structural: parses, lifecycle methods visible in the AST; never executes user code",
       "B": "imported: class resolves, signatures compatible, on_bar genuinely overridden; never calls on_bar",

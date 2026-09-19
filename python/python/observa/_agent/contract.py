@@ -296,6 +296,19 @@ CONTRACT: dict = {
             "B": "imported: class resolves, signatures compatible, on_bar genuinely overridden; never calls on_bar",
             "C": "smoke: real Engine over 6 bundled bars, validating the RAW on_bar return; shape/integration only",
         },
+        # TRUST BOUNDARY (additive metadata; not a strategy-API change).
+        # Validation is NOT a sandbox: tiers B and C run the author's code.
+        "security": {
+            "sandboxed": False,
+            "trusted_code_only": True,
+            "tier_a": "parses source only; does not import or execute the strategy",
+            "tier_b": "IMPORTS the strategy module - top-level Python code may execute",
+            "tier_c": "EXECUTES on_bar() through the real Observa Engine",
+            "warning": "validate-strategy is not a sandbox. Tier B imports the strategy "
+                       "module, which may execute top-level Python code. Tier C "
+                       "additionally executes the strategy's on_bar() through the real "
+                       "Observa Engine. Only validate strategy code you trust.",
+        },
         "does_not_prove": [
             "strategy logic or profitability",
             "margin, SL/TP distance, or quantity validity (engine order_rejected events)",

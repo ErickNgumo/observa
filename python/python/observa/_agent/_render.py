@@ -16,6 +16,15 @@ from pathlib import Path
 
 from .contract import render_spec
 
+#: Command that regenerates the REPOSITORY source spec, runnable from the
+#: repository root. Without ``--out`` the renderer would overwrite the copy
+#: inside the installed package and leave the repository source stale (OBS-AI-04
+#: QA finding L1). Asserted by python/tests/test_agent_contract.py.
+SPEC_REGENERATE_HINT = (
+    "python -m observa._agent._render "
+    "--out python/python/observa/_agent/spec.json"
+)
+
 
 def _version() -> str:
     from .. import __version__
@@ -75,8 +84,11 @@ def main(argv=None) -> int:
         current = target.read_text(encoding="utf-8") if target.is_file() else ""
         if current != rendered:
             print(
-                "spec.json is stale: regenerate with "
-                "`python -m observa._agent._render`",
+                "spec.json is stale: regenerate the repository source file from the "
+                "repository root with\n"
+                "  %s\n"
+                "(without --out the renderer would overwrite the copy inside the "
+                "installed package, leaving the source stale)" % SPEC_REGENERATE_HINT,
                 file=sys.stderr,
             )
             return 1

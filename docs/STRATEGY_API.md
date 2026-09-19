@@ -168,22 +168,58 @@ The Engine owns:
 * `balance, equity, drawdown and all metrics`
 
 The strategy owns: intent only: direction, size, protective levels, reason.
+
+### Validation and the trust boundary
+
+`observa validate-strategy FILE [--class NAME] [--json] [--smoke]` runs three tiers:
+
+* **A** — structural: parses, lifecycle methods visible in the AST; never executes user code
+* **B** — imported: class resolves, signatures compatible, on_bar genuinely overridden; never calls on_bar
+* **C** — smoke: real Engine over 6 bundled bars, validating the RAW on_bar return; shape/integration only
+
+What actually runs at each tier:
+
+| Tier | What runs |
+| --- | --- |
+| A | parses source only; does not import or execute the strategy |
+| B | IMPORTS the strategy module - top-level Python code may execute |
+| C | EXECUTES on_bar() through the real Observa Engine |
+
+| Property | Value |
+| --- | --- |
+| sandboxed | `false` |
+| trusted code only | `true` |
+
+**WARNING: validate-strategy is not a sandbox. Tier B imports the strategy module, which may execute top-level Python code. Tier C additionally executes the strategy's on_bar() through the real Observa Engine. Only validate strategy code you trust.**
+
+Validation does not change `observa.run` semantics, and it proves shape and integration only — not:
+
+* strategy logic or profitability
+* margin, SL/TP distance, or quantity validity (engine order_rejected events)
+* that any signal will ever be produced - zero signals in six bars is valid
 <!-- END GENERATED: strategy-contract -->
 
 ## Validation
 
+> ⚠️ **Security — validation is not a sandbox.** Tier B **imports the strategy
+> module**, which may execute top-level Python code, and Tier C additionally
+> **executes the strategy's `on_bar()`** through the real Observa Engine. Only
+> validate strategy code you trust.
+
 `observa validate-strategy FILE [--class NAME] [--json] [--smoke]` runs three
 tiers and reports structured, repairable errors:
 
-* **A — structural** (no code execution): parses, classes and lifecycle methods
-  visible in the AST.
-* **B — imported** (no engine run): class resolves, callables and signatures are
-  compatible, `on_bar` is genuinely overridden rather than inherited from
-  `observa.Strategy`.
-* **C — smoke** (real Engine over 6 bundled bars): validates the **raw** value
-  returned by `on_bar` before the engine ignores or normalises it. Shape and
-  integration only — never a claim about strategy logic or profitability, and a
-  strategy that emits zero signals in six bars is still valid.
+* **A — structural** (parses the source only; does not import or execute the
+  strategy): classes and lifecycle methods visible in the AST.
+* **B — imported** (imports the module — top-level Python code may execute; no
+  engine run and `on_bar` is never called): class resolves, callables and
+  signatures are compatible, `on_bar` is genuinely overridden rather than
+  inherited from `observa.Strategy`.
+* **C — smoke** (real Engine over 6 bundled bars — **executes `on_bar()`**):
+  validates the **raw** value returned by `on_bar` before the engine ignores or
+  normalises it. Shape and integration only — never a claim about strategy logic
+  or profitability, and a strategy that emits zero signals in six bars is still
+  valid.
 
 Exit codes: `0` valid, `1` invalid strategy, `2` usage/setup error. With
 `--json`, stdout is JSON only.

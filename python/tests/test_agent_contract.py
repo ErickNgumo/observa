@@ -208,13 +208,100 @@ def test_bundled_assets_present():
 
 
 def test_spec_json_matches_contract():
+    from observa._agent._render import SPEC_REGENERATE_HINT
     from observa._agent.contract import render_spec
 
     bundled = open(observa.agent_spec_path(), encoding="utf-8").read()
     rendered = render_spec(observa.__version__)
     check("bundled spec.json == render(CONTRACT) (no second authority)",
           bundled == rendered,
-          "regenerate with `python -m observa._agent._render`")
+          "regenerate with `%s`" % SPEC_REGENERATE_HINT)
+
+    # OBS-AI-04 QA finding L1: the hint must target the REPOSITORY source file,
+    # not the copy inside the installed package.
+    check("spec regeneration hint is a repo-targeting command",
+          "--out" in SPEC_REGENERATE_HINT
+          and "python/python/observa/_agent/spec.json" in SPEC_REGENERATE_HINT,
+          SPEC_REGENERATE_HINT)
+    check("spec regeneration hint is runnable from the repository root",
+          SPEC_REGENERATE_HINT.startswith("python -m observa._agent._render"),
+          SPEC_REGENERATE_HINT)
+
+
+def test_validation_trust_boundary_is_documented():
+    """OBS-AI-04 QA finding M1: validation is not a sandbox and must say so."""
+    import observa.cli as cli
+
+    # A. machine-readable contract
+    sec = observa.agent_spec()["validation"]["security"]
+    check("contract exposes validation.security", isinstance(sec, dict), type(sec).__name__)
+    check("contract says validation is NOT sandboxed", sec.get("sandboxed") is False,
+          sec.get("sandboxed"))
+    check("contract says trusted code only", sec.get("trusted_code_only") is True,
+          sec.get("trusted_code_only"))
+    check("contract tier A does not import or execute",
+          "not import" in sec.get("tier_a", "") and "does not import or execute" in sec.get("tier_a", ""),
+          sec.get("tier_a"))
+    check("contract tier B says it IMPORTS the module and runs top-level code",
+          "IMPORTS" in sec.get("tier_b", "") and "top-level" in sec.get("tier_b", ""),
+          sec.get("tier_b"))
+    check("contract tier C says it EXECUTES on_bar",
+          "EXECUTES" in sec.get("tier_c", "") and "on_bar" in sec.get("tier_c", ""),
+          sec.get("tier_c"))
+    check("contract carries the canonical warning text",
+          "not a sandbox" in sec.get("warning", "")
+          and "Tier B imports" in sec.get("warning", "")
+          and "Tier C" in sec.get("warning", "")
+          and "you trust" in sec.get("warning", ""),
+          sec.get("warning"))
+
+    # B. bundled authoring guide (the copy inside the wheel)
+    guide = open(observa.agent_guide_path(), encoding="utf-8").read()
+    check("bundled guide warns that validation is not a sandbox",
+          "not a sandbox" in guide, "")
+    check("bundled guide says tier B imports the strategy module",
+          "imports the strategy module" in guide)
+    check("bundled guide says tier C executes on_bar",
+          "executes" in guide and "on_bar" in guide)
+    check("bundled guide says tier A does not import or execute",
+          "does **not** import" in guide or "does not import" in guide)
+    check("bundled guide tells the reader to only validate trusted code",
+          "code you trust" in guide)
+
+    # C. docs/STRATEGY_API.md (generated block + prose)
+    if _has_repo():
+        sa = open(os.path.join(REPO, "docs", "STRATEGY_API.md"), encoding="utf-8").read()
+        check("STRATEGY_API.md warns that validation is not a sandbox",
+              "not a sandbox" in sa)
+        check("STRATEGY_API.md states the tier B/C trust boundary",
+              "IMPORTS the strategy module" in sa and "EXECUTES on_bar()" in sa)
+    else:
+        check("repository present for STRATEGY_API check (skipped: not a checkout)", True)
+
+    # D. CLI help
+    rc, out, err = _cli(["validate-strategy", "--help"])
+    check("`validate-strategy --help` exits 0", rc == 0, rc)
+    helptext = out + err
+    check("CLI help states validation is not sandboxed",
+          "not sandboxed" in helptext or "NOT sandboxed" in helptext, helptext[:200])
+    check("CLI help says tier B imports / tier C executes",
+          "imports the strategy module" in helptext and "executes on_bar()" in helptext,
+          helptext[:200])
+    check("CLI help says only validate code you trust", "code you trust" in helptext)
+    check("CLI help keeps the usage line and exit codes",
+          "usage: observa validate-strategy FILE" in helptext
+          and "0 valid, 1 invalid strategy, 2 usage/setup error" in helptext)
+    check("the CLI trust constant is the one the help prints",
+          cli.VALIDATION_SECURITY_HELP in helptext)
+
+    # No surface may claim the whole validator is non-executing or safe on
+    # untrusted input.
+    for name, text in (("bundled guide", guide), ("CLI help", helptext)):
+        lowered = text.lower()
+        check("no 'safe for untrusted code' claim in the %s" % name,
+              "safe for untrusted" not in lowered and "safe to run untrusted" not in lowered)
+        check("no blanket 'never executes' claim in the %s" % name,
+              "never executes code" not in lowered and "never executes your code" not in lowered)
 
 
 def test_error_codes_complete():

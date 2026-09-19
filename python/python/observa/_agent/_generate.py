@@ -125,6 +125,35 @@ def render_strategy_contract(version: str) -> str:
     parts.append("")
     parts.append("The strategy owns: "
                  + ", ".join(spec["execution_rules"]["strategy_owns"]) + ".")
+    parts.append("")
+
+    val = spec["validation"]
+    sec = val["security"]
+    parts.append("### Validation and the trust boundary")
+    parts.append("")
+    parts.append("`%s` runs three tiers:" % val["cli"])
+    parts.append("")
+    parts.append(_bullets("**%s** — %s" % (t, val["tiers"][t]) for t in ("A", "B", "C")))
+    parts.append("")
+    parts.append("What actually runs at each tier:")
+    parts.append("")
+    parts.append("| Tier | What runs |")
+    parts.append("| --- | --- |")
+    parts.append("| A | %s |" % sec["tier_a"])
+    parts.append("| B | %s |" % sec["tier_b"])
+    parts.append("| C | %s |" % sec["tier_c"])
+    parts.append("")
+    parts.append("| Property | Value |")
+    parts.append("| --- | --- |")
+    parts.append("| sandboxed | `%s` |" % str(sec["sandboxed"]).lower())
+    parts.append("| trusted code only | `%s` |" % str(sec["trusted_code_only"]).lower())
+    parts.append("")
+    parts.append("**WARNING: %s**" % sec["warning"])
+    parts.append("")
+    parts.append("Validation does not change `observa.run` semantics, and it proves "
+                 "shape and integration only — not:")
+    parts.append("")
+    parts.append(_bullets(val["does_not_prove"]))
     return "\n".join(parts).rstrip() + "\n"
 
 

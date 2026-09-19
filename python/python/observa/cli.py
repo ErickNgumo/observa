@@ -52,6 +52,15 @@ MCP_EXTRA_HINT = (
     "      the PyPI project is unrelated."
 )
 
+#: Trust boundary for `validate-strategy`. Kept in one place so the CLI help and
+#: the machine-readable contract cannot drift apart (asserted by
+#: python/tests/test_agent_contract.py).
+VALIDATION_SECURITY_HELP = (
+    "Security: validation is NOT sandboxed. Tier B imports the strategy module\n"
+    "          (top-level Python code may execute); Tier C executes on_bar()\n"
+    "          through the real Observa Engine. Only validate code you trust."
+)
+
 
 def main(argv=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
@@ -245,7 +254,8 @@ def _validate_strategy(args) -> int:
         elif arg in ("-h", "--help"):
             print(
                 "usage: observa validate-strategy FILE [--class NAME] [--json] [--smoke]\n"
-                "exit codes: 0 valid, 1 invalid strategy, 2 usage/setup error",
+                "exit codes: 0 valid, 1 invalid strategy, 2 usage/setup error\n"
+                + VALIDATION_SECURITY_HELP,
                 file=sys.stderr,
             )
             return 0
