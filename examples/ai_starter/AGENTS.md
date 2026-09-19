@@ -44,6 +44,8 @@ canonical machine-readable contract; these docs are commentary on it.
    ```
    Exit 0 means valid. Exit 1 means the `errors[]` array tells you exactly what
    to fix. Exit 2 means a usage/setup problem.
+   ⚠️ `validate-strategy` is not a sandbox. It imports strategy modules, and
+   smoke validation executes `on_bar()`. Only validate strategy code you trust.
 9. **Persist every run** by passing `output=` to `observa.run(...)`; that is what
    writes `run.json`, `events.jsonl` and `metrics.json`. Output directories are
    create-only.
