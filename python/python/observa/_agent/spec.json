@@ -1,0 +1,273 @@
+{
+  "bar": {
+    "keys": {
+      "close": "float",
+      "high": "float",
+      "low": "float",
+      "open": "float",
+      "timestamp": "str, RFC 3339",
+      "volume": "float or None"
+    },
+    "note": "No bar_index and no symbol. Use bar['close'], not bar.close.",
+    "type": "dict (read-only)"
+  },
+  "closing": {
+    "fifo": false,
+    "note": "No FIFO, no 'close oldest', no implicit close. A close without a valid ticket is rejected as an event, not raised.",
+    "requires_ticket": true,
+    "rule": "{'direction': 'close', 'size': pos['size'], 'ticket': pos['position_id']}"
+  },
+  "drawings": {
+    "errors": [
+      "DRAWING_TYPE_INVALID",
+      "DRAWING_FIELD_MISSING",
+      "DRAWING_VALUE_INVALID",
+      "DRAWING_ID_INVALID",
+      "DRAWING_ACTION_INVALID",
+      "DRAWING_REFERENCE_INVALID",
+      "DRAWING_PANE_INVALID",
+      "DRAWING_TIME_INVALID",
+      "DRAWING_LIMIT_EXCEEDED"
+    ],
+    "id_rule": "1-64 chars from [A-Za-z0-9_.:-]",
+    "max_per_bar": 256,
+    "note": "Descriptive only - never affects orders, fills, P&L or chronology. Malformed drawings fail the run.",
+    "time_rule": "any 'time' must be an already-seen bar timestamp (no future bars)",
+    "type": "optional list under the 'drawings' key of the on_bar dict return",
+    "types": [
+      "series",
+      "hline",
+      "line",
+      "rectangle",
+      "region",
+      "marker",
+      "label",
+      "bar_color"
+    ]
+  },
+  "error_codes": {
+    "authoring": [
+      "STRATEGY_CLASS_NOT_FOUND",
+      "STRATEGY_METHOD_MISSING",
+      "STRATEGY_METHOD_SIGNATURE",
+      "STRATEGY_RETURN_INVALID",
+      "SIGNAL_FIELD_UNKNOWN",
+      "SIGNAL_FIELD_MISSING",
+      "SIGNAL_DIRECTION_INVALID",
+      "SIGNAL_ORDER_TYPE_INVALID",
+      "SIGNAL_FIELD_TYPE_INVALID",
+      "CLOSE_TICKET_REQUIRED",
+      "SIGNAL_TICKET_UNKNOWN",
+      "STRATEGY_REASON_TOO_LONG",
+      "STRATEGY_SYNTAX_ERROR",
+      "STRATEGY_NOT_IMPORTABLE",
+      "STRATEGY_SMOKE_RUN_FAILED"
+    ],
+    "drawing": "see drawings.errors",
+    "runtime": "engine/config/data/run codes are raised by observa.run itself; read them from exc.code (see docs/STRATEGY_API.md)",
+    "setup": [
+      "STRATEGY_FILE_NOT_FOUND"
+    ],
+    "warning_only": [
+      "STRATEGY_CLASS_AMBIGUOUS",
+      "SIGNAL_TICKET_UNKNOWN",
+      "SIGNAL_FIELD_UNKNOWN"
+    ]
+  },
+  "examples": {
+    "gold": "example_strategy.py (bundled beside this contract)",
+    "guide": "strategy-authoring.md (bundled beside this contract)",
+    "note": "Imitate the gold example: entry with sl and reason, exact-ticket close, one annotation, output= persistence."
+  },
+  "execution_rules": {
+    "engine_owns": [
+      "order creation, scheduling and triggering",
+      "fill timing and price (fill_mode)",
+      "spread and slippage",
+      "SL/TP evaluation and outcome",
+      "commission and margin",
+      "position identity and lifecycle",
+      "balance, equity, drawdown and all metrics"
+    ],
+    "owner": "the canonical Rust Engine",
+    "strategy_owns": [
+      "intent only: direction, size, protective levels, reason"
+    ]
+  },
+  "forbidden_patterns": [
+    "Your own fill model, matching engine or backtest loop.",
+    "Applying spread, slippage or commission yourself.",
+    "Computing balance, equity, P&L, drawdown or any metric yourself.",
+    "Recreating order execution, queueing or SL/TP evaluation.",
+    "Reading future bars or indexing beyond the current bar.",
+    "Assuming FIFO or 'close the oldest'.",
+    "Returning a bare signal dict or None from on_bar.",
+    "Using quantity/stop_loss/take_profit as SIGNAL input keys.",
+    "Running 'pip install observa' or 'pip install \"observa[mcp]\"'."
+  ],
+  "history": {
+    "contains": "strictly PRIOR bars only",
+    "current_bar_included": false,
+    "empty_at_first_bar": true,
+    "note": "No lookahead is possible. Guard warm-up yourself: if len(history) < period: return []. It is all prior bars, not a fixed window, so slice history[-period:].",
+    "type": "list of bar dicts",
+    "unbounded": true
+  },
+  "installation": {
+    "base": "python -m pip install \"<wheel_url>\"",
+    "distribution": "github_release_wheel",
+    "forbidden": [
+      "pip install observa",
+      "pip install \"observa[mcp]\""
+    ],
+    "forbidden_reason": "The PyPI distribution named 'observa' is unrelated.",
+    "local_wheel": "python -m pip install \"./<wheel_filename>\"",
+    "local_wheel_mcp": "python -m pip install \"./<wheel_filename>[mcp]\"",
+    "mcp_extra": "python -m pip install \"<wheel_url>[mcp]\"",
+    "release_tag": "observa-0.1.3-private-mvp",
+    "repository": "ErickNgumo/observa",
+    "unsupported": [
+      "Windows",
+      "macOS",
+      "Google Colab"
+    ],
+    "verified_platforms": [
+      "linux-x86_64 (glibc>=2.34)",
+      "CPython>=3.10 (abi3)"
+    ],
+    "wheel_filename": "observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl",
+    "wheel_url": "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl"
+  },
+  "lifecycle": {
+    "base_class": "observa.Strategy",
+    "base_class_optional": true,
+    "call_order": [
+      "initialize(params) once before the first bar",
+      "on_bar(bar, portfolio, history) once per closed bar",
+      "teardown() once after the last bar"
+    ],
+    "notes": [
+      "A plain class with the three methods works; subclassing is optional.",
+      "TRAP: if you subclass observa.Strategy you must still override on_bar - the base class returns [] and a missing override silently produces a zero-trade run.",
+      "initialize receives the resolved params dict ({} when none are set).",
+      "Raising from any callback fails the run (code STRATEGY_ERROR)."
+    ],
+    "required": [
+      "initialize",
+      "on_bar",
+      "teardown"
+    ],
+    "signatures": {
+      "initialize": "initialize(self, params=None)",
+      "on_bar": "on_bar(self, bar, portfolio, history)",
+      "teardown": "teardown(self)"
+    }
+  },
+  "observa_version": "0.1.3",
+  "on_bar": {
+    "accepted_returns": [
+      "[]  # no action",
+      "[{...signal...}, ...]",
+      "{'signals': [...], 'drawings': [...]}"
+    ],
+    "invalid_returns": [
+      "TRAP: a bare signal dict {'direction': 'buy', 'size': 1.0} - the engine reads only the 'signals' key, so it is ignored. Wrap it in a list.",
+      "TRAP: None - return [] for 'no action'; None is ambiguous.",
+      "{'signal': [...]} - misspelled envelope key.",
+      "str, tuple, number - anything not a list or dict."
+    ],
+    "rule": "Always return a list, or a dict containing a 'signals' list."
+  },
+  "orders": {
+    "default": "market",
+    "note": "Rejections (bad size, bad SL/TP distance, insufficient margin) are canonical order_rejected EVENTS, not Python exceptions.",
+    "order_types": [
+      "market",
+      "limit",
+      "stop"
+    ],
+    "trigger_price_field": "price"
+  },
+  "portfolio": {
+    "keys": {
+      "balance": "float, realised cash",
+      "equity": "float, balance + unrealised P&L",
+      "free_margin": "float",
+      "has_open_position": "bool",
+      "open_positions": "list of position dicts",
+      "unrealised_pnl": "float",
+      "used_margin": "float"
+    },
+    "type": "dict (read-only)"
+  },
+  "position": {
+    "keys": {
+      "direction": "'Buy' or 'Sell' - OUTPUT is capitalised",
+      "entry_price": "float",
+      "position_id": "str, the exact ticket to close with",
+      "quantity": "float, alias of size",
+      "size": "float, lots",
+      "stop_loss": "float or None - OUTPUT name",
+      "symbol": "str",
+      "take_profit": "float or None - OUTPUT name",
+      "ticket": "str, alias of position_id",
+      "unrealised_pnl": "float",
+      "unrealized_pnl": "float, alias of unrealised_pnl"
+    },
+    "note": "TRAP: signal INPUT uses lowercase 'buy' and keys size/sl/tp; position OUTPUT uses 'Buy' and stop_loss/take_profit. quantity is an output alias only - the input key is size.",
+    "type": "dict (read-only), from portfolio['open_positions'][i]"
+  },
+  "reason": {
+    "code": "STRATEGY_REASON_TOO_LONG",
+    "encoding": "UTF-8",
+    "max_bytes": 1024,
+    "note": "Recorded on the canonical strategy_decision event; visible in replay and via inspect_run/MCP. Over-long reasons fail the whole run.",
+    "persisted": true
+  },
+  "signals": {
+    "fields": {
+      "direction": "'buy' | 'sell' | 'close' (lowercase, case-insensitive on input)",
+      "order_type": "'market' (default) | 'limit' | 'stop'",
+      "price": "float; limit/stop trigger price",
+      "reason": "str, persisted, max 1024 UTF-8 bytes",
+      "size": "float, lots (INPUT quantity field - not 'quantity')",
+      "sl": "float, protective stop loss (entries)",
+      "ticket": "str, REQUIRED for close - use position['position_id']",
+      "tp": "float, protective take profit (entries)"
+    },
+    "required": [
+      "direction",
+      "size"
+    ],
+    "type": "list of dicts returned from on_bar",
+    "unknown_fields": "TRAP: only those eight keys are read. Any other key (stop_loss, take_profit, quantity, qty, sl_price) is silently ignored, so a typo silently drops your stop loss. validate-strategy reports SIGNAL_FIELD_UNKNOWN."
+  },
+  "strategy_api_version": "1",
+  "validation": {
+    "cli": "observa validate-strategy FILE [--class NAME] [--json] [--smoke]",
+    "does_not_prove": [
+      "strategy logic or profitability",
+      "margin, SL/TP distance, or quantity validity (engine order_rejected events)",
+      "that any signal will ever be produced - zero signals in six bars is valid"
+    ],
+    "exit_codes": {
+      "0": "valid",
+      "1": "invalid strategy",
+      "2": "usage/setup error"
+    },
+    "python": "observa.validate_strategy(path_or_class, class_name=None, smoke=False)",
+    "security": {
+      "sandboxed": false,
+      "tier_a": "parses source only; does not import or execute the strategy",
+      "tier_b": "IMPORTS the strategy module - top-level Python code may execute",
+      "tier_c": "EXECUTES on_bar() through the real Observa Engine",
+      "trusted_code_only": true,
+      "warning": "validate-strategy is not a sandbox. Tier B imports the strategy module, which may execute top-level Python code. Tier C additionally executes the strategy's on_bar() through the real Observa Engine. Only validate strategy code you trust."
+    },
+    "tiers": {
+      "A": "structural: parses, lifecycle methods visible in the AST; never executes user code",
+      "B": "imported: class resolves, signatures compatible, on_bar genuinely overridden; never calls on_bar",
+      "C": "smoke: real Engine over 6 bundled bars, validating the RAW on_bar return; shape/integration only"
+    }
+  }
+}

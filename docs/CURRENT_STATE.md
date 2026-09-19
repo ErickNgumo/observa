@@ -88,9 +88,18 @@ This document is a migration of the **current-state claims in the source knowled
 - Replay controls.
 
 ### CLI
-- `observa init`
-- `observa run --strategy ... --data ...`
-- YAML configuration.
+
+The installed `observa` console script (from the wheel) provides:
+
+- `observa replay <run-dir> [--port <port>]`
+- `observa mcp --runs-dir <path>` (optional `mcp` extra; stdio only)
+- `observa agent-spec [--json] [--out FILE]` (OBS-AI-04)
+- `observa validate-strategy FILE [--class NAME] [--json] [--smoke]` (OBS-AI-04)
+
+Not implemented in the shipped CLI: `observa init`, `observa run --strategy …`
+and YAML configuration. A `run --strategy` subcommand exists only in the Rust
+`observa-cli` binary, which is **not** part of the release assets and uses the
+legacy/dev-only bridge in `crates/observa-python` (see `docs/STRATEGY_API.md`).
 
 ## Partially implemented / known issues
 

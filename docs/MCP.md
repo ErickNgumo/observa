@@ -37,7 +37,11 @@ Without the extra, `observa` and `observa replay` work exactly as before — onl
 
 ```
 error: MCP support is not installed.
-hint: install the optional dependency with: pip install "observa[mcp]"
+hint: reinstall the same Observa wheel with the optional [mcp] extra.
+      Example for a local wheel:
+      python -m pip install "./observa-<version>-...whl[mcp]"
+      Do not run `pip install observa` or `pip install "observa[mcp]"`;
+      the PyPI project is unrelated.
 ```
 
 ---

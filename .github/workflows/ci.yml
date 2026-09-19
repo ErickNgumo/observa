@@ -41,6 +41,11 @@ jobs:
         run: .ci-venv/bin/python python/tests/test_inspection.py
       - name: Strategy reason schema tests
         run: .ci-venv/bin/python python/tests/test_strategy_reason.py
+      # OBS-AI-04: the agent authoring contract (bundled spec/guide/gold example,
+      # the three-tier validator, the CLI surfaces and the generated docs) must
+      # hold against the installed wheel. No extra dependency is needed.
+      - name: Agent authoring contract tests
+        run: .ci-venv/bin/python python/tests/test_agent_contract.py
       - name: Quickstart smoke (installed wheel)
         run: |
           mkdir -p .ci-out && cd .ci-out
