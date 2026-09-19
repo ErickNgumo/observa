@@ -74,12 +74,13 @@ jobs:
         # existing base release venv — no extra dependency.
         run: .release-venv/bin/python python/tests/test_agent_contract.py
       - name: Verify built wheel (MCP)
-        # OBS-MCP-01: the read-only MCP inspection server ships behind the
-        # optional `mcp` extra. A release must not be publishable if installing
-        # that extra from *this* wheel fails, or if the server contract
-        # regressed. The wheel comes from the SHA step, so the gate proves the
-        # exact artifact being published. Its own venv keeps the base release
-        # venv zero-dependency (the extra pulls a large optional tree).
+        # OBS-MCP-01 / OBS-AI-05: the read-only MCP server (run inspection +
+        # authoring discovery) ships behind the optional `mcp` extra. A release
+        # must not be publishable if installing that extra from *this* wheel
+        # fails, or if the server contract regressed. The wheel comes from the
+        # SHA step, so the gate proves the exact artifact being published. Its
+        # own venv keeps the base release venv zero-dependency (the extra pulls
+        # a large optional tree).
         run: |
           python -m venv .release-mcp-venv
           .release-mcp-venv/bin/python -m pip install --upgrade pip

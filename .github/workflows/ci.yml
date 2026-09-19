@@ -50,11 +50,12 @@ jobs:
         run: |
           mkdir -p .ci-out && cd .ci-out
           ../.ci-venv/bin/python ../examples/quickstart.py
-      # OBS-MCP-01: the read-only inspection server lives behind the optional
-      # `mcp` extra, so it gets its own venv. That keeps the zero-dependency
-      # wheel contract in .ci-venv above verifiable, and means a problem in the
-      # MCP dependency tree cannot destabilise the core gates.
-      - name: MCP inspection server tests
+      # OBS-MCP-01 / OBS-AI-05: the read-only MCP server (run inspection +
+      # authoring discovery) lives behind the optional `mcp` extra, so it gets
+      # its own venv. That keeps the zero-dependency wheel contract in .ci-venv
+      # above verifiable, and means a problem in the MCP dependency tree cannot
+      # destabilise the core gates.
+      - name: MCP server tests (inspection + authoring discovery)
         run: |
           WHEEL=$(ls python/target/wheels/*.whl | head -1)
           python -m venv .mcp-venv
