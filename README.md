@@ -128,12 +128,15 @@ run = observa.inspect_run("runs/sample")
 run.meta, run.metrics             # the persisted run.json / metrics.json
 observa.run_summary("runs/sample")  # one machine-readable summary dict
 
-run.trades()                      # completed canonical trades
+trades = run.trades()             # completed canonical trades
 run.positions(open=None)          # all / open only / closed only
-run.position(pid)                 # one position's full lifecycle
-run.order(seq)                    # one order, and the position it closed
 run.rejections()                  # rejected orders, with the engine's reason
-run.bar(421)                      # everything canonical on one bar
+run.bar(100)                      # everything canonical on one bar
+
+pid = trades[0]["position_id"]    # a real position id from this run
+position = run.position(pid)      # one position's full lifecycle
+seq = position["closing_order"]["order_seq"]
+run.order(seq)                    # one order, and the position it closed
 ```
 
 Inspection reads only the persisted artifacts — it never re-runs the strategy
@@ -212,4 +215,4 @@ cargo test --workspace
 ```
 
 Rust workspace under `crates/`, Python package under `python/`, replay frontend
-under `python/observa/static/`. End users never need any of this.
+under `python/python/observa/static/`. End users never need any of this.
