@@ -6,7 +6,7 @@ Run from the repository after installing the official private-MVP wheel
     python python/tests/test_onboarding_ai.py
 
 Covers:
-1. Version diagnostic regression: observa.__version__ == "0.1.3" and
+1. Version diagnostic regression: observa.__version__ == "0.1.4" and
    observa.__file__ points into the installed package (guards against the
    unrelated PyPI "observa" namespace).
 2. Docs-literal AI onboarding: the 20/50 SMA pattern from llms-full.txt runs
@@ -39,7 +39,7 @@ def _check(label, cond, detail=""):
 
 
 def test_version_diagnostic():
-    _check("version == 0.1.3", observa.__version__ == "0.1.3", observa.__version__)
+    _check("version == 0.1.4", observa.__version__ == "0.1.4", observa.__version__)
     f = str(observa.__file__)
     _check("__file__ points at package __init__", f.endswith(os.path.join("observa", "__init__.py")), f)
     _check("__file__ exists", os.path.isfile(f))
@@ -50,7 +50,7 @@ def test_llms_full_markers():
     text = (REPO / "llms-full.txt").read_text().lower()
     required = [
         "do not `pip install observa`",
-        "releases/download/observa-0.1.3-private-mvp",
+        "releases/download/observa-0.1.4-private-mvp",
         "explicit ticket",
         "dataset_source",
         "sl-first",

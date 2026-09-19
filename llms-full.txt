@@ -27,9 +27,9 @@ WARNING: do not `pip install observa`. The public PyPI name `observa` is an
 unrelated project. Install the official wheel by URL from the private-MVP
 GitHub Release:
 
-    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl"
+    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl"
 
-SHA-256 of this exact private-MVP wheel: `e92feed284d2fcba84455b6c4d4ef84fe02f641da7d35de5652ceb5592216534` (optional check;
+SHA-256 of this exact private-MVP wheel: `PENDING` (optional check;
 not required for basic use).
 
 Real-data examples also need: `python -m pip install yfinance pandas`.
@@ -45,14 +45,14 @@ hold the unrelated PyPI 'observa' module in memory).
 Verify you imported the correct package:
 
     import observa
-    print(observa.__version__)   # 0.1.3
+    print(observa.__version__)   # 0.1.4
     print(observa.__file__)      # .../site-packages/observa/__init__.py
     print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
 
 ## C. Strategy contract (generated from `observa.agent_spec()`)
 
 <!-- BEGIN GENERATED: strategy-contract -->
-**strategy_api_version `1`** (observa 0.1.3). This block is generated from `observa.agent_spec()`; edit the contract, not this text.
+**strategy_api_version `1`** (observa 0.1.4). This block is generated from `observa.agent_spec()`; edit the contract, not this text.
 
 A strategy is a plain Python class (subclassing `observa.Strategy` is optional):
 
@@ -595,10 +595,10 @@ never writes to a run directory, and never infers canonical facts.
 Install (optional extra — the base package stays dependency-free). The extra
 attaches to a wheel reference, never to the bare package name:
 
-    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 
     # or, from a downloaded wheel:
-    pip install "./observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+    pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 
 Never `pip install "observa[mcp]"` — that resolves an unrelated PyPI project.
 

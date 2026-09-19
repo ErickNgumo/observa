@@ -1,4 +1,4 @@
-# Observa 0.1.3 — Private MVP (Release Notes)
+# Observa 0.1.4 — Private MVP (Release Notes)
 
 > Status: **private MVP tester build**. Not production-ready. This build is for
 > a small, invited cohort to validate the core product idea: **seeing what a
@@ -17,18 +17,19 @@ numbers.
 ## Install
 
 Published as a private-MVP GitHub Release (prerelease) tagged
-`observa-0.1.3-private-mvp`. The release workflow builds the wheel, verifies
+`observa-0.1.4-private-mvp`. The release workflow builds the wheel, verifies
 the package version, runs the canonical deterministic baseline plus the
-annotation/deterministic-identity, structured-inspection, strategy-reason and
-MCP smoke checks, records the SHA-256, and uploads the wheel together with the
-example scripts.
+annotation/deterministic-identity, structured-inspection, strategy-reason,
+agent-authoring-contract and MCP checks, records the SHA-256, and uploads the
+wheel together with the example scripts.
 
 The published wheel and its SHA-256:
 
-Wheel URL: `https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl`
-SHA-256: `e92feed284d2fcba84455b6c4d4ef84fe02f641da7d35de5652ceb5592216534`
+Wheel URL: `https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl`
+SHA-256: `PENDING` — published by the release workflow with the 0.1.4 asset;
+verify it against the value printed in the GitHub Release before installing.
 
-0.1.3 is the current tester build. Do **not** `pip install observa` (an
+0.1.4 is the current tester build. Do **not** `pip install observa` (an
 unrelated PyPI package owns that name).
 
 MCP support is an **optional extra**. The extra always attaches to a wheel
@@ -36,25 +37,22 @@ reference, never to a bare package name:
 
 ```bash
 # core wheel (zero third-party dependencies):
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl"
 
 # same wheel + the official MCP SDK:
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 
 # from a downloaded wheel file:
-python -m pip install "./observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+python -m pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 ```
 
 Real-data example dependency: `python -m pip install yfinance pandas`.
 
-**Notebook users:** restart the notebook kernel after installing/replacing
-Observa before `import observa`.
-
-Import test:
+Confirm the install:
 
 ```python
 import observa
-print(observa.__version__)   # 0.1.3
+print(observa.__version__)   # 0.1.4
 ```
 
 ## Verified platform
@@ -67,123 +65,75 @@ print(observa.__version__)   # 0.1.3
 
 Windows, macOS and Google Colab are **not** runtime-verified for this build.
 
-## What is new in 0.1.3
+## What is new in 0.1.4
 
-### A. Structured run inspection: `observa.inspect_run(...)`
+This release is about **AI-native strategy authoring and discovery**. The
+deterministic Engine, the canonical event history, persistence, replay and
+run inspection are unchanged; 0.1.4 makes it practical for a coding agent to
+write and check a strategy against the real contract.
 
-A persisted run is now a first-class Python object. `observa.inspect_run(dir)`
-eagerly parses the canonical artifacts, validates them, and returns a
-`PersistedRun` with indexed lookups:
+### A. Canonical machine-readable strategy contract
 
-| Surface | Purpose |
+`observa.agent_spec()` returns the full contract as a dict — lifecycle,
+signal inputs, order types, closing by exact ticket, drawings, reasons,
+execution rules, forbidden patterns, error codes, validation and installation.
+`strategy_api_version` is `"1"`. The same contract ships as `spec.json` inside
+the wheel (`observa.agent_spec_path()`), so an agent can read it with no
+repository checkout and no network.
+
+### B. Bundled authoring guide and gold example
+
+`observa.agent_guide_path()` and `observa.agent_example_path()` point at a
+short guide and a canonical, working strategy shipped inside the package.
+`observa agent-spec` prints the contract from the CLI.
+
+### C. Strategy validation and repair surface
+
+`observa validate-strategy FILE [--class NAME] [--json] [--smoke]` and
+`observa.validate_strategy(...)` return structured, repairable errors with
+stable codes. Exit codes are `0` valid, `1` invalid, `2` usage/setup. Three
+tiers: **A** structural (parses only), **B** imported, **C** smoke (real
+Engine over 6 bundled bars).
+
+> ⚠️ Validation is **not a sandbox**. Tier B imports the strategy module, so
+> top-level Python code may execute, and Tier C executes `on_bar()`. Only
+> validate strategy code you trust.
+
+### D. Product-first README and onboarding
+
+The README now leads with the product idea — what Observa is, the problem it
+solves, the three ways to inspect a run (replay, Python, MCP) and how AI fits
+— before installation details. The agent instructions carry the same
+trusted-code caveat.
+
+### E. MCP strategy-authoring discovery
+
+The read-only MCP server now exposes **13 tools**: the 10 existing
+persisted-run inspection tools, unchanged, plus 3 new authoring-discovery
+tools.
+
+| New tool | Purpose |
 | --- | --- |
-| `meta` / `metrics` | run metadata and canonical metrics |
-| `events()`, `event(seq)` | the canonical event history, in canonical order |
-| `bar(index)` | OHLC plus the decisions, reasons and drawings for that bar |
-| `positions()`, `position(id)` | position summaries and full lifecycles |
-| `order(seq)` | one order, including the position it opened or closed |
-| `trades()`, `rejections()` | canonical trade and rejection histories |
+| `get_strategy_contract()` | the canonical contract, exactly `observa.agent_spec()` |
+| `get_strategy_example()` | the bundled gold example source |
+| `get_strategy_guide()` | the bundled concise authoring guide |
 
-Lookups are backed by indexes built once at parse time, so inspecting a run is
-cheap and deterministic. Bar attribution uses the canonical chronology buckets
-— the same bucketing the engine used when it recorded the events. Inspection is
-strictly read-only: it never re-runs a strategy and never writes to a run
-directory.
+Authoring discovery works **before any run exists**: the runs root may be
+missing or empty, and the server never creates it. With an absent root, the
+inspection tools report the coded `RUN_DIR_NOT_FOUND`.
 
-### B. Strategy decision reasons are persisted
+**Security boundary.** These three tools are read-only and non-executing:
+they return the assets already bundled in the wheel — they do not generate
+strategies, do not call an AI model, do not validate code and do not execute
+anything. `validate_strategy` is deliberately **not** exposed over MCP,
+because it imports and runs trusted strategy code; validation stays a local
+CLI/Python action.
 
-A signal may now carry an optional human-readable reason. Reasons are recorded
-on the canonical `strategy_decision` event as
-`signals: [{signal_index, reason}]`, so replay and inspection can show *why*
-each signal fired rather than only that it fired. Reasons are capped at 1024
-bytes per reason; an over-long reason is rejected with the machine-readable
-code `STRATEGY_REASON_TOO_LONG`. Reasons are descriptive only — they never
-influence order creation, fills, pricing, SL/TP, portfolio accounting, metrics
-or chronology.
+### F. Deterministic execution and inspection are unchanged
 
-### C. Exact closing-order linkage
-
-When a position is closed by an explicit trading ticket, the exact canonical
-order that closed it is now recorded as `PositionClosed.order_seq` and
-navigable in both directions:
-
-```python
-run.position(position_id)["closing_order"]        # the closing order, or null
-run.order(order_seq)["position_id"]               # the position it closed
-```
-
-Two precisions matter:
-
-* **A closing order is recorded whenever one exists.** Explicit-ticket closes
-  carry it.
-* **Protective SL/TP exits do NOT have synthetic closing orders.** A stop-loss
-  or take-profit exit is not a ticket and no order is invented for it; those
-  closes report `closing_order = null` by design.
-* **Historical Signal closes created before this linkage existed may also
-  report `closing_order = null`**, because the linkage was simply not recorded
-  in those artifacts. The inspector never guesses one.
-
-Inconsistent or dangling linkages are refused eagerly with
-`RUN_ARTIFACTS_INVALID` rather than resolved heuristically.
-
-### D. Read-only MCP inspection server
-
-Observa now ships an MCP server so an external agent can interrogate persisted
-runs without learning the artifact formats:
-
-```bash
-observa mcp --runs-dir runs/
-# equivalently:
-python -m observa.mcp_server --runs-dir runs/
-```
-
-```jsonc
-// generic MCP client configuration (stdio)
-{ "command": "observa", "args": ["mcp", "--runs-dir", "/abs/path/to/runs"] }
-```
-
-Ten read-only tools are exposed: `list_runs`, `get_run_summary`, `list_events`,
-`get_event`, `get_bar`, `list_positions`, `get_position`, `get_order`,
-`list_trades`, `list_rejections`.
-
-It is a thin adapter over `observa.inspect_run(...)` and
-`observa.run_summary(...)`: it never runs a strategy, never writes to a run
-directory, and never infers anything. Transport is **stdio only** — there is no
-HTTP or SSE server. The server is scoped to a single runs root; runs are
-addressed by their path relative to it, escape attempts are refused, and
-answers never expose absolute filesystem paths. All human-facing output goes to
-stderr, so stdout carries only protocol traffic. Full reference and security
-model: `docs/MCP.md`.
-
-### E. Optional `observa[mcp]` dependency
-
-The MCP server lives behind an optional extra, so the base package keeps its
-zero-dependency install:
-
-```
-Requires-Dist: mcp>=2.2,<3 ; extra == 'mcp'
-```
-
-The base wheel declares **zero unconditional runtime dependencies**; installing
-it without the extra pulls in no MCP stack at all, and `import observa` never
-loads the MCP SDK. `observa mcp` without the extra fails cleanly with the exact
-install hint instead of a traceback.
-
-### F. MCP CI and release gates
-
-Branch CI and the release workflow both gate on the MCP contract. The release
-workflow installs the **exact wheel it is about to publish** with the `[mcp]`
-extra in an isolated venv and requires the 107-check MCP contract suite to pass
-before the GitHub Release step — which remains the final step — can run.
-
-### G. Historical-run compatibility
-
-Every improvement above is additive and backward-compatible. Runs persisted by
-0.1.0–0.1.2 still load, inspect and replay with no migration and no rewriting:
-
-* pre-reason runs simply expose no `signals` key;
-* pre-closing-link runs report `closing_order = null` rather than a guess;
-* historical UUIDv4 position ids remain readable, and new runs use UUIDv5.
+The canonical economic baseline is byte-identical to 0.1.3, historical runs
+still load and inspect with no migration, the base package remains
+dependency-free, and MCP remains an optional extra.
 
 ## Intentionally deferred
 
@@ -201,7 +151,9 @@ Not in this build:
 
 * `observa` Python API (`Config`, `Strategy`, `run`, `RunResult`, …)
 * structured run inspection (`observa.inspect_run`, `observa.run_summary`)
-* read-only MCP inspection server (optional `observa[mcp]` extra, stdio only)
+* read-only MCP server: 10 persisted-run inspection tools + 3
+  strategy-authoring discovery tools (optional `observa[mcp]` extra,
+  stdio only)
 * bundled deterministic sample data + a small sample strategy
 * local visual replay (`observa replay <run-dir>`) — works offline; the chart
   library is bundled
@@ -210,6 +162,9 @@ Not in this build:
 * persisted per-signal strategy reasons
 * exact closing-order linkage where a canonical closing order exists
 * byte-deterministic canonical artifacts
+* bundled strategy-authoring contract, guide and gold example
+  (`observa.agent_spec()`, `observa agent-spec`, `observa.agent_guide_path()`)
+* local strategy validation (`observa validate-strategy`, `observa.validate_strategy`)
 
 ## Getting started
 
@@ -242,18 +197,141 @@ snippet from `docs/tester-onboarding.md` §Diagnostics when reporting failures.
 ```bash
 python -m pip install maturin          # requires Rust toolchain
 cd python && maturin build --release   # wheel written to python/target/wheels/
-sha256sum python/target/wheels/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl
+sha256sum python/target/wheels/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl
 ```
 
 Publishing a tester build: push an `observa-<version>-private-mvp` tag; the
 `release-wheel` workflow builds the wheel, verifies the version, runs the
 deterministic canonical regression baseline plus the annotation/deterministic-
-identity, structured-inspection, strategy-reason and MCP smoke checks, records
-the SHA-256 and uploads the wheel plus the example scripts as a prerelease.
-Then update the install URL + SHA-256 in README / getting-started /
-llms-full.txt / tester-onboarding.
+identity, structured-inspection, strategy-reason, agent-authoring-contract and
+MCP checks, records the SHA-256 and uploads the wheel plus the example scripts
+as a prerelease. Then update the install URL + SHA-256 in README /
+getting-started / llms-full.txt / tester-onboarding / these release notes.
 
 ## Previous releases (historical)
+
+Observa 0.1.3 — Private MVP remains published and unchanged:
+
+Wheel URL: `https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl`
+SHA-256: `e92feed284d2fcba84455b6c4d4ef84fe02f641da7d35de5652ceb5592216534`
+
+### What is new in 0.1.3
+
+#### A. Structured run inspection: `observa.inspect_run(...)`
+
+A persisted run is now a first-class Python object. `observa.inspect_run(dir)`
+eagerly parses the canonical artifacts, validates them, and returns a
+`PersistedRun` with indexed lookups:
+
+| Surface | Purpose |
+| --- | --- |
+| `meta` / `metrics` | run metadata and canonical metrics |
+| `events()`, `event(seq)` | the canonical event history, in canonical order |
+| `bar(index)` | OHLC plus the decisions, reasons and drawings for that bar |
+| `positions()`, `position(id)` | position summaries and full lifecycles |
+| `order(seq)` | one order, including the position it opened or closed |
+| `trades()`, `rejections()` | canonical trade and rejection histories |
+
+Lookups are backed by indexes built once at parse time, so inspecting a run is
+cheap and deterministic. Bar attribution uses the canonical chronology buckets
+— the same bucketing the engine used when it recorded the events. Inspection is
+strictly read-only: it never re-runs a strategy and never writes to a run
+directory.
+
+#### B. Strategy decision reasons are persisted
+
+A signal may now carry an optional human-readable reason. Reasons are recorded
+on the canonical `strategy_decision` event as
+`signals: [{signal_index, reason}]`, so replay and inspection can show *why*
+each signal fired rather than only that it fired. Reasons are capped at 1024
+bytes per reason; an over-long reason is rejected with the machine-readable
+code `STRATEGY_REASON_TOO_LONG`. Reasons are descriptive only — they never
+influence order creation, fills, pricing, SL/TP, portfolio accounting, metrics
+or chronology.
+
+#### C. Exact closing-order linkage
+
+When a position is closed by an explicit trading ticket, the exact canonical
+order that closed it is now recorded as `PositionClosed.order_seq` and
+navigable in both directions:
+
+```python
+run.position(position_id)["closing_order"]        # the closing order, or null
+run.order(order_seq)["position_id"]               # the position it closed
+```
+
+Two precisions matter:
+
+* **A closing order is recorded whenever one exists.** Explicit-ticket closes
+  carry it.
+* **Protective SL/TP exits do NOT have synthetic closing orders.** A stop-loss
+  or take-profit exit is not a ticket and no order is invented for it; those
+  closes report `closing_order = null` by design.
+* **Historical Signal closes created before this linkage existed may also
+  report `closing_order = null`**, because the linkage was simply not recorded
+  in those artifacts. The inspector never guesses one.
+
+Inconsistent or dangling linkages are refused eagerly with
+`RUN_ARTIFACTS_INVALID` rather than resolved heuristically.
+
+#### D. Read-only MCP inspection server
+
+Observa now ships an MCP server so an external agent can interrogate persisted
+runs without learning the artifact formats:
+
+```bash
+observa mcp --runs-dir runs/
+# equivalently:
+python -m observa.mcp_server --runs-dir runs/
+```
+
+```jsonc
+// generic MCP client configuration (stdio)
+{ "command": "observa", "args": ["mcp", "--runs-dir", "/abs/path/to/runs"] }
+```
+
+Ten read-only tools are exposed: `list_runs`, `get_run_summary`, `list_events`,
+`get_event`, `get_bar`, `list_positions`, `get_position`, `get_order`,
+`list_trades`, `list_rejections`.
+
+It is a thin adapter over `observa.inspect_run(...)` and
+`observa.run_summary(...)`: it never runs a strategy, never writes to a run
+directory, and never infers anything. Transport is **stdio only** — there is no
+HTTP or SSE server. The server is scoped to a single runs root; runs are
+addressed by their path relative to it, escape attempts are refused, and
+answers never expose absolute filesystem paths. All human-facing output goes to
+stderr, so stdout carries only protocol traffic. Full reference and security
+model: `docs/MCP.md`.
+
+#### E. Optional `observa[mcp]` dependency
+
+The MCP server lives behind an optional extra, so the base package keeps its
+zero-dependency install:
+
+```
+Requires-Dist: mcp>=2.2,<3 ; extra == 'mcp'
+```
+
+The base wheel declares **zero unconditional runtime dependencies**; installing
+it without the extra pulls in no MCP stack at all, and `import observa` never
+loads the MCP SDK. `observa mcp` without the extra fails cleanly with the exact
+install hint instead of a traceback.
+
+#### F. MCP CI and release gates
+
+Branch CI and the release workflow both gate on the MCP contract. The release
+workflow installs the **exact wheel it is about to publish** with the `[mcp]`
+extra in an isolated venv and requires the 107-check MCP contract suite to pass
+before the GitHub Release step — which remains the final step — can run.
+
+#### G. Historical-run compatibility
+
+Every improvement above is additive and backward-compatible. Runs persisted by
+0.1.0–0.1.2 still load, inspect and replay with no migration and no rewriting:
+
+* pre-reason runs simply expose no `signals` key;
+* pre-closing-link runs report `closing_order = null` rather than a guess;
+* historical UUIDv4 position ids remain readable, and new runs use UUIDv5.
 
 Observa 0.1.2 — Private MVP remains published and unchanged:
 

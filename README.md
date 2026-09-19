@@ -83,7 +83,7 @@ Details: [agent guide](docs/agent/strategy-authoring.md) · [AI starter](example
 > unrelated project. Install the official private-MVP wheel:
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
 Run the bundled deterministic sample — no data download, no Rust toolchain:
@@ -153,7 +153,7 @@ and scoped to one local runs root. MCP is an optional extra on the **same
 wheel**:
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 observa mcp --runs-dir runs/
 ```
 

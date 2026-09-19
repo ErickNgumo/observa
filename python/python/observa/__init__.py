@@ -49,7 +49,7 @@ from .inspection import PersistedRun, inspect_run
 from .replay import ReplayServer
 from .validation import validate_strategy
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 # ────────────────────────────────────────────────
 # Public enums (string constants — deterministic and strict)
