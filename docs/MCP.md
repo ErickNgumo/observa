@@ -22,13 +22,13 @@ zero-dependency install. The extra is always attached to a **wheel reference**
 
 ```bash
 # from the private-MVP GitHub Release (see README for the base install):
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 ```
 
 From a downloaded release wheel:
 
 ```bash
-pip install "./observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 ```
 
 > ⚠️ Do **not** `pip install observa` or `pip install "observa[mcp]"`. The
@@ -179,7 +179,7 @@ None of them takes an argument.
 // get_strategy_contract() — returned verbatim; it already carries both versions
 {
   "strategy_api_version": "1",
-  "observa_version": "0.1.3",
+  "observa_version": "0.1.4",
   "lifecycle": { ... }, "signals": { ... }, "drawings": { ... },
   "execution_rules": { ... }, "forbidden_patterns": [ ... ],
   "validation": { ... }, "installation": { ... }
@@ -343,7 +343,7 @@ opening order.
 
 | Symptom | Cause / fix |
 | --- | --- |
-| `MCP support is not installed` | Install the extra **from the wheel reference**: `pip install "./observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"` (never bare `pip install "observa[mcp]"`, which resolves an unrelated PyPI project) |
+| `MCP support is not installed` | Install the extra **from the wheel reference**: `pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"` (never bare `pip install "observa[mcp]"`, which resolves an unrelated PyPI project) |
 | `RUN_DIR_NOT_FOUND` from `list_runs` or any `run` | The configured `--runs-dir` is absent or not a directory, or the `run` identifier is not relative to it — the authoring-discovery tools still work |
 | Every `run` returns `RUN_DIR_NOT_FOUND` | The identifier must be relative to the configured root — check `list_runs()` |
 | A run does not appear in `list_runs` | It has no `run.json`, or it lives outside the root; see the `errors` array for unreadable runs |

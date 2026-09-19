@@ -46,7 +46,7 @@ Generated from `observa.agent_spec()` — do not hand-edit this block; edit
 `python -m observa._agent._render --doc docs/STRATEGY_API.md`.
 
 <!-- BEGIN GENERATED: strategy-contract -->
-**strategy_api_version `1`** (observa 0.1.3). This block is generated from `observa.agent_spec()`; edit the contract, not this text.
+**strategy_api_version `1`** (observa 0.1.4). This block is generated from `observa.agent_spec()`; edit the contract, not this text.
 
 A strategy is a plain Python class (subclassing `observa.Strategy` is optional):
 
