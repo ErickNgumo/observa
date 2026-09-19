@@ -15,18 +15,22 @@ change anything: the whole surface is read-only.
 ## Install
 
 MCP support is an **optional extra**, so the base package keeps its
-zero-dependency install:
+zero-dependency install. The extra is always attached to a **wheel reference**
+— never to a bare package name:
 
 ```bash
-pip install observa          # core: no third-party dependencies
-pip install "observa[mcp]"   # core + the official MCP SDK
+# from the private-MVP GitHub Release (see README for the base install):
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 ```
 
 From a downloaded release wheel:
 
 ```bash
-pip install "observa-0.1.2-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+pip install "./observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 ```
+
+> ⚠️ Do **not** `pip install observa` or `pip install "observa[mcp]"`. The
+> public PyPI project named `observa` is unrelated to this wheel.
 
 Without the extra, `observa` and `observa replay` work exactly as before — only
 `observa mcp` needs it, and it says so clearly if the extra is missing:

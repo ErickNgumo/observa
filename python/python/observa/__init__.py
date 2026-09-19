@@ -32,7 +32,7 @@ from .errors import coded, error_code
 from .inspection import PersistedRun, inspect_run
 from .replay import ReplayServer
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 # ────────────────────────────────────────────────
 # Public enums (string constants — deterministic and strict)
