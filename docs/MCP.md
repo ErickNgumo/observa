@@ -1,14 +1,16 @@
-# Observa MCP — read-only run inspection server
+# Observa MCP — read-only run inspection + authoring discovery
 
-`observa mcp` exposes **persisted Observa runs** to any MCP client (Claude
-Desktop, Codex, or a generic MCP host) as structured, canonical evidence.
+`observa mcp` exposes **persisted Observa runs** and **Observa's strategy-authoring
+assets** to any MCP client (Claude Desktop, Codex, or a generic MCP host).
 
-It is a **thin adapter**. Every answer comes from `observa.inspect_run(...)` or
-`observa.run_summary(...)` — the same read-only inspection API you would call
-from Python. The server does not re-run strategies, does not re-parse
-`events.jsonl` on its own, does not reimplement chronology bucketing, does not
-infer closing orders, and does not interpret strategy reasons. It also cannot
-change anything: the whole surface is read-only.
+It is a **thin adapter**. Every inspection answer comes from
+`observa.inspect_run(...)` or `observa.run_summary(...)`; every authoring answer
+comes from the assets bundled by OBS-AI-04 (`observa.agent_spec()`,
+`observa.agent_example_path()`, `observa.agent_guide_path()`). The server does not
+re-run strategies, does not re-parse `events.jsonl` on its own, does not
+reimplement chronology bucketing, does not infer closing orders, and does not
+interpret strategy reasons. It also cannot change anything: the whole surface is
+read-only.
 
 ---
 
@@ -57,14 +59,20 @@ observa mcp --runs-dir runs/
 python -m observa.mcp_server --runs-dir runs/
 ```
 
-`--runs-dir` is required and is the **only** place the server will look. At
-startup it resolves that path and prints a one-line banner **to stderr**:
+`--runs-dir` is required and is the **only** place the server will look for runs.
+The directory **does not have to exist yet**: the server starts with a missing or
+empty root so an agent can discover how to author a strategy before any backtest
+has been persisted. It never creates the directory. At startup it resolves that
+path and prints a one-line banner **to stderr**:
 
 ```
 Observa MCP
 Runs root: /abs/path/to/runs
-Tools: 10
+Tools: 13 (10 inspection, 3 authoring)
 ```
+
+While the root is absent, the authoring-discovery tools work normally and every
+run-scoped inspection tool reports the coded `RUN_DIR_NOT_FOUND`.
 
 stdout is reserved exclusively for the MCP protocol stream, so the server is
 safe to launch as a subprocess.
@@ -87,7 +95,7 @@ Any MCP host that can launch a stdio server works with that block; substitute
 
 ---
 
-## Tools
+## Run inspection
 
 Ten read-only tools. Every tool except `list_runs` takes an explicit `run`
 identifier; there is no implicit "current run".
@@ -151,6 +159,60 @@ a named key, which keeps a result in a single structured block.
 
 ---
 
+## Authoring discovery
+
+Three read-only tools let an MCP-only agent learn how to write an Observa
+strategy without a repository checkout, a network fetch, or a human pasting
+documentation. They return the **same canonical assets that ship inside the
+installed wheel** (`observa.agent_spec()`, `observa.agent_example_path()`,
+`observa.agent_guide_path()`) — nothing is generated or reworded.
+
+| Tool | Purpose |
+| --- | --- |
+| `get_strategy_contract()` | The canonical machine-readable contract, exactly `observa.agent_spec()` |
+| `get_strategy_example()` | The bundled gold example source |
+| `get_strategy_guide()` | The bundled concise authoring guide |
+
+None of them takes an argument.
+
+```jsonc
+// get_strategy_contract() — returned verbatim; it already carries both versions
+{
+  "strategy_api_version": "1",
+  "observa_version": "0.1.3",
+  "lifecycle": { ... }, "signals": { ... }, "drawings": { ... },
+  "execution_rules": { ... }, "forbidden_patterns": [ ... ],
+  "validation": { ... }, "installation": { ... }
+}
+
+// get_strategy_example() / get_strategy_guide()
+{
+  "strategy_api_version": "1",
+  "filename": "example_strategy.py",   // basename only — never an absolute path
+  "source": "<exact bundled file text>"
+}
+```
+
+The `source` field is byte-identical to the bundled file. Each call returns one
+object in one content block; the contract is ~10 KB and is deliberately **not**
+paginated.
+
+What these tools are **not**:
+
+- they do **not** generate, write or save a strategy — the agent writes code;
+- they do **not** validate strategy code;
+- they do **not** execute anything — no module import, no `on_bar()`, no Engine;
+- they do **not** accept a filesystem path or read arbitrary files;
+- they do **not** reach the network.
+
+**Validation stays CLI/Python-only.** `observa validate-strategy FILE --smoke`
+and `observa.validate_strategy(...)` remain the way to check a strategy; they are
+intentionally not exposed over MCP, because Tier B imports the strategy module
+(top-level Python may execute) and Tier C executes `on_bar()` through the real
+Engine. An agent with shell or Python access should use those directly.
+
+---
+
 ## Expected errors
 
 Anticipated failures are **returned as data**, because MCP has no structured
@@ -171,7 +233,7 @@ duplicates:
 
 | Code | Meaning |
 | --- | --- |
-| `RUN_DIR_NOT_FOUND` | Unknown `run`, or a path refused by the root policy |
+| `RUN_DIR_NOT_FOUND` | Unknown `run`, a path refused by the root policy, or an absent/unusable runs root |
 | `RUN_ARTIFACTS_INVALID` | Artifacts present but unreadable/inconsistent |
 | `EVENT_NOT_FOUND` | No such `event_seq` |
 | `BAR_NOT_FOUND` | No such `bar_index` |
@@ -203,6 +265,15 @@ The server reads only inside one configured runs root.
 - No tool accepts a filesystem path, and no response contains an absolute
   filesystem path — path-shaped values are made run-relative or reduced to
   basenames. `list_runs` reports the dataset as a bare filename.
+- The root is validated **lazily**: it may be absent or empty at startup so
+  authoring discovery works before any run exists. The server never creates it,
+  and a missing root cannot be used to reach anything — `resolve_run` still
+  refuses every candidate and `list_runs` reports the coded
+  `RUN_DIR_NOT_FOUND`.
+- The three authoring-discovery tools read exactly two fixed package-internal
+  assets (`observa.agent_example_path()`, `observa.agent_guide_path()`) plus the
+  canonical in-memory contract. They take no path argument, import no strategy
+  module and execute no user code.
 
 There is no network listener: stdio only. That is the entire attack surface for
 this MVP — no auth, TLS, or remote transport is implemented.
@@ -215,6 +286,11 @@ No tool runs a strategy, creates/edits/deletes a run, changes configuration,
 adds notes, or writes anything at all. This is tested: hashing every artifact
 before and after a full tool sweep must produce identical hashes and no new
 files.
+
+The authoring-discovery tools only **read** two bundled package assets, so a
+sweep of all thirteen tools writes nothing and does not create the configured
+runs root. None of them imports a strategy module, calls `on_bar`, runs the
+Engine, or invokes `validate_strategy`.
 
 ---
 
@@ -268,7 +344,7 @@ opening order.
 | Symptom | Cause / fix |
 | --- | --- |
 | `MCP support is not installed` | Install the extra **from the wheel reference**: `pip install "./observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"` (never bare `pip install "observa[mcp]"`, which resolves an unrelated PyPI project) |
-| `error: runs directory does not exist or is not a directory: ... [RUN_DIR_NOT_FOUND]` | Pass an existing `--runs-dir` |
+| `RUN_DIR_NOT_FOUND` from `list_runs` or any `run` | The configured `--runs-dir` is absent or not a directory, or the `run` identifier is not relative to it — the authoring-discovery tools still work |
 | Every `run` returns `RUN_DIR_NOT_FOUND` | The identifier must be relative to the configured root — check `list_runs()` |
 | A run does not appear in `list_runs` | It has no `run.json`, or it lives outside the root; see the `errors` array for unreadable runs |
 | Stale numbers after re-running | Restart the server (the cache is never invalidated) |

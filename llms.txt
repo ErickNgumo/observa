@@ -17,6 +17,9 @@ the same contract, and the installed copies cannot drift from the code you have.
    (`--smoke` also runs 6 deterministic bars; exit 0 valid, 1 invalid, 2 setup).
 5. Run it: `observa.run(Strategy(), data, config=..., output="runs/…")`.
 
+Through MCP the same assets are the read-only `get_strategy_contract`,
+`get_strategy_example`, `get_strategy_guide` — no validation or execution there.
+
 Copies in this repository: `docs/agent/strategy-authoring.md`,
 `examples/agent_example.py`, `examples/ai_starter/`.
 
@@ -24,6 +27,7 @@ Copies in this repository: `docs/agent/strategy-authoring.md`,
 
 * Python: `observa.inspect_run(run_dir)` / `observa.run_summary(run_dir)`
 * MCP (read-only, stdio, optional extra): `observa mcp --runs-dir runs/`
+  — 10 inspection tools plus the 3 authoring-discovery tools above
 * Reference: `docs/MCP.md`, and section K2/K3 of `llms-full.txt`
 
 ## If you need EXECUTION assumptions

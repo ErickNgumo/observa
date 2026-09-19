@@ -1,4 +1,4 @@
-"""OBS-MCP-01 — read-only MCP inspection server tests (installed wheel).
+"""OBS-MCP-01 / OBS-AI-05 — read-only MCP server tests (installed wheel).
 
 Run against an installed Observa wheel **with the optional MCP extra**:
 
@@ -10,6 +10,9 @@ stdio** (no mocked transport): tool surface, run discovery, path security,
 per-tool delegation fidelity, pagination exactness, error envelopes, historical
 compatibility, read-only guarantees and stdout protocol cleanliness.
 
+OBS-AI-05 adds the **authoring-discovery** surface (contract / example / guide)
+and lazy runs-root validation; both are covered here too.
+
 Cache internals (load-once, ``list_runs`` never populating the cache) are
 asserted in-process, because they are deliberately invisible from the wire.
 
@@ -17,6 +20,7 @@ See ``docs/MCP.md`` for the public contract.
 """
 
 import asyncio
+import builtins
 import concurrent.futures
 import hashlib
 import json
@@ -40,7 +44,9 @@ import test_canonical_baseline as tb  # noqa: E402
 
 PASSED, FAILED = [], []
 
-EXPECTED_TOOLS = {
+#: The frozen inspection surface — OBS-AI-05 adds nothing here and changes
+#: nothing here.
+INSPECTION_TOOLS = {
     "list_runs",
     "get_run_summary",
     "list_events",
@@ -53,9 +59,25 @@ EXPECTED_TOOLS = {
     "list_rejections",
 }
 
+#: The three read-only authoring-discovery tools added by OBS-AI-05.
+AUTHORING_TOOLS = {
+    "get_strategy_contract",
+    "get_strategy_example",
+    "get_strategy_guide",
+}
+
+#: Exact union — asserted with ``==``, never a loose ``>=``.
+EXPECTED_TOOLS = INSPECTION_TOOLS | AUTHORING_TOOLS
+
+#: The nine inspection tools that take a ``run``; ``list_runs`` takes none.
+RUN_SCOPED_TOOLS = INSPECTION_TOOLS - {"list_runs"}
+
 FORBIDDEN_TOOLS = {
     "get_metrics", "list_bars", "raw_file", "run_strategy", "create_run",
     "delete_run", "edit_run", "notes", "compare_runs", "explain",
+    # OBS-AI-05: validation executes user code and stays CLI/Python-only.
+    "validate_strategy", "write_strategy", "save_strategy", "generate_strategy",
+    "get_strategy_path", "list_strategies", "delete_strategy",
 }
 
 
@@ -382,17 +404,35 @@ def test_startup_and_tool_surface(params):
     tools = asyncio.run(asyncio.wait_for(go(), timeout=180)).tools
     names = {t.name for t in tools}
     check("stdio server starts and answers list_tools", bool(names), sorted(names))
-    check("tool list is exactly the ten required tools", names == EXPECTED_TOOLS,
+    check("tool list is exactly the thirteen expected tools", names == EXPECTED_TOOLS,
           sorted(names ^ EXPECTED_TOOLS))
+    check("the ten inspection tools are unchanged (frozen set)",
+          INSPECTION_TOOLS <= names, sorted(INSPECTION_TOOLS - names))
+    check("the three authoring-discovery tools are exposed",
+          AUTHORING_TOOLS <= names, sorted(AUTHORING_TOOLS - names))
     check("no forbidden tool is exposed", not (names & FORBIDDEN_TOOLS), names & FORBIDDEN_TOOLS)
     check("every tool advertises an object-rooted input schema",
           all((t.input_schema or {}).get("type") == "object" for t in tools))
     lr = next(t for t in tools if t.name == "list_runs")
     check("list_runs requires no arguments",
           not (lr.input_schema or {}).get("required"), lr.input_schema.get("required"))
-    check("run is required on every other tool",
-          all("run" in (t.input_schema or {}).get("required", [])
-              for t in tools if t.name != "list_runs"))
+    required_with_run = {
+        t.name for t in tools
+        if "run" in (t.input_schema or {}).get("required", [])
+    }
+    check("run is required on exactly the nine run-scoped inspection tools",
+          required_with_run == RUN_SCOPED_TOOLS,
+          sorted(required_with_run ^ RUN_SCOPED_TOOLS))
+    check("no authoring tool requires any argument",
+          all(not (t.input_schema or {}).get("required")
+              for t in tools if t.name in AUTHORING_TOOLS),
+          {t.name: (t.input_schema or {}).get("required")
+           for t in tools if t.name in AUTHORING_TOOLS})
+    check("no authoring tool declares a path-like parameter",
+          all(not (t.input_schema or {}).get("properties")
+              for t in tools if t.name in AUTHORING_TOOLS),
+          {t.name: (t.input_schema or {}).get("properties")
+           for t in tools if t.name in AUTHORING_TOOLS})
 
 
 def test_list_runs(root):
@@ -795,18 +835,22 @@ def test_startup_stderr_and_cli(tmp, root):
     )
     check("banner goes to stderr with root and tool count",
           b"Observa MCP" in proc.stderr and b"Runs root:" in proc.stderr
-          and b"Tools: 10" in proc.stderr, proc.stderr[:200])
+          and b"Tools: 13 (10 inspection, 3 authoring)" in proc.stderr, proc.stderr[:200])
     check("nothing is written to stdout at startup", proc.stdout == b"", proc.stdout[:120])
     check("the banner does not leak the dataset path",
           b"canonical_m15.csv" not in proc.stderr)
 
+    absent = os.path.join(tmp, "does_not_exist")
     missing = subprocess.run(
-        [sys.executable, "-m", "observa.mcp_server", "--runs-dir",
-         os.path.join(tmp, "does_not_exist")], capture_output=True, timeout=120)
-    check("a missing runs root exits 2 with a coded error",
-          missing.returncode == 2 and b"error:" in missing.stderr
-          and b"RUN_DIR_NOT_FOUND" in missing.stderr, missing.stderr[:200])
-    check("a missing runs root produces no traceback", b"Traceback" not in missing.stderr)
+        [sys.executable, "-m", "observa.mcp_server", "--runs-dir", absent],
+        input=b"", capture_output=True, timeout=120)
+    check("a nonexistent runs root still starts the server (OBS-AI-05)",
+          missing.returncode == 0 and b"Observa MCP" in missing.stderr
+          and b"Tools: 13" in missing.stderr, missing.stderr[:200])
+    check("a nonexistent runs root produces no traceback",
+          b"Traceback" not in missing.stderr)
+    check("a nonexistent runs root is never created",
+          not os.path.exists(absent), absent)
 
     bogus = subprocess.run([sys.executable, "-m", "observa.mcp_server", "--runs-dir", root,
                             "--bogus"], capture_output=True, timeout=120)
@@ -841,9 +885,16 @@ def test_import_isolation():
           proc.stdout + proc.stderr[-200:])
     check("the mcp_server module imports without loading mcp eagerly",
           hasattr(mcp_server, "build_server"))
-    check("mcp_server exposes exactly the ten tool functions",
+    check("mcp_server exposes exactly the thirteen tool functions",
           {fn.__name__ for fn in mcp_server._TOOL_FUNCTIONS} == EXPECTED_TOOLS,
           sorted(fn.__name__ for fn in mcp_server._TOOL_FUNCTIONS))
+    check("the module's name tuples partition the surface exactly",
+          set(mcp_server.INSPECTION_TOOL_NAMES) == INSPECTION_TOOLS
+          and set(mcp_server.AUTHORING_TOOL_NAMES) == AUTHORING_TOOLS
+          and mcp_server.TOOL_NAMES
+          == mcp_server.INSPECTION_TOOL_NAMES + mcp_server.AUTHORING_TOOL_NAMES,
+          (sorted(mcp_server.INSPECTION_TOOL_NAMES),
+           sorted(mcp_server.AUTHORING_TOOL_NAMES), mcp_server.TOOL_NAMES))
 
 
 def test_cache_semantics(root):
@@ -910,6 +961,227 @@ def test_packaging_metadata():
           any("mcp" in r and "<3" in r for r in requires), requires)
 
 
+# ── OBS-AI-05: authoring discovery ───────────────────────────────────────
+
+
+AUTHORING_REQUESTS = [
+    ("get_strategy_contract", {}),
+    ("get_strategy_example", {}),
+    ("get_strategy_guide", {}),
+]
+
+
+def test_authoring_discovery(params):
+    """Exact contract/example/guide fidelity, envelope shape and determinism."""
+    results = calls_sync(params, AUTHORING_REQUESTS)
+    (contract_r, contract), (example_r, example), (guide_r, guide) = results
+
+    check("get_strategy_contract equals observa.agent_spec() exactly",
+          contract == observa.agent_spec())
+    check("get_strategy_contract carries strategy_api_version",
+          contract.get("strategy_api_version") == observa.STRATEGY_API_VERSION == "1")
+    check("get_strategy_contract carries observa_version",
+          contract.get("observa_version") == observa.__version__)
+
+    with open(observa.agent_example_path(), encoding="utf-8") as fh:
+        example_text = fh.read()
+    with open(observa.agent_guide_path(), encoding="utf-8") as fh:
+        guide_text = fh.read()
+
+    check("get_strategy_example source is the bundled example byte-for-byte",
+          example.get("source") == example_text)
+    check("get_strategy_example filename is the bundled basename",
+          example.get("filename") == os.path.basename(observa.agent_example_path()))
+    check("get_strategy_example declares strategy_api_version",
+          example.get("strategy_api_version") == observa.STRATEGY_API_VERSION)
+
+    check("get_strategy_guide source is the bundled guide byte-for-byte",
+          guide.get("source") == guide_text)
+    check("get_strategy_guide filename is the bundled basename",
+          guide.get("filename") == os.path.basename(observa.agent_guide_path()))
+    check("get_strategy_guide declares strategy_api_version",
+          guide.get("strategy_api_version") == observa.STRATEGY_API_VERSION)
+
+    blocks = {
+        "get_strategy_contract": len(contract_r.content),
+        "get_strategy_example": len(example_r.content),
+        "get_strategy_guide": len(guide_r.content),
+    }
+    check("each authoring tool returns exactly one content block",
+          all(v == 1 for v in blocks.values()), blocks)
+    shapes = {"contract": type(contract).__name__, "example": type(example).__name__,
+              "guide": type(guide).__name__}
+    check("every authoring response is object-rooted",
+          all(v == "dict" for v in shapes.values()), shapes)
+    check("no authoring response is an error envelope",
+          not any("error" in p for p in (contract, example, guide)))
+
+    check("the contract is returned in full, not paginated or truncated",
+          len(contract_r.content[0].text) > 9000, len(contract_r.content[0].text))
+    check("the example is small enough for a single response",
+          2000 < len(example_r.content[0].text) < 20000, len(example_r.content[0].text))
+    check("the guide is small enough for a single response",
+          2000 < len(guide_r.content[0].text) < 20000, len(guide_r.content[0].text))
+
+    check("authoring responses leak no absolute filesystem paths",
+          "/site-packages/" not in json.dumps([example, guide])
+          and not os.path.isabs(example.get("filename", ""))
+          and not os.path.isabs(guide.get("filename", "")))
+
+    again = [p for _r, p in calls_sync(params, AUTHORING_REQUESTS)]
+    check("repeated authoring calls are JSON-identical",
+          json.dumps([contract, example, guide], sort_keys=True)
+          == json.dumps(again, sort_keys=True))
+
+
+def test_authoring_no_execution(tmp):
+    """Authoring discovery reads two bundled assets and executes nothing."""
+    check("mcp_server does not import validate_strategy",
+          not hasattr(mcp_server, "validate_strategy"))
+
+    referenced = set()
+    for fn in (mcp_server.get_strategy_contract, mcp_server.get_strategy_example,
+               mcp_server.get_strategy_guide):
+        referenced |= set(fn.__code__.co_names)
+    banned = {"validate_strategy", "exec_module", "spec_from_file_location",
+              "import_module", "on_bar", "inspect_run", "Popen", "run"}
+    check("authoring tools reference no execution machinery",
+          not (referenced & banned), sorted(referenced & banned))
+
+    absent = os.path.join(tmp, "ai05-probe-root")
+    if os.path.exists(absent):
+        shutil.rmtree(absent)
+    mcp_server._reset_cache()
+    mcp_server.configure(absent)
+
+    real_open = builtins.open
+    opened = []
+
+    def spy(file, *a, **k):
+        try:
+            opened.append(os.fspath(file))
+        except TypeError:
+            opened.append(repr(file))
+        return real_open(file, *a, **k)
+
+    builtins.open = spy
+    try:
+        mcp_server.get_strategy_contract()
+        mcp_server.get_strategy_example()
+        mcp_server.get_strategy_guide()
+    finally:
+        builtins.open = real_open
+        mcp_server._reset_cache()
+
+    expected_files = {mcp_server.agent_example_path(), mcp_server.agent_guide_path()}
+    check("authoring discovery reads exactly the two bundled assets",
+          set(opened) == expected_files, sorted(set(opened)))
+    check("no strategy module was opened or imported",
+          not any(p.endswith(("strategy.py", ".pyc")) and p not in expected_files
+                  for p in opened), sorted(set(opened)))
+
+
+def test_authoring_read_only(tmp):
+    """A full authoring sweep must create and modify nothing."""
+    absent = os.path.join(tmp, "ai05-absent-root")
+    if os.path.exists(absent):
+        shutil.rmtree(absent)
+    before = sha_tree(tmp)
+    calls_sync(server_params(absent), AUTHORING_REQUESTS)
+    after = sha_tree(tmp)
+    check("an authoring sweep writes nothing",
+          before == after,
+          sorted(set(before) ^ set(after)) or
+          [k for k in before if before[k] != after.get(k)][:3])
+    check("an authoring sweep never creates the configured runs root",
+          not os.path.exists(absent), absent)
+
+
+def test_authoring_offline(tmp):
+    """Authoring discovery works with sockets unavailable."""
+    bootstrap = (
+        "import socket, sys\n"
+        "_real = socket.socket\n"
+        "class _Guarded(_real):\n"
+        "    def connect(self, address):\n"
+        "        if self.family in (socket.AF_INET, socket.AF_INET6):\n"
+        "            raise OSError('OBS-AI-05: network disabled')\n"
+        "        return _real.connect(self, address)\n"
+        "    def connect_ex(self, address):\n"
+        "        if self.family in (socket.AF_INET, socket.AF_INET6):\n"
+        "            raise OSError('OBS-AI-05: network disabled')\n"
+        "        return _real.connect_ex(self, address)\n"
+        "def _blocked(*a, **k):\n"
+        "    raise OSError('OBS-AI-05: network disabled')\n"
+        "socket.socket = _Guarded\n"
+        "socket.create_connection = _blocked\n"
+        "socket.getaddrinfo = _blocked\n"
+        "from observa.mcp_server import main\n"
+        "sys.exit(main(['--runs-dir', sys.argv[1]]))\n"
+    )
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-c", bootstrap, os.path.join(tmp, "ai05-offline-root")],
+        env=dict(os.environ),
+    )
+    try:
+        results = calls_sync(params, AUTHORING_REQUESTS, timeout=180)
+    except Exception as exc:  # noqa: BLE001
+        check("authoring discovery succeeds with sockets blocked", False, repr(exc))
+        return
+    payloads = [p for _r, p in results]
+    check("authoring discovery succeeds with sockets blocked",
+          all(isinstance(p, dict) and "error" not in p for p in payloads))
+    check("offline contract matches observa.agent_spec()",
+          payloads[0] == observa.agent_spec())
+
+
+def test_zero_run_ux(tmp):
+    """The server starts with no runs root; authoring works, inspection is coded."""
+    absent = os.path.join(tmp, "ai05-absent-root")
+    if os.path.exists(absent):
+        shutil.rmtree(absent)
+    params = server_params(absent)
+
+    async def go():
+        async with Client(params) as client:
+            return await client.list_tools()
+
+    tools = asyncio.run(asyncio.wait_for(go(), timeout=180)).tools
+    check("server starts with a nonexistent runs root",
+          {t.name for t in tools} == EXPECTED_TOOLS, sorted(t.name for t in tools))
+    check("a nonexistent runs root is not created at startup",
+          not os.path.exists(absent), absent)
+
+    payloads = [p for _r, p in calls_sync(params, AUTHORING_REQUESTS)]
+    check("authoring tools work with a nonexistent runs root",
+          all(isinstance(p, dict) and "error" not in p for p in payloads))
+
+    _r, listing = call_sync(params, "list_runs", {})
+    check("list_runs reports coded RUN_DIR_NOT_FOUND for an absent root",
+          isinstance(listing, dict) and listing.get("error", {}).get("code") == "RUN_DIR_NOT_FOUND",
+          listing)
+    check("the absent-root error redacts the absolute path",
+          listing["error"]["details"].get("runs_dir") == ""
+          and os.path.sep not in listing["error"]["message"],
+          listing["error"])
+
+    _r, summary = call_sync(params, "get_run_summary", {"run": "canonical"})
+    check("run-scoped inspection reports RUN_DIR_NOT_FOUND for an absent root",
+          isinstance(summary, dict) and summary.get("error", {}).get("code") == "RUN_DIR_NOT_FOUND",
+          summary)
+
+    empty = os.path.join(tmp, "ai05-empty-root")
+    os.makedirs(empty, exist_ok=True)
+    eparams = server_params(empty)
+    _r, elisting = call_sync(eparams, "list_runs", {})
+    check("list_runs on an existing empty root returns an empty collection",
+          elisting == {"count": 0, "runs": [], "errors": []}, elisting)
+    epayloads = [p for _r, p in calls_sync(eparams, AUTHORING_REQUESTS)]
+    check("authoring tools work with an existing empty runs root",
+          all(isinstance(p, dict) and "error" not in p for p in epayloads))
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="qa-mcp01-")
     started = time.time()
@@ -931,6 +1203,12 @@ def main():
         test_import_isolation()
         test_cache_semantics(root)
         test_packaging_metadata()
+        # OBS-AI-05
+        test_authoring_discovery(params)
+        test_authoring_no_execution(tmp)
+        test_authoring_read_only(tmp)
+        test_authoring_offline(tmp)
+        test_zero_run_ux(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

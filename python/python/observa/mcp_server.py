@@ -1,10 +1,17 @@
-"""OBS-MCP-01 — read-only MCP server over persisted Observa runs.
+"""OBS-MCP-01 / OBS-AI-05 — read-only MCP server: run inspection + authoring discovery.
 
-A **thin adapter** over :func:`observa.inspect_run` and
-:func:`observa.run_summary`. It exposes canonical, already-persisted evidence to
-an MCP client; it never runs a strategy, never writes to a run directory, never
-reparses ``events.jsonl`` itself, never reimplements chronology bucketing, never
-infers a closing order and never interprets a strategy reason.
+A **thin adapter** over :func:`observa.inspect_run`, :func:`observa.run_summary`
+and the OBS-AI-04 bundled authoring assets. It exposes two read-only surfaces to
+an MCP client:
+
+* **run inspection** (10 tools) — canonical, already-persisted evidence;
+* **authoring discovery** (3 tools) — the canonical strategy contract, the gold
+  example and the authoring guide, exactly as bundled in the installed wheel.
+
+It never runs a strategy, never imports user code, never validates a strategy,
+never writes to a run directory, never reparses ``events.jsonl`` itself, never
+reimplements chronology bucketing, never infers a closing order and never
+interprets a strategy reason.
 
 Start it with either form (stdio transport only)::
 
@@ -27,6 +34,15 @@ Contracts this module guarantees
   outside the root are refused, and an escape is indistinguishable from a
   missing run (both report ``RUN_DIR_NOT_FOUND``), so the server never reveals
   whether a path outside the root exists.
+* **Lazily rooted.** The configured runs root need not exist at startup, so an
+  agent can discover how to author a strategy before any run has been persisted.
+  The server never creates the directory. While the root is absent, authoring
+  tools work normally and run-scoped inspection reports the coded
+  ``RUN_DIR_NOT_FOUND``.
+* **No execution.** Authoring discovery reads two fixed package-internal assets
+  and the canonical contract. No tool takes a filesystem path, imports a strategy
+  module, calls ``on_bar``, runs the Engine, or invokes
+  :func:`observa.validate_strategy` (validation stays CLI/Python-only).
 * **Object envelopes.** Every tool returns a JSON object — never a bare list —
   so a result arrives as one structured payload rather than one content block
   per element.
@@ -52,12 +68,19 @@ import os
 import sys
 import threading
 
-from . import run_summary
+from . import (
+    STRATEGY_API_VERSION,
+    agent_example_path,
+    agent_guide_path,
+    agent_spec,
+    run_summary,
+)
 from .errors import ERROR_CODES, coded
 from .inspection import PersistedRun, inspect_run
 
-#: The complete tool surface, in registration order.
-TOOL_NAMES = (
+#: The ten persisted-run inspection tools, in registration order. OBS-AI-05 adds
+#: nothing here and changes nothing here.
+INSPECTION_TOOL_NAMES = (
     "list_runs",
     "get_run_summary",
     "list_events",
@@ -69,6 +92,17 @@ TOOL_NAMES = (
     "list_trades",
     "list_rejections",
 )
+
+#: The three read-only authoring-discovery tools (OBS-AI-05), in registration
+#: order. They read the OBS-AI-04 bundled assets and never execute user code.
+AUTHORING_TOOL_NAMES = (
+    "get_strategy_contract",
+    "get_strategy_example",
+    "get_strategy_guide",
+)
+
+#: The complete tool surface, in registration order.
+TOOL_NAMES = INSPECTION_TOOL_NAMES + AUTHORING_TOOL_NAMES
 
 #: Errors this adapter anticipates and reports as structured data. Anything
 #: outside this set is a bug or an environmental failure and must propagate.
@@ -247,10 +281,18 @@ def _read_strategy_name(run_json_path):
 
 
 def configure(runs_dir):
-    """Resolves and validates the configured runs root; returns it.
+    """Resolves and records the configured runs root; returns it.
 
-    Raises ``FileNotFoundError`` with ``code == "RUN_DIR_NOT_FOUND"`` when the
-    path does not exist or is not a directory.
+    **Existence is validated lazily, not here.** The path is resolved with
+    ``realpath`` and stored even when it does not (yet) exist, so the server can
+    start — and authoring discovery can serve — before any run has been
+    persisted. The directory is *never* created.
+
+    A missing root is not an escape hatch: :func:`resolve_run` still refuses
+    anything that does not sit under the resolved root and does not contain a
+    ``run.json``, and :func:`list_runs` reports the coded ``RUN_DIR_NOT_FOUND``.
+    The only argument rejected here is a missing/empty value, which is a usage
+    error rather than a filesystem condition.
     """
     global _RUNS_ROOT
 
@@ -262,13 +304,6 @@ def configure(runs_dir):
             {"runs_dir": runs_dir},
         )
     resolved = os.path.realpath(os.path.abspath(os.fspath(runs_dir)))
-    if not os.path.isdir(resolved):
-        raise _coded(
-            FileNotFoundError,
-            "runs directory does not exist or is not a directory: %s" % resolved,
-            "RUN_DIR_NOT_FOUND",
-            {"runs_dir": resolved},
-        )
     with _CACHE_LOCK:
         _RUNS_ROOT = resolved
     return resolved
@@ -283,6 +318,16 @@ def _runs_root():
             {},
         )
     return _RUNS_ROOT
+
+
+def _missing_root(root):
+    """The coded error for a configured runs root that is absent/unusable."""
+    return _coded(
+        FileNotFoundError,
+        "runs directory does not exist or is not a directory: %s" % root,
+        "RUN_DIR_NOT_FOUND",
+        {"runs_dir": root},
+    )
 
 
 def resolve_run(run):
@@ -402,6 +447,10 @@ def list_runs():
     failing the whole listing. Paths are reduced to basenames.
     """
     root = _runs_root()
+    if not os.path.isdir(root):
+        # Lazy root (OBS-AI-05): a configured-but-absent root is reported as the
+        # existing coded error rather than silently as an empty run collection.
+        raise _missing_root(root)
     runs = []
     errors = []
     for rel, path in _iter_run_dirs(root):
@@ -593,6 +642,50 @@ def list_rejections(run: str):
     return {"run": rel, "count": len(rejections), "rejections": rejections}
 
 
+# ── authoring discovery tools (OBS-AI-05) ────────────────────────
+
+
+def _read_asset(path):
+    """Returns the exact UTF-8 text of one bundled package asset.
+
+    These assets are package invariants (OBS-AI-04), not user input, so a failure
+    here is an installation/packaging defect. It is deliberately allowed to
+    propagate as a real MCP tool error rather than being disguised as a domain
+    error — the module docstring's "expected failures are data, bugs stay
+    visible" rule applies unchanged.
+    """
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def get_strategy_contract():
+    """Return Observa's canonical machine-readable strategy-authoring contract."""
+    # Delegated verbatim. agent_spec() returns a fresh deep copy and already
+    # carries strategy_api_version and observa_version at top level, so wrapping
+    # it would only duplicate those fields and imply a second contract.
+    return agent_spec()
+
+
+def get_strategy_example():
+    """Return the bundled canonical Observa strategy example."""
+    path = agent_example_path()
+    return {
+        "strategy_api_version": STRATEGY_API_VERSION,
+        "filename": os.path.basename(path),
+        "source": _read_asset(path),
+    }
+
+
+def get_strategy_guide():
+    """Return the bundled concise strategy-authoring guide."""
+    path = agent_guide_path()
+    return {
+        "strategy_api_version": STRATEGY_API_VERSION,
+        "filename": os.path.basename(path),
+        "source": _read_asset(path),
+    }
+
+
 #: Registration order is the order ``list_tools`` reports.
 _TOOL_FUNCTIONS = (
     list_runs,
@@ -605,6 +698,9 @@ _TOOL_FUNCTIONS = (
     get_order,
     list_trades,
     list_rejections,
+    get_strategy_contract,
+    get_strategy_example,
+    get_strategy_guide,
 )
 
 
@@ -612,7 +708,7 @@ _TOOL_FUNCTIONS = (
 
 
 def build_server():
-    """Constructs the stdio MCP server with all ten tools registered.
+    """Constructs the stdio MCP server with all thirteen tools registered.
 
     Imports the optional ``mcp`` dependency lazily so that importing this module
     (and therefore ``observa.cli``) never requires it.
@@ -684,7 +780,10 @@ def main(argv=None) -> int:
         )
         return 2
 
-    sys.stderr.write("Observa MCP\nRuns root: %s\nTools: %d\n" % (root, len(_TOOL_FUNCTIONS)))
+    sys.stderr.write(
+        "Observa MCP\nRuns root: %s\nTools: %d (%d inspection, %d authoring)\n"
+        % (root, len(_TOOL_FUNCTIONS), len(INSPECTION_TOOL_NAMES), len(AUTHORING_TOOL_NAMES))
+    )
     sys.stderr.flush()
 
     try:

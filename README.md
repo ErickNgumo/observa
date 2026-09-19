@@ -145,14 +145,23 @@ and never recomputes results. Full reference:
 
 ## Inspect a run over MCP
 
-MCP lets an external AI agent interrogate a persisted run through ten
-read-only tools. It is **stdio-only**, **read-only**, and scoped to one local
-runs root. MCP is an optional extra on the **same wheel**:
+MCP lets an external AI agent work with Observa through thirteen read-only
+tools: ten for inspecting a persisted run, and three for discovering how to
+write a strategy — the canonical contract, the gold example and the authoring
+guide, exactly as they ship in the wheel. It is **stdio-only**, **read-only**,
+and scoped to one local runs root. MCP is an optional extra on the **same
+wheel**:
 
 ```bash
 python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 observa mcp --runs-dir runs/
 ```
+
+The runs directory may be missing or empty, so you can connect an agent before
+your first backtest. The authoring tools only hand back the contract and example
+that already ship in the package — they do **not** generate strategies and do
+**not** validate or run code; validation stays with
+`observa validate-strategy`.
 
 > ⚠️ Do **not** run bare `pip install "observa[mcp]"` — that resolves the
 > unrelated PyPI project, not this wheel.
