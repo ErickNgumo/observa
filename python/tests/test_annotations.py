@@ -461,7 +461,7 @@ def test_annotations_do_not_change_economics():
 
 
 def main():
-    check("observa.__version__ == 0.1.2", observa.__version__ == "0.1.2", observa.__version__)
+    check("observa.__version__ == 0.1.3", observa.__version__ == "0.1.3", observa.__version__)
     test_series_round_trip()
     test_primitives()
     test_line_and_region_need_both_endpoints()

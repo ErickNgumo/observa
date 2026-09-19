@@ -12,16 +12,17 @@ way it did, instead of only trusting final statistics.
 > ⚠️ Do **not** `pip install observa`. The public PyPI name `observa` is an
 > unrelated project.
 >
-> 📦 **Private-MVP distribution:** Observa 0.1.2 is distributed as an official
+> 📦 **Private-MVP distribution:** Observa 0.1.3 is distributed as an official
 > wheel attached to the private-MVP GitHub Release. Install it with the URL
 > below. Building a wheel yourself is a contributor task, not a user task
 > (see Development below).
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.2-private-mvp/observa-0.1.2-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-SHA-256: `b4c62f0e280fed133e89e5fd1ddbd18cee4fae6c106c831795e1d449c9674d34`
+SHA-256: `PENDING` — published by the release workflow with the 0.1.3 asset;
+verify it against the value printed in the GitHub Release before installing.
 
 For real-data examples, also install:
 
@@ -39,7 +40,7 @@ Verify you imported *this* Observa:
 ```python
 import observa
 
-print(observa.__version__)                      # must print 0.1.2
+print(observa.__version__)                      # must print 0.1.3
 print(observa.__file__)                         # .../site-packages/observa/__init__.py
 print(hasattr(observa, "Config"), hasattr(observa, "run"))  # True True
 ```
@@ -224,11 +225,22 @@ saved runs without learning the artifact formats. It is a thin adapter over
 strategy, never writes to a run directory, and never infers anything.
 
 MCP support is an **optional extra**, so the base package stays
-dependency-free:
+dependency-free. Install it **from the 0.1.3 wheel** — the extra attaches to
+the wheel reference:
 
 ```bash
-pip install "observa[mcp]"          # adds the official MCP SDK
+# base wheel (core only, still zero-dependency):
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl"
+
+# same wheel + the official MCP SDK (append [mcp] to the wheel reference):
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.3-private-mvp/observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+
+# or, from a wheel you downloaded locally:
+python -m pip install "./observa-0.1.3-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 ```
+
+> ⚠️ Do **not** run bare `pip install "observa[mcp]"`. That resolves the
+> unrelated PyPI project named `observa`, not this wheel.
 
 Start it over **stdio** (the transport MCP clients launch locally):
 
