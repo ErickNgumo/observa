@@ -37,6 +37,10 @@ jobs:
           .ci-venv/bin/python python/tests/test_annotations.py
           .ci-venv/bin/python python/tests/test_ai_interface.py
           .ci-venv/bin/python python/tests/test_onboarding_ai.py
+      # OBS-DEMO-01: the bundled real EUR/USD demo dataset and strategy must work
+      # offline — no network, no yfinance, no pandas.
+      - name: Real-data demo dataset tests
+        run: .ci-venv/bin/python python/tests/test_demo.py
       - name: Structured inspection tests
         run: .ci-venv/bin/python python/tests/test_inspection.py
       - name: Strategy reason schema tests

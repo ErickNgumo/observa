@@ -49,6 +49,20 @@ data_file = observa.sample_data_path()          # sample CSV (200 x M15 bars)
 strategy_file = observa.sample_strategy_path()  # SampleEma strategy module
 ```
 
+It also ships a **real** EUR/USD 15-minute series (600 bars, sourced once from
+Yahoo Finance) with its own demo strategy. Reading it needs no network, no
+`yfinance` and no `pandas`:
+
+```python
+from observa.samples import EmaCrossover
+
+demo_file = observa.demo_data_path()   # real EUR/USD M15 (bundled)
+```
+
+The synthetic sample above stays the deterministic fixture used by the tests
+and the regression baseline. See [demo-dataset.md](demo-dataset.md) for
+provenance and `examples/eurusd_demo.py` for a complete offline run.
+
 ## 3. Write / load a strategy
 
 A strategy is a plain Python class implementing the lifecycle
@@ -188,6 +202,12 @@ margin produces a canonical `order_rejected` event in `result.events` and the
 run completes.
 
 ## 8. Quickstart B — real EUR/USD data
+
+> **Offline alternative.** This quickstart downloads live EUR/USD with
+> `yfinance` (needs `python -m pip install yfinance pandas`). If you just want
+> real market data in replay with no download at all, use the bundled demo:
+> `observa.demo_data_path()` with `observa.samples.EmaCrossover` — see
+> section 2 and `examples/eurusd_demo.py`.
 
 One complete, copy-paste runnable example. Copy the file below into a file named `ema_observa.py` (the same file is also attached to the private-MVP GitHub Release as an asset, and maintained at `examples/ema_observa.py` in the repository), then run:
 

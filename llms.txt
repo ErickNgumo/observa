@@ -17,11 +17,11 @@ the same contract, and the installed copies cannot drift from the code you have.
    (`--smoke` also runs 6 deterministic bars; exit 0 valid, 1 invalid, 2 setup).
 5. Run it: `observa.run(Strategy(), data, config=..., output="runs/…")`.
 
-Through MCP the same assets are the read-only `get_strategy_contract`,
-`get_strategy_example`, `get_strategy_guide` — no validation or execution there.
+Via MCP the same assets are read-only: `get_strategy_contract`, `get_strategy_example`, `get_strategy_guide`.
 
-Copies in this repository: `docs/agent/strategy-authoring.md`,
-`examples/agent_example.py`, `examples/ai_starter/`.
+Bundled data: `observa.demo_data_path()` (real EUR/USD 15m, offline) or `observa.sample_data_path()` (synthetic test data).
+
+Copies in this repo: `docs/agent/strategy-authoring.md`, `examples/agent_example.py`, `examples/ai_starter/`.
 
 ## If you want to INSPECT a completed run
 

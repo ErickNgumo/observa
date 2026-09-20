@@ -108,6 +108,31 @@ print(result.summary())
 so it can be replayed and inspected. Everything in the run is produced by the
 canonical Engine; your strategy only supplies intent.
 
+### Real EUR/USD, still offline
+
+The wheel also bundles a fixed **real** EUR/USD 15-minute series (600 bars,
+sourced once from Yahoo Finance). No download, no `yfinance`, no `pandas`:
+
+```python
+import observa
+from observa.samples import EmaCrossover
+
+data = observa.demo_data_path()          # real market data, bundled
+
+result = observa.run(
+    EmaCrossover(),
+    data,
+    config=observa.Config(dataset_source=data, interval="15m"),
+    output="runs/eurusd-demo",
+)
+```
+
+The demo strategy draws both EMAs and every entry/exit on the chart and records
+a plain-language reason for each decision. Provenance (ticker, exact date range,
+bar count, download date) is in [the demo dataset notes](docs/demo-dataset.md).
+The deterministic synthetic sample above is unchanged and remains what the
+tests use.
+
 ## Replay it
 
 ```bash
@@ -184,10 +209,12 @@ Tool reference, security model and client setup: [docs/MCP.md](docs/MCP.md).
 ## Examples
 
 * [`examples/quickstart.py`](examples/quickstart.py) — bundled deterministic sample.
+* [`examples/eurusd_demo.py`](examples/eurusd_demo.py) — bundled real EUR/USD demo,
+  fully offline (no `yfinance`, no `pandas`).
 * [`examples/agent_example.py`](examples/agent_example.py) — the gold authoring example.
 * [`examples/ai_starter/`](examples/ai_starter/) — starter project for a coding agent.
 * [`examples/rsi_mean_reversion.py`](examples/rsi_mean_reversion.py) — RSI mean-reversion pattern.
-* [`examples/ema_observa.py`](examples/ema_observa.py) — real EUR/USD in one file
+* [`examples/ema_observa.py`](examples/ema_observa.py) — downloads live EUR/USD itself
   (needs `python -m pip install yfinance pandas`; **not** required for Observa itself).
 
 Technical examples only — not financial advice.
@@ -210,7 +237,8 @@ See [known limitations](docs/known-limitations.md) and the
 * [Agent authoring guide](docs/agent/strategy-authoring.md) · [strategy contract](docs/strategy-contract.md)
 * [Execution model & assumptions](docs/execution-model.md)
 * [Inspection & strategy API](docs/STRATEGY_API.md) · [MCP](docs/MCP.md)
-* [Data format](docs/data-format.md) · [known limitations](docs/known-limitations.md)
+* [Data format](docs/data-format.md) · [demo dataset provenance](docs/demo-dataset.md)
+* [known limitations](docs/known-limitations.md)
 * [Architecture](docs/ARCHITECTURE.md)
 
 ## Development (contributors — not end users)
