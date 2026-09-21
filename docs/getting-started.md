@@ -10,17 +10,21 @@ No Rust toolchain, no repository checkout, no data download.
 > ⚠️ **Do not `pip install observa`.** The public PyPI name `observa` is an
 > unrelated project.
 
-Install the wheel from the official GitHub Release:
+The next Observa wheel will be published on the project's GitHub Releases page:
+
+https://github.com/ErickNgumo/observa/releases
+
+> **Note:** the current published wheel (0.1.4) predates the one-install setup
+> and the bundled EUR/USD demo described here. The integrated build is pending
+> the next release; until then these work from source.
+
+Once published, that one command is the complete installation:
 
 ```bash
-python -m pip install "<OFFICIAL_OBSERVA_WHEEL_URL>"
+python -m pip install "<the wheel URL from that Releases page>"
 ```
 
-The exact URL is on the
-[Releases page](https://github.com/ErickNgumo/observa/releases) — copy the
-newest `observa-*.whl` link.
-
-That is the complete installation. It includes everything Observa offers:
+It includes everything Observa offers:
 
 - the Python API
 - `observa replay`

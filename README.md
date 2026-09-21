@@ -16,6 +16,10 @@ Think of it like a debugger for a trading strategy.
 
 *Real EUR/USD 15-minute data · EMA crossover strategy · replayed bar by bar*
 
+### Watch the full demo
+
+https://github.com/user-attachments/assets/2b842e4e-4985-446d-b587-7644fafa6465
+
 ---
 
 ## Why Observa?
@@ -69,15 +73,20 @@ It is to show you exactly what Observa lets you inspect.
 > The `observa` package currently published on PyPI is unrelated to this
 > project.
 
-Install Observa using the wheel from the official GitHub Release:
+The next Observa wheel will be published on the project's GitHub Releases page:
+
+https://github.com/ErickNgumo/observa/releases
+
+> **Note:** the current published wheel (0.1.4) predates the one-install setup
+> and the bundled EUR/USD demo described here. The integrated one-install build
+> is pending the next release — until then, the demo and one-install behaviour
+> are available from source.
+
+Once the wheel is published, install it with:
 
 ```bash
-python -m pip install "<OFFICIAL_OBSERVA_WHEEL_URL>"
+python -m pip install "<the wheel URL from that Releases page>"
 ```
-
-The exact URL for the current tester wheel is on the
-[GitHub Releases page](https://github.com/ErickNgumo/observa/releases) — copy
-the newest `observa-*.whl` link from there.
 
 That's the only installation you need.
 
