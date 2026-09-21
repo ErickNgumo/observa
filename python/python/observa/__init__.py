@@ -215,6 +215,21 @@ def sample_data_path() -> str:
     return str(resources.files("observa") / "samples" / "sample_m15.csv")
 
 
+def demo_data_path() -> str:
+    """Absolute path to the bundled **real-market** EUR/USD demo dataset (CSV).
+
+    A fixed historical EUR/USD 15-minute series (600 bars) sourced once from
+    Yahoo Finance via ``yfinance`` and shipped inside the package. Reading it
+    needs no network, no ``yfinance`` and no ``pandas``. Provenance, including
+    the exact downloaded range and bar count, is recorded in
+    ``docs/demo-dataset.md``.
+
+    This is deliberately **not** the synthetic fixture used for deterministic
+    regression (see :func:`sample_data_path`).
+    """
+    return str(resources.files("observa") / "samples" / "eurusd_m15_demo.csv")
+
+
 def sample_strategy_path() -> str:
     """Absolute path to the bundled sample strategy module (Python)."""
     return str(resources.files("observa") / "samples" / "sample_strategy.py")
@@ -357,6 +372,7 @@ __all__ = [
     "ReplayServer",
     "error_code",
     "sample_data_path",
+    "demo_data_path",
     "sample_strategy_path",
     "RunResult",
     "Config",

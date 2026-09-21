@@ -244,10 +244,10 @@ observa-server
   components and symlink escapes are refused, and an escape is externally
   indistinguishable from a missing run (`RUN_DIR_NOT_FOUND`), so the boundary
   never reveals whether an outside path exists.
-- Only the optional `observa[mcp]` extra pulls in the MCP SDK. `import observa`
-  and `observa.cli` never import it, so the base package keeps its
-  zero-dependency import path; the CLI imports the server lazily for
-  `observa mcp` alone.
+- The MCP SDK is a **normal dependency** of the wheel (one install provides
+  everything), but it is imported **lazily**: `import observa` and `observa.cli`
+  never import it, so the ordinary backtesting import path stays untouched; the
+  CLI imports the server only for `observa mcp`.
 - stdio makes stdout a protocol channel: every human-facing line (startup
   banner, diagnostics, errors) goes to stderr. A single stray stdout write
   corrupts the stream.

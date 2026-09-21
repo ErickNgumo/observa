@@ -12,10 +12,11 @@ Commands::
 automatically; ``--port N`` is strict (a busy port exits with a concise error
 and status 2).
 
-``mcp`` runs the read-only MCP inspection server over stdio. It needs the
-optional ``mcp`` extra, which is imported **lazily**: neither ``import observa``
-nor the other commands ever require it. No repository, Cargo, or Rust toolchain
-is needed for any command.
+``mcp`` runs the read-only MCP server (run inspection + strategy-authoring
+discovery) over stdio. MCP support is part of the standard Observa install, so
+no extra is needed; the dependency is still imported **lazily**, so neither
+``import observa`` nor the other commands initialize it. No repository, Cargo,
+or Rust toolchain is needed for any command.
 
 ``agent-spec`` prints the canonical machine-readable strategy authoring contract
 (OBS-AI-04) and ``validate-strategy`` validates a strategy file before it is run.
@@ -43,13 +44,27 @@ USAGE = (
     "run 'observa mcp --help' for MCP options"
 )
 
-MCP_EXTRA_HINT = (
-    "error: MCP support is not installed.\n"
-    "hint: reinstall the same Observa wheel with the optional [mcp] extra.\n"
-    "      Example for a local wheel:\n"
-    '      python -m pip install "./observa-<version>-...whl[mcp]"\n'
-    '      Do not run `pip install observa` or `pip install "observa[mcp]"`;\n'
-    "      the PyPI project is unrelated."
+MCP_HINT = (
+    "error: MCP support is included with Observa, but its dependency could not "
+    "be loaded.\n"
+    "hint: this installation looks incomplete. Reinstall the official Observa "
+    "release —\n"
+    "      one install provides replay, strategy validation and MCP support.\n"
+    "      See the install instructions in README.md (official GitHub Release "
+    "wheel).\n"
+    "      Do not run `pip install observa`; that PyPI project is unrelated."
+)
+
+#: Backwards-compatible alias for the pre-0.1.5 name of this message.
+MCP_EXTRA_HINT = MCP_HINT
+
+#: Help for the ``replay`` subcommand (printed to stderr, like the other
+#: subcommands, so stdout stays clean for machine-readable modes).
+REPLAY_USAGE = (
+    "usage: observa replay <run-dir> [--port <port>]\n"
+    "  <run-dir>   a persisted run created with observa.run(..., output=...)\n"
+    "  --port N    bind a specific port (strict: a busy port exits 2).\n"
+    "              Omitted, a free port is chosen and printed."
 )
 
 #: Trust boundary for `validate-strategy`. Kept in one place so the CLI help and
@@ -79,6 +94,10 @@ def main(argv=None) -> int:
     if command != "replay":
         print("unknown command '%s' — %s" % (command, USAGE), file=sys.stderr)
         return 2
+
+    if any(a in ("-h", "--help") for a in args):
+        print(REPLAY_USAGE, file=sys.stderr)
+        return 0
 
     run_dir = None
     port = None  # None => automatic free port
@@ -140,14 +159,15 @@ def main(argv=None) -> int:
 def _mcp(args) -> int:
     """Runs the read-only MCP server, importing it only for this branch.
 
-    Keeping the import here is what lets the base package stay
-    dependency-free: ``observa`` and the other commands never touch ``mcp``.
+    Keeping the import here is what keeps ``import observa`` (and the other
+    commands) from initializing MCP: MCP is a normal dependency of the wheel,
+    but nothing about ordinary backtesting should touch it.
     """
     try:
         from .mcp_server import main as mcp_main
     except ModuleNotFoundError as exc:
         if (exc.name or "").split(".")[0] == "mcp":
-            print(MCP_EXTRA_HINT, file=sys.stderr)
+            print(MCP_HINT, file=sys.stderr)
             return 2
         raise
     return mcp_main(args)

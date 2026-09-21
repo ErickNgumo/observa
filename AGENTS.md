@@ -115,9 +115,10 @@ canonical machine-readable contract; these docs are commentary on it.
 * Never change Observa's engine, package or execution semantics.
 * Never run `pip install observa` or `pip install "observa[mcp]"` — the public
   PyPI project named `observa` is unrelated and you will install the wrong
-  package. Install the official release wheel, or that same wheel with `[mcp]`:
+  package. Install the official release wheel once; that single install already
+  includes MCP support (there is no extra to add):
   ```bash
-  python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-<version>-private-mvp/observa-<version>-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+  python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-<version>-private-mvp/observa-<version>-cp310-abi3-manylinux_2_34_x86_64.whl"
   ```
   (See `observa.agent_spec()["installation"]` for the exact current URL.)
 

@@ -15,7 +15,7 @@ and ships inside the wheel.
   portfolio/position dicts are smaller and differ (no `position_id`,
   `quantity`, `symbol`, `stop_loss`, `take_profit`, `used_margin`,
   `free_margin`). It is **not** the strategy contract of the released Python
-  wheel; a later ticket may reconcile or remove it.
+  wheel and may be retired in a future release.
 * Never derive the contract from prose when the code or the spec can be
   inspected.
 

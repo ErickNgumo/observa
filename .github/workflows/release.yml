@@ -73,20 +73,35 @@ jobs:
         # drift or disappear, or if the validator/CLI surfaces regress. Uses the
         # existing base release venv — no extra dependency.
         run: .release-venv/bin/python python/tests/test_agent_contract.py
-      - name: Verify built wheel (MCP)
-        # OBS-MCP-01 / OBS-AI-05: the read-only MCP server (run inspection +
-        # authoring discovery) ships behind the optional `mcp` extra. A release
-        # must not be publishable if installing that extra from *this* wheel
-        # fails, or if the server contract regressed. The wheel comes from the
-        # SHA step, so the gate proves the exact artifact being published. Its
-        # own venv keeps the base release venv zero-dependency (the extra pulls
-        # a large optional tree).
+      - name: Verify built wheel (real-data demo dataset)
+        # OBS-DEMO-01: the bundled real EUR/USD demo fixture and strategy are
+        # shipped artifacts too. A release must not be publishable if the demo
+        # dataset is missing, drifts from its recorded provenance, or no longer
+        # runs without network/yfinance/pandas.
+        run: .release-venv/bin/python python/tests/test_demo.py
+      - name: Verify built wheel (MCP, one install)
+        # OBS-MCP-01 / OBS-AI-05 / OBS-UX-02: the read-only MCP server (run
+        # inspection + authoring discovery) ships in the *standard* wheel. A
+        # release must not be publishable if a PLAIN install of the exact
+        # artifact being published fails to provide MCP, or if the server
+        # contract regressed. Its own venv keeps the base release venv
+        # isolated from the MCP dependency tree.
         run: |
           python -m venv .release-mcp-venv
           .release-mcp-venv/bin/python -m pip install --upgrade pip
           WHEEL="${{ steps.sha.outputs.wheel }}"
-          .release-mcp-venv/bin/python -m pip install "${WHEEL}[mcp]"
+          .release-mcp-venv/bin/python -m pip install "${WHEEL}"
+          .release-mcp-venv/bin/python -c "import mcp; print('mcp', mcp.__file__)"
           .release-mcp-venv/bin/python python/tests/test_mcp.py
+      - name: Verify the legacy [mcp] extra still installs
+        # Existing testers' scripts use `<wheel>[mcp]`; it must keep resolving
+        # (as an empty compatibility alias) even though it is never required.
+        run: |
+          python -m venv .release-mcp-alias-venv
+          .release-mcp-alias-venv/bin/python -m pip install --upgrade pip
+          WHEEL="${{ steps.sha.outputs.wheel }}"
+          .release-mcp-alias-venv/bin/python -m pip install "${WHEEL}[mcp]"
+          .release-mcp-alias-venv/bin/python -c "import mcp; print('legacy [mcp] alias OK')"
       - name: Create private-MVP GitHub Release
         uses: softprops/action-gh-release@v2
         with:

@@ -28,8 +28,15 @@ Requirements:
   candles or interpolate prices. A time gap in the file is treated as a real
   market gap, not as missing continuity.
 
-The bundled deterministic sample (`observa.sample_data_path()`) follows this
-format and is synthetic (not market data).
+Two datasets ship in the wheel:
+
+* `observa.sample_data_path()` — the **synthetic, deterministic** sample used by
+  the quickstart and the regression oracle. Not market data.
+* `observa.demo_data_path()` — a fixed **real** EUR/USD 15-minute series
+  (600 bars) for the demo, replay and screenshots. It omits the `volume` column
+  because Yahoo Finance reports no FX volume; see
+  [demo-dataset.md](demo-dataset.md) for full provenance. Reading it needs no
+  network, no `yfinance` and no `pandas`.
 
 Errors name the row and problem, e.g. a failed price parse or a
 non-monotonic timestamp.

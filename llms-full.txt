@@ -592,15 +592,15 @@ Observa ships a read-only MCP server over persisted runs. It is a thin adapter
 over `observa.inspect_run` / `observa.run_summary`: it never runs a strategy,
 never writes to a run directory, and never infers canonical facts.
 
-Install (optional extra — the base package stays dependency-free). The extra
-attaches to a wheel reference, never to the bare package name:
+Install: nothing to install beyond Observa itself. MCP ships in the standard
+wheel (one install provides the API, replay, validation and MCP), so the plain
+official wheel is enough:
 
-    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl"
 
-    # or, from a downloaded wheel:
-    pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
-
-Never `pip install "observa[mcp]"` — that resolves an unrelated PyPI project.
+The old `[mcp]` extra is still accepted as an empty compatibility alias, but it
+is never needed. Never `pip install "observa[mcp]"` — that resolves an unrelated
+PyPI project.
 
 Start it over stdio (the transport MCP clients launch locally):
 

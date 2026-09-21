@@ -92,7 +92,7 @@ This document is a migration of the **current-state claims in the source knowled
 The installed `observa` console script (from the wheel) provides:
 
 - `observa replay <run-dir> [--port <port>]`
-- `observa mcp --runs-dir <path>` (optional `mcp` extra; stdio only)
+- `observa mcp --runs-dir <path>` (stdio only; MCP ships with the standard install)
 - `observa agent-spec [--json] [--out FILE]` (OBS-AI-04)
 - `observa validate-strategy FILE [--class NAME] [--json] [--smoke]` (OBS-AI-04)
 

@@ -121,9 +121,15 @@
       "pip install \"observa[mcp]\""
     ],
     "forbidden_reason": "The PyPI distribution named 'observa' is unrelated.",
+    "includes": [
+      "Python API",
+      "replay",
+      "strategy validation",
+      "MCP (stdio) run inspection and authoring discovery"
+    ],
     "local_wheel": "python -m pip install \"./<wheel_filename>\"",
-    "local_wheel_mcp": "python -m pip install \"./<wheel_filename>[mcp]\"",
-    "mcp_extra": "python -m pip install \"<wheel_url>[mcp]\"",
+    "local_wheel_mcp": "python -m pip install \"./<wheel_filename>\"",
+    "mcp_extra": "python -m pip install \"<wheel_url>\"",
     "release_tag": "observa-0.1.4-private-mvp",
     "repository": "ErickNgumo/observa",
     "unsupported": [

@@ -1,54 +1,118 @@
-# Observa MCP — read-only run inspection + authoring discovery
+# Connect an AI to Observa (MCP)
 
-`observa mcp` exposes **persisted Observa runs** and **Observa's strategy-authoring
-assets** to any MCP client (Claude Desktop, Codex, or a generic MCP host).
+## What is MCP?
 
-It is a **thin adapter**. Every inspection answer comes from
-`observa.inspect_run(...)` or `observa.run_summary(...)`; every authoring answer
-comes from the assets bundled by OBS-AI-04 (`observa.agent_spec()`,
-`observa.agent_example_path()`, `observa.agent_guide_path()`). The server does not
-re-run strategies, does not re-parse `events.jsonl` on its own, does not
-reimplement chronology bucketing, does not infer closing orders, and does not
-interpret strategy reasons. It also cannot change anything: the whole surface is
-read-only.
+MCP ("Model Context Protocol") is a way for supported AI applications and
+coding agents to connect to other software.
 
----
+For Observa, that means an AI can ask Observa directly about your saved
+backtests — instead of you copying results into the chat by hand.
 
-## Install
-
-MCP support is an **optional extra**, so the base package keeps its
-zero-dependency install. The extra is always attached to a **wheel reference**
-— never to a bare package name:
-
-```bash
-# from the private-MVP GitHub Release (see README for the base install):
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+```
+Your AI tool
+    │
+    │ MCP
+    ▼
+  Observa
+    │
+    ▼
+Saved backtests
 ```
 
-From a downloaded release wheel:
+## Why use it with Observa?
+
+After a backtest, most of the interesting questions are about *details*, not
+final numbers. An AI connected through MCP can go and look them up in the saved
+run and answer in plain language.
+
+## What can you ask?
+
+- Why did this trade close?
+- Show me all rejected orders.
+- What happened around this losing trade?
+- Which order opened this position?
+- How do I write an Observa strategy?
+
+## Is MCP required?
+
+No. Running a backtest, replaying it in the browser, inspecting it from Python
+and validating a strategy all work without MCP. MCP is an extra way in, not a
+prerequisite.
+
+## Start Observa's MCP server
+
+**MCP support is already included when you install Observa.** There is no second
+`pip` command, no extra, and nothing else to enable.
 
 ```bash
-pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+observa mcp --runs-dir runs/
 ```
+
+## Connect your AI client
+
+Starting the server and connecting a client are **two separate steps**. The
+command above makes the server available on stdio; it does not by itself connect
+every AI application.
+
+Client setup differs by application. What any MCP-capable client needs to be
+told is the command to launch as a local stdio server:
+
+```bash
+observa mcp --runs-dir /path/to/runs
+```
+
+A generic (illustrative) client block looks like this — check your own
+application's documentation for the exact file and key names:
+
+```json
+{
+  "mcpServers": {
+    "observa": {
+      "command": "observa",
+      "args": ["mcp", "--runs-dir", "/abs/path/to/runs"]
+    }
+  }
+}
+```
+
+## What the AI can access
+
+- how Observa strategies are written (the bundled guide and example)
+- the list of saved backtests under the runs root
+- trades, orders and positions
+- strategy decisions, including the reasons the strategy gave
+- rejected orders and why they were rejected
+- run metrics and run information
+
+## What the AI cannot do
+
+It cannot run arbitrary strategy code, and it cannot modify, create or delete
+your saved runs. Everything it reads is a saved backtest; nothing it does
+executes a strategy.
 
 > ⚠️ Do **not** `pip install observa` or `pip install "observa[mcp]"`. The
-> public PyPI project named `observa` is unrelated to this wheel.
+> public PyPI project named `observa` is unrelated to this wheel. (The `[mcp]`
+> extra is still accepted as an empty compatibility alias for older scripts —
+> it installs exactly the same thing as the plain wheel.) If you have not
+> installed Observa yet, follow the one install command in
+> [README.md](../README.md).
 
-Without the extra, `observa` and `observa replay` work exactly as before — only
-`observa mcp` needs it, and it says so clearly if the extra is missing:
+If the MCP SDK cannot be loaded, the installation is incomplete rather than
+missing an optional component:
 
 ```
-error: MCP support is not installed.
-hint: reinstall the same Observa wheel with the optional [mcp] extra.
-      Example for a local wheel:
-      python -m pip install "./observa-<version>-...whl[mcp]"
-      Do not run `pip install observa` or `pip install "observa[mcp]"`;
-      the PyPI project is unrelated.
+error: MCP support is included with Observa, but its dependency could not be loaded.
+hint: this installation looks incomplete. Reinstall the official Observa release —
+      one install provides replay, strategy validation and MCP support.
+      See the install instructions in README.md (official GitHub Release wheel).
+      Do not run `pip install observa`; that PyPI project is unrelated.
 ```
 
 ---
 
-## Start the server
+# Reference
+
+## Transport, startup and scope
 
 stdio transport only (the transport MCP clients spawn locally — no port, no
 listener):
@@ -78,6 +142,10 @@ stdout is reserved exclusively for the MCP protocol stream, so the server is
 safe to launch as a subprocess.
 
 ### Generic MCP client configuration
+
+Client setup differs by application; the block below is an illustrative generic
+shape, not a verified configuration for a specific product. Confirm the exact
+file and key names against your own application's documentation.
 
 ```json
 {
@@ -343,7 +411,7 @@ opening order.
 
 | Symptom | Cause / fix |
 | --- | --- |
-| `MCP support is not installed` | Install the extra **from the wheel reference**: `pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"` (never bare `pip install "observa[mcp]"`, which resolves an unrelated PyPI project) |
+| `MCP support is included with Observa, but its dependency could not be loaded` | The installation is incomplete — reinstall the official Observa release (one install includes MCP). Never use bare `pip install "observa[mcp]"`, which resolves an unrelated PyPI project |
 | `RUN_DIR_NOT_FOUND` from `list_runs` or any `run` | The configured `--runs-dir` is absent or not a directory, or the `run` identifier is not relative to it — the authoring-discovery tools still work |
 | Every `run` returns `RUN_DIR_NOT_FOUND` | The identifier must be relative to the configured root — check `list_runs()` |
 | A run does not appear in `list_runs` | It has no `run.json`, or it lives outside the root; see the `errors` array for unreadable runs |

@@ -160,8 +160,8 @@ run = observa.inspect_run("runs/my_strategy")
 run.positions(); run.trades(); run.position(pid)["closing_order"]
 ```
 
-Or over MCP (optional extra): `observa mcp --runs-dir runs/` exposes ten
-read-only tools. Order rejections (bad size, bad SL distance, insufficient
+Or over MCP (included in the standard install): `observa mcp --runs-dir runs/`
+exposes thirteen read-only tools (ten inspection, three authoring discovery). Order rejections (bad size, bad SL distance, insufficient
 margin) are canonical `order_rejected` events — read them, do not expect an
 exception.
 
