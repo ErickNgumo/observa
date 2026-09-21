@@ -101,8 +101,8 @@ connection and no extra libraries.
 python examples/eurusd_demo.py
 ```
 
-`examples/eurusd_demo.py` is also attached to the GitHub Release. It saves the
-run to `runs/eurusd-demo`.
+`examples/eurusd_demo.py` lives in the repository (and is attached to releases
+going forward). It saves the run to `runs/eurusd-demo`.
 
 The same thing in Python:
 
