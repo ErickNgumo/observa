@@ -6,7 +6,7 @@ Read the official Observa agent documentation first:
 `llms-full.txt` (repository root; complete agent & integration guide).
 
 Install the official Observa wheel by URL if not already installed:
-`python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl"`
+`python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.5-private-mvp/observa-0.1.5-cp310-abi3-manylinux_2_34_x86_64.whl"`
 (SHA-256: `PENDING`). Never `pip install observa` — that is an unrelated
 PyPI package.
 

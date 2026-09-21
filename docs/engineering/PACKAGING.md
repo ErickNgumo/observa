@@ -8,7 +8,7 @@ published package.
 > ⚠️ **Namespace warning (open decision):** the public PyPI distribution name
 > `observa` is already occupied by an unrelated project. Until a unique public
 > namespace is chosen, the private MVP is installed from a built wheel
-> (`pip install observa-0.1.4-<tag>.whl`), never via the bare `pip install
+> (`pip install observa-0.1.5-<tag>.whl`), never via the bare `pip install
 > observa`. The public distribution namespace must be unique before any PyPI
 > release.
 

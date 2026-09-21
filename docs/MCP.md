@@ -247,7 +247,7 @@ None of them takes an argument.
 // get_strategy_contract() — returned verbatim; it already carries both versions
 {
   "strategy_api_version": "1",
-  "observa_version": "0.1.4",
+  "observa_version": "0.1.5",
   "lifecycle": { ... }, "signals": { ... }, "drawings": { ... },
   "execution_rules": { ... }, "forbidden_patterns": [ ... ],
   "validation": { ... }, "installation": { ... }

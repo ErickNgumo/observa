@@ -196,7 +196,7 @@ def test_determinism(first_result, first_metrics):
 
 
 def main():
-    check("observa.__version__ == 0.1.4", observa.__version__ == "0.1.4", observa.__version__)
+    check("observa.__version__ == 0.1.5", observa.__version__ == "0.1.5", observa.__version__)
     test_fixture_is_reproducible()
     tmp_dir = tempfile.mkdtemp(prefix="observa-canonical-")
     result, metrics = test_canonical_baseline(tmp_dir)

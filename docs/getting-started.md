@@ -37,7 +37,7 @@ Verify you imported *this* Observa (and not the unrelated PyPI package):
 
 ```python
 import observa
-print(observa.__version__)   # e.g. 0.1.4
+print(observa.__version__)   # e.g. 0.1.5
 print(observa.__file__)      # must point into this wheel's site-packages
 ```
 

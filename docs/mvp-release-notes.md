@@ -1,76 +1,56 @@
-# Observa 0.1.4 — Private MVP (Release Notes)
+# Observa 0.1.5 — Private MVP (Release Notes)
 
 > Status: **private MVP tester build**. Not production-ready. This build is for
 > a small, invited cohort to validate the core product idea: **seeing what a
-> backtest actually did, bar by bar, from the canonical event history.**
+> backtest actually did, bar by bar.**
 
-> **Upcoming in the next release.** Two user-facing changes are staged on top of
-> 0.1.4:
->
-> 1. **One install.** In 0.1.4, MCP was an optional extra (`<wheel>[mcp]`). From
->    the next release MCP ships **in the standard wheel**: a single
->    `pip install "<official wheel>"` provides the Python API, replay, strategy
->    validation **and** MCP. The old `[mcp]` extra is kept as an empty
->    compatibility alias, so existing scripts keep working.
-> 2. **A bundled real-market demo.** The wheel now includes a fixed sample of
->    real EUR/USD 15-minute data (`observa.demo_data_path()`) with an EMA
->    crossover demo strategy (`observa.samples.EmaCrossover`) that runs
->    completely offline — no network, no `yfinance`, no `pandas`. The
->    deterministic synthetic sample used by the regression baseline is
->    unchanged.
->
-> The 0.1.4 install instructions and feature notes below are left as the
-> historical record of that release.
+This release makes Observa easier to install, understand and try.
 
 ## What Observa does
 
-Observa runs a strategy backtest once on the canonical Rust Engine and records
-an ordered event history of exactly what happened — what the strategy saw,
-which orders were created/pending/filled/rejected/expired, which exact
-position opened and closed, why SL/TP fired (at what price), and what happened
-to balance and equity each bar. It then replays that history visually so you
-can inspect *why* the backtest behaved that way instead of trusting final
-numbers.
+Observa runs a strategy backtest once and records what happened — what the
+strategy saw, which orders were created, filled or rejected, which position
+opened and closed, how stops and targets fired, and what happened to balance
+and equity each bar. It then replays that history visually so you can inspect
+*why* the backtest behaved that way instead of trusting final numbers.
 
 ## Install
 
 Published as a private-MVP GitHub Release (prerelease) tagged
-`observa-0.1.4-private-mvp`. The release workflow builds the wheel, verifies
-the package version, runs the canonical deterministic baseline plus the
+`observa-0.1.5-private-mvp`. The release workflow builds the wheel, verifies the
+package version, runs the deterministic canonical baseline plus the
 annotation/deterministic-identity, structured-inspection, strategy-reason,
-agent-authoring-contract and MCP checks, records the SHA-256, and uploads the
-wheel together with the example scripts.
+real-data-demo, agent-authoring-contract and MCP checks, records the SHA-256,
+and uploads the wheel together with the example scripts.
 
-The published wheel and its SHA-256:
+The published wheel and its SHA-256 are on the GitHub Release page:
 
-Wheel URL: `https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl`
-SHA-256: `PENDING` — published by the release workflow with the 0.1.4 asset;
-verify it against the value printed in the GitHub Release before installing.
+Wheel URL: `https://github.com/ErickNgumo/observa/releases/download/observa-0.1.5-private-mvp/observa-0.1.5-cp310-abi3-manylinux_2_34_x86_64.whl`
+SHA-256: recorded by the release workflow on that page.
 
-0.1.4 is the current tester build. Do **not** `pip install observa` (an
+0.1.5 is the current tester build. Do **not** `pip install observa` (an
 unrelated PyPI package owns that name).
 
-MCP support is an **optional extra**. The extra always attaches to a wheel
-reference, never to a bare package name:
+**One installation is enough.** The standard wheel includes backtesting,
+browser replay, Python inspection, strategy validation, AI authoring support
+**and** MCP support:
 
 ```bash
-# core wheel (zero third-party dependencies):
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl"
-
-# same wheel + the official MCP SDK:
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
-
-# from a downloaded wheel file:
-python -m pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.5-private-mvp/observa-0.1.5-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-Real-data example dependency: `python -m pip install yfinance pandas`.
+The old `[mcp]` extra is still accepted as an empty compatibility alias, so
+existing scripts keep working — it is never required.
+
+Real-data example dependency (only for `examples/ema_observa.py`, which
+downloads live data): `python -m pip install yfinance pandas`. The bundled
+EUR/USD demo needs nothing extra.
 
 Confirm the install:
 
 ```python
 import observa
-print(observa.__version__)   # 0.1.4
+print(observa.__version__)   # 0.1.5
 ```
 
 ## Verified platform
@@ -83,75 +63,38 @@ print(observa.__version__)   # 0.1.4
 
 Windows, macOS and Google Colab are **not** runtime-verified for this build.
 
-## What is new in 0.1.4
+## What is new in 0.1.5
 
-This release is about **AI-native strategy authoring and discovery**. The
-deterministic Engine, the canonical event history, persistence, replay and
-run inspection are unchanged; 0.1.4 makes it practical for a coding agent to
-write and check a strategy against the real contract.
+### A. One installation
 
-### A. Canonical machine-readable strategy contract
+The standard wheel now includes MCP support. One installation provides
+backtesting, browser replay, Python inspection, strategy validation, AI
+authoring support and MCP support. No separate MCP installation is required.
 
-`observa.agent_spec()` returns the full contract as a dict — lifecycle,
-signal inputs, order types, closing by exact ticket, drawings, reasons,
-execution rules, forbidden patterns, error codes, validation and installation.
-`strategy_api_version` is `"1"`. The same contract ships as `spec.json` inside
-the wheel (`observa.agent_spec_path()`), so an agent can read it with no
-repository checkout and no network.
+### B. Real EUR/USD demo
 
-### B. Bundled authoring guide and gold example
+Observa now includes a bundled real EUR/USD 15-minute dataset and an EMA
+crossover demo. It works offline — no network, no `yfinance`, no `pandas` — and
+includes 600 bars, EMA overlays, entry/exit markers, plain-language strategy
+reasons and visual replay. The deterministic synthetic sample used by the
+regression tests is unchanged.
 
-`observa.agent_guide_path()` and `observa.agent_example_path()` point at a
-short guide and a canonical, working strategy shipped inside the package.
-`observa agent-spec` prints the contract from the CLI.
+### C. Easier onboarding
 
-### C. Strategy validation and repair surface
+The README and Getting Started documentation now follow the actual user
+journey: install, run a backtest, replay it, inspect it, write or generate
+strategies, and optionally connect an AI through MCP.
 
-`observa validate-strategy FILE [--class NAME] [--json] [--smoke]` and
-`observa.validate_strategy(...)` return structured, repairable errors with
-stable codes. Exit codes are `0` valid, `1` invalid, `2` usage/setup. Three
-tiers: **A** structural (parses only), **B** imported, **C** smoke (real
-Engine over 6 bundled bars).
+### D. Product demo
 
-> ⚠️ Validation is **not a sandbox**. Tier B imports the strategy module, so
-> top-level Python code may execute, and Tier C executes `on_bar()`. Only
-> validate strategy code you trust.
+The README includes a bar-by-bar replay GIF and a link to the full hosted
+product demo video.
 
-### D. Product-first README and onboarding
+### E. MCP, explained from the user perspective
 
-The README now leads with the product idea — what Observa is, the problem it
-solves, the three ways to inspect a run (replay, Python, MCP) and how AI fits
-— before installation details. The agent instructions carry the same
-trusted-code caveat.
-
-### E. MCP strategy-authoring discovery
-
-The read-only MCP server now exposes **13 tools**: the 10 existing
-persisted-run inspection tools, unchanged, plus 3 new authoring-discovery
-tools.
-
-| New tool | Purpose |
-| --- | --- |
-| `get_strategy_contract()` | the canonical contract, exactly `observa.agent_spec()` |
-| `get_strategy_example()` | the bundled gold example source |
-| `get_strategy_guide()` | the bundled concise authoring guide |
-
-Authoring discovery works **before any run exists**: the runs root may be
-missing or empty, and the server never creates it. With an absent root, the
-inspection tools report the coded `RUN_DIR_NOT_FOUND`.
-
-**Security boundary.** These three tools are read-only and non-executing:
-they return the assets already bundled in the wheel — they do not generate
-strategies, do not call an AI model, do not validate code and do not execute
-anything. `validate_strategy` is deliberately **not** exposed over MCP,
-because it imports and runs trusted strategy code; validation stays a local
-CLI/Python action.
-
-### F. Deterministic execution and inspection are unchanged
-
-The canonical economic baseline is byte-identical to 0.1.3, historical runs
-still load and inspect with no migration, the base package remains
-dependency-free, and MCP remains an optional extra.
+MCP is included by default and documented in plain language: what it is, what
+you can ask an AI, how to start the server, what the AI can and cannot access,
+and how client setup differs by application.
 
 ## Intentionally deferred
 
@@ -169,9 +112,8 @@ Not in this build:
 
 * `observa` Python API (`Config`, `Strategy`, `run`, `RunResult`, …)
 * structured run inspection (`observa.inspect_run`, `observa.run_summary`)
-* read-only MCP server: 10 persisted-run inspection tools + 3
-  strategy-authoring discovery tools (optional `observa[mcp]` extra,
-  stdio only)
+* read-only MCP server: 10 run-inspection tools + 3 authoring-discovery
+  tools, included in the standard install (stdio only)
 * bundled deterministic sample data + a small sample strategy
 * local visual replay (`observa replay <run-dir>`) — works offline; the chart
   library is bundled
@@ -180,6 +122,7 @@ Not in this build:
 * persisted per-signal strategy reasons
 * exact closing-order linkage where a canonical closing order exists
 * byte-deterministic canonical artifacts
+* a bundled real EUR/USD demo dataset and EMA crossover demo strategy
 * bundled strategy-authoring contract, guide and gold example
   (`observa.agent_spec()`, `observa agent-spec`, `observa.agent_guide_path()`)
 * local strategy validation (`observa validate-strategy`, `observa.validate_strategy`)
@@ -227,6 +170,81 @@ as a prerelease. Then update the install URL + SHA-256 in README /
 getting-started / llms-full.txt / tester-onboarding / these release notes.
 
 ## Previous releases (historical)
+
+Observa 0.1.4 — Private MVP remains published and unchanged:
+
+Wheel URL: `https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl`
+SHA-256: see that release page.
+
+### What is new in 0.1.4
+
+This release is about **AI-native strategy authoring and discovery**. The
+deterministic Engine, the canonical event history, persistence, replay and
+run inspection are unchanged; 0.1.4 makes it practical for a coding agent to
+write and check a strategy against the real contract.
+
+#### A. Canonical machine-readable strategy contract
+
+`observa.agent_spec()` returns the full contract as a dict — lifecycle,
+signal inputs, order types, closing by exact ticket, drawings, reasons,
+execution rules, forbidden patterns, error codes, validation and installation.
+`strategy_api_version` is `"1"`. The same contract ships as `spec.json` inside
+the wheel (`observa.agent_spec_path()`), so an agent can read it with no
+repository checkout and no network.
+
+#### B. Bundled authoring guide and gold example
+
+`observa.agent_guide_path()` and `observa.agent_example_path()` point at a
+short guide and a canonical, working strategy shipped inside the package.
+`observa agent-spec` prints the contract from the CLI.
+
+#### C. Strategy validation and repair surface
+
+`observa validate-strategy FILE [--class NAME] [--json] [--smoke]` and
+`observa.validate_strategy(...)` return structured, repairable errors with
+stable codes. Exit codes are `0` valid, `1` invalid, `2` usage/setup. Three
+tiers: **A** structural (parses only), **B** imported, **C** smoke (real
+Engine over 6 bundled bars).
+
+> ⚠️ Validation is **not a sandbox**. Tier B imports the strategy module, so
+> top-level Python code may execute, and Tier C executes `on_bar()`. Only
+> validate strategy code you trust.
+
+#### D. Product-first README and onboarding
+
+The README now leads with the product idea — what Observa is, the problem it
+solves, the three ways to inspect a run (replay, Python, MCP) and how AI fits
+— before installation details. The agent instructions carry the same
+trusted-code caveat.
+
+#### E. MCP strategy-authoring discovery
+
+The read-only MCP server now exposes **13 tools**: the 10 existing
+persisted-run inspection tools, unchanged, plus 3 new authoring-discovery
+tools.
+
+| New tool | Purpose |
+| --- | --- |
+| `get_strategy_contract()` | the canonical contract, exactly `observa.agent_spec()` |
+| `get_strategy_example()` | the bundled gold example source |
+| `get_strategy_guide()` | the bundled concise authoring guide |
+
+Authoring discovery works **before any run exists**: the runs root may be
+missing or empty, and the server never creates it. With an absent root, the
+inspection tools report the coded `RUN_DIR_NOT_FOUND`.
+
+**Security boundary.** These three tools are read-only and non-executing:
+they return the assets already bundled in the wheel — they do not generate
+strategies, do not call an AI model, do not validate code and do not execute
+anything. `validate_strategy` is deliberately **not** exposed over MCP,
+because it imports and runs trusted strategy code; validation stays a local
+CLI/Python action.
+
+#### F. Deterministic execution and inspection are unchanged
+
+The canonical economic baseline is byte-identical to 0.1.3, historical runs
+still load and inspect with no migration, the base package remains
+dependency-free, and MCP remains an optional extra.
 
 Observa 0.1.3 — Private MVP remains published and unchanged:
 

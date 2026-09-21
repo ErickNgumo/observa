@@ -31,7 +31,7 @@ def zero_cost(**kw):
 
 
 def test_import_and_version():
-    assert observa.__version__ == "0.1.4"
+    assert observa.__version__ == "0.1.5"
     assert callable(observa.run)
     assert observa.Config().symbol == "EURUSD"
 
