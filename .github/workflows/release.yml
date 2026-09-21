@@ -73,6 +73,12 @@ jobs:
         # drift or disappear, or if the validator/CLI surfaces regress. Uses the
         # existing base release venv — no extra dependency.
         run: .release-venv/bin/python python/tests/test_agent_contract.py
+      - name: Verify built wheel (real-data demo dataset)
+        # OBS-DEMO-01: the bundled real EUR/USD demo fixture and strategy are
+        # shipped artifacts too. A release must not be publishable if the demo
+        # dataset is missing, drifts from its recorded provenance, or no longer
+        # runs without network/yfinance/pandas.
+        run: .release-venv/bin/python python/tests/test_demo.py
       - name: Verify built wheel (MCP, one install)
         # OBS-MCP-01 / OBS-AI-05 / OBS-UX-02: the read-only MCP server (run
         # inspection + authoring discovery) ships in the *standard* wheel. A
