@@ -18,10 +18,11 @@ Start it with either form (stdio transport only)::
     observa mcp --runs-dir runs/
     python -m observa.mcp_server --runs-dir runs/
 
-Requires the optional extra on **this wheel** — never the bare PyPI name, which
-is an unrelated project::
+MCP support is part of the standard Observa install — no extra is needed::
 
-    python -m pip install "<path-or-url-to-the-observa-wheel>[mcp]"
+    python -m pip install "<path-or-url-to-the-observa-wheel>"
+
+Never install the bare PyPI name, which is an unrelated project.
 
 Contracts this module guarantees
 --------------------------------
@@ -129,12 +130,14 @@ MAX_LIMIT = 1000
 MAX_SCAN_DEPTH = 3
 
 _MISSING_EXTRA_HINT = (
-    "error: MCP support is not installed.\n"
-    "hint: reinstall the same Observa wheel with the optional [mcp] extra.\n"
-    "      Example for a local wheel:\n"
-    '      python -m pip install "./observa-<version>-...whl[mcp]"\n'
-    '      Do not run `pip install observa` or `pip install "observa[mcp]"`;\n'
-    "      the PyPI project is unrelated."
+    "error: MCP support is included with Observa, but its dependency could not "
+    "be loaded.\n"
+    "hint: this installation looks incomplete. Reinstall the official Observa "
+    "release —\n"
+    "      one install provides replay, strategy validation and MCP support.\n"
+    "      See the install instructions in README.md (official GitHub Release "
+    "wheel).\n"
+    "      Do not run `pip install observa`; that PyPI project is unrelated."
 )
 
 USAGE = "usage: observa mcp --runs-dir <path>  (stdio transport)"
@@ -710,8 +713,9 @@ _TOOL_FUNCTIONS = (
 def build_server():
     """Constructs the stdio MCP server with all thirteen tools registered.
 
-    Imports the optional ``mcp`` dependency lazily so that importing this module
-    (and therefore ``observa.cli``) never requires it.
+    Imports the ``mcp`` dependency lazily so that importing this module (and
+    therefore ``observa.cli``) never initializes MCP. MCP ships with the wheel,
+    but ordinary backtesting must not touch it.
     """
     try:
         from mcp.server import MCPServer
@@ -762,9 +766,9 @@ def main(argv=None) -> int:
         sys.stderr.write("error: %s\n%s\n" % (problem, USAGE))
         return 2
 
-    # Check the optional dependency first: if MCP support is missing, that is
-    # the blocking problem and the install hint is the actionable message,
-    # whatever the runs directory looks like.
+    # Check the dependency first: if the MCP SDK is missing the installation is
+    # incomplete, and that hint is the actionable message, whatever the runs
+    # directory looks like.
     try:
         server = build_server()
     except ModuleNotFoundError:

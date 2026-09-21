@@ -16,34 +16,39 @@ read-only.
 
 ## Install
 
-MCP support is an **optional extra**, so the base package keeps its
-zero-dependency install. The extra is always attached to a **wheel reference**
-— never to a bare package name:
+MCP lets supported AI tools connect directly to Observa. Once connected, the AI
+can learn how Observa strategies are written and inspect saved backtests.
+
+**If Observa is installed, MCP is already installed too.** MCP ships in the
+standard wheel — there is no second `pip` command, no extra, and nothing else
+to enable. If you have not installed Observa yet, follow the one install
+command in [README.md](../README.md).
+
+Then start the server (stdio — your MCP client launches it locally):
 
 ```bash
-# from the private-MVP GitHub Release (see README for the base install):
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+observa mcp --runs-dir runs/
 ```
 
-From a downloaded release wheel:
-
-```bash
-pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
-```
+That command makes the server available on stdio; it does not by itself connect
+every AI application. Per-client setup is in
+[Start the server](#start-the-server) and
+[Generic MCP client configuration](#generic-mcp-client-configuration) below.
 
 > ⚠️ Do **not** `pip install observa` or `pip install "observa[mcp]"`. The
-> public PyPI project named `observa` is unrelated to this wheel.
+> public PyPI project named `observa` is unrelated to this wheel. (The `[mcp]`
+> extra is still accepted as an empty compatibility alias for older scripts —
+> it installs exactly the same thing as the plain wheel.)
 
-Without the extra, `observa` and `observa replay` work exactly as before — only
-`observa mcp` needs it, and it says so clearly if the extra is missing:
+If the MCP SDK cannot be loaded, the installation is incomplete rather than
+missing an optional component:
 
 ```
-error: MCP support is not installed.
-hint: reinstall the same Observa wheel with the optional [mcp] extra.
-      Example for a local wheel:
-      python -m pip install "./observa-<version>-...whl[mcp]"
-      Do not run `pip install observa` or `pip install "observa[mcp]"`;
-      the PyPI project is unrelated.
+error: MCP support is included with Observa, but its dependency could not be loaded.
+hint: this installation looks incomplete. Reinstall the official Observa release —
+      one install provides replay, strategy validation and MCP support.
+      See the install instructions in README.md (official GitHub Release wheel).
+      Do not run `pip install observa`; that PyPI project is unrelated.
 ```
 
 ---
@@ -343,7 +348,7 @@ opening order.
 
 | Symptom | Cause / fix |
 | --- | --- |
-| `MCP support is not installed` | Install the extra **from the wheel reference**: `pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"` (never bare `pip install "observa[mcp]"`, which resolves an unrelated PyPI project) |
+| `MCP support is included with Observa, but its dependency could not be loaded` | The installation is incomplete — reinstall the official Observa release (one install includes MCP). Never use bare `pip install "observa[mcp]"`, which resolves an unrelated PyPI project |
 | `RUN_DIR_NOT_FOUND` from `list_runs` or any `run` | The configured `--runs-dir` is absent or not a directory, or the `run` identifier is not relative to it — the authoring-discovery tools still work |
 | Every `run` returns `RUN_DIR_NOT_FOUND` | The identifier must be relative to the configured root — check `list_runs()` |
 | A run does not appear in `list_runs` | It has no `run.json`, or it lives outside the root; see the `errors` array for unreadable runs |

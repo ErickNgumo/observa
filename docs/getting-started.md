@@ -14,6 +14,11 @@ open the visual replay — without a Rust toolchain or a repository checkout.
 python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
+That is the complete installation. It includes everything Observa offers —
+the Python API, `observa replay`, `observa validate-strategy` and
+`observa mcp`. There are no extras to choose between and no second install
+step; you should never need to type `observa[...]`.
+
 SHA-256: `PENDING`
 
 For the real-data example also: `python -m pip install yfinance pandas`.

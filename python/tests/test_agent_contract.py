@@ -613,7 +613,8 @@ def test_cli_agent_spec_and_validate():
 
 
 def test_mcp_missing_extra_hint_is_safe():
-    """The released hint must never *recommend* the bare PyPI name."""
+    """OBS-UX-02: the hint must never recommend the bare PyPI name, and must no
+    longer send users to an optional extra — MCP is part of the install."""
     import observa.cli as cli
     import observa.mcp_server as mcp_server
 
@@ -622,13 +623,17 @@ def test_mcp_missing_extra_hint_is_safe():
           'install the optional dependency with: pip install "observa[mcp]"' not in hint)
     check("CLI hint warns against bare installs",
           "Do not run" in hint and "unrelated" in hint)
-    check("CLI hint shows the local wheel form", "whl[mcp]" in hint)
+    check("CLI hint no longer requires an extra", "[mcp]" not in hint)
+    check("CLI hint reports an incomplete install, not a missing option",
+          "included with Observa" in hint and "incomplete" in hint)
 
     src = open(mcp_server.__file__, encoding="utf-8").read()
     check("mcp_server.py no longer instructs the bare extra install",
           'install the optional dependency with: pip install "observa[mcp]"' not in src)
     check("mcp_server.py hint warns against bare installs",
           "unrelated" in src and "Do not run" in src)
+    check("mcp_server.py hint no longer requires an extra",
+          "optional [mcp] extra" not in src)
 
 
 def test_cli_unknown_command_still_fails():
@@ -786,8 +791,10 @@ def test_llms_router_routes_correctly():
         check("llms.txt routes to %s" % token, token in text)
     check("llms.txt warns against the bare PyPI install",
           "pip install observa" in text and "unrelated" in text)
-    check("llms.txt shows the [mcp] form on a wheel reference",
-          "whl[mcp]" in text)
+    check("llms.txt no longer asks for an [mcp] extra",
+          "whl[mcp]" not in text)
+    check("llms.txt states one install includes MCP",
+          "includes everything" in text or "no extra is needed" in text)
 
 
 def test_starter_is_functional():

@@ -52,12 +52,20 @@ jobs:
           ../.ci-venv/bin/python ../examples/quickstart.py
       # OBS-MCP-01 / OBS-AI-05: the read-only MCP server (run inspection +
       # authoring discovery) lives behind the optional `mcp` extra, so it gets
-      # its own venv. That keeps the zero-dependency wheel contract in .ci-venv
-      # above verifiable, and means a problem in the MCP dependency tree cannot
-      # destabilise the core gates.
-      - name: MCP server tests (inspection + authoring discovery)
+      # its own venv. OBS-UX-02: MCP is now a normal dependency, so the PLAIN
+      # wheel is installed here — if a plain install ever stopped providing MCP,
+      # this gate would fail, which is exactly the one-install guarantee.
+      - name: MCP server tests (plain wheel install)
         run: |
           WHEEL=$(ls python/target/wheels/*.whl | head -1)
           python -m venv .mcp-venv
-          .mcp-venv/bin/pip install "${WHEEL}[mcp]"
+          .mcp-venv/bin/pip install "${WHEEL}"
+          .mcp-venv/bin/python -c "import mcp; print('mcp', mcp.__file__)"
           .mcp-venv/bin/python python/tests/test_mcp.py
+      # The legacy `[mcp]` extra must keep resolving for existing scripts.
+      - name: Legacy [mcp] extra still installs
+        run: |
+          WHEEL=$(ls python/target/wheels/*.whl | head -1)
+          python -m venv .mcp-alias-venv
+          .mcp-alias-venv/bin/pip install "${WHEEL}[mcp]"
+          .mcp-alias-venv/bin/python -c "import mcp; print('legacy [mcp] alias OK')"

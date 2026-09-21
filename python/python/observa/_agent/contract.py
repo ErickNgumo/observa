@@ -79,6 +79,11 @@ def installation(version: str) -> dict:
 
     Commands reference ``<wheel_url>`` / ``<wheel_filename>`` from the same
     block rather than repeating the (long) URL five times.
+
+    OBS-UX-02: there is **one** install. MCP ships in the standard wheel, so
+    ``mcp_extra`` / ``local_wheel_mcp`` are kept as keys (callers may already
+    read them) but now hold the same plain command — the legacy ``[mcp]`` extra
+    still resolves as an empty compatibility alias.
     """
     return {
         "distribution": "github_release_wheel",
@@ -87,9 +92,11 @@ def installation(version: str) -> dict:
         "wheel_filename": wheel_filename(version),
         "wheel_url": wheel_url(version),
         "base": 'python -m pip install "<wheel_url>"',
-        "mcp_extra": 'python -m pip install "<wheel_url>[mcp]"',
+        "mcp_extra": 'python -m pip install "<wheel_url>"',
         "local_wheel": 'python -m pip install "./<wheel_filename>"',
-        "local_wheel_mcp": 'python -m pip install "./<wheel_filename>[mcp]"',
+        "local_wheel_mcp": 'python -m pip install "./<wheel_filename>"',
+        "includes": ["Python API", "replay", "strategy validation",
+                     "MCP (stdio) run inspection and authoring discovery"],
         "forbidden": list(FORBIDDEN_INSTALLS),
         "forbidden_reason": "The PyPI distribution named 'observa' is unrelated.",
         "verified_platforms": ["linux-x86_64 (glibc>=2.34)", "CPython>=3.10 (abi3)"],
