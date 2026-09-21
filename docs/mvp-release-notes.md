@@ -4,12 +4,23 @@
 > a small, invited cohort to validate the core product idea: **seeing what a
 > backtest actually did, bar by bar, from the canonical event history.**
 
-> **Upcoming in the next release — one install.** In 0.1.4, MCP was an optional
-> extra (`<wheel>[mcp]`). From the next release MCP ships **in the standard
-> wheel**: a single `pip install "<official wheel>"` provides the Python API,
-> replay, strategy validation **and** MCP. The old `[mcp]` extra is kept as an
-> empty compatibility alias, so existing scripts keep working. The 0.1.4
-> install instructions below are left as the historical record of that release.
+> **Upcoming in the next release.** Two user-facing changes are staged on top of
+> 0.1.4:
+>
+> 1. **One install.** In 0.1.4, MCP was an optional extra (`<wheel>[mcp]`). From
+>    the next release MCP ships **in the standard wheel**: a single
+>    `pip install "<official wheel>"` provides the Python API, replay, strategy
+>    validation **and** MCP. The old `[mcp]` extra is kept as an empty
+>    compatibility alias, so existing scripts keep working.
+> 2. **A bundled real-market demo.** The wheel now includes a fixed sample of
+>    real EUR/USD 15-minute data (`observa.demo_data_path()`) with an EMA
+>    crossover demo strategy (`observa.samples.EmaCrossover`) that runs
+>    completely offline — no network, no `yfinance`, no `pandas`. The
+>    deterministic synthetic sample used by the regression baseline is
+>    unchanged.
+>
+> The 0.1.4 install instructions and feature notes below are left as the
+> historical record of that release.
 
 ## What Observa does
 

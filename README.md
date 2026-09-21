@@ -1,127 +1,116 @@
 # Observa
 
-## Stop trusting your backtest. Inspect it.
+**Backtest a trading strategy — then see what actually happened.**
 
-Most backtesting tools give you a result. Observa shows you **how the result
-happened** — every strategy decision, order, fill, position, stop/target event
-and account change — from one canonical event history.
+Most backtesting tools give you the final result.
 
-Think of it as a **debugger for trading strategies**.
+Profit. Win rate. Drawdown. Sharpe ratio.
 
-<!-- TODO(UX visual): add a replay GIF/screenshot once an approved capture exists (none is checked in; do not fabricate one). -->
+Observa lets you go further and **replay the backtest bar by bar** so you can
+see what the strategy was looking at, when it entered, where it filled, how the
+trade developed, and how it eventually closed.
 
-```
-  your strategy
-        |  signals (intent)
-        v
-  Observa Engine          <-- owns fills, spread, slippage, SL/TP, P&L
-        |  canonical event history
-        v
-  persisted run           (run.json · events.jsonl · metrics.json)
-        |
-        +--> Replay    a human inspects it bar by bar
-        +--> Python    inspect_run() answers structured questions
-        +--> MCP       an AI agent inspects the same evidence
-```
+Think of it like a debugger for a trading strategy.
 
-## What problem does this solve?
+![Observa replay demo](docs/media/observa-replay.gif)
 
-A backtest result is a claim. The questions you actually ask are:
+*Real EUR/USD 15-minute data · EMA crossover strategy · replayed bar by bar*
 
-* Why did this trade happen, and what was the strategy seeing?
-* What price actually filled — and did spread or slippage move it?
-* Why was this order rejected?
-* Did the stop trigger where and when I expected?
-* Which order closed this position?
-* Why does this backtest make money at all?
+---
 
-Observa records the evidence needed to answer them, then lets you inspect it.
+## Why Observa?
 
-## Three ways to inspect the same run
+Suppose your backtest says:
 
-| Surface | For | What it gives you |
-| --- | --- | --- |
-| `observa replay runs/sample` | a human | bar-by-bar replay in the browser |
-| `observa.inspect_run("runs/sample")` | Python code | structured questions about a saved run |
-| `observa mcp --runs-dir runs/` | an AI agent | the same evidence over MCP |
+> 11 trades.
+> Positive return.
+> Acceptable drawdown.
 
-All three read the **same persisted run**, and none of them recomputes
-economics: the browser does not recalculate P&L, the inspector does not re-run
-your strategy, and MCP does not invent trade history.
+That still leaves some important questions.
 
-## Use it with AI
+- Why did this trade open?
+- What was the strategy seeing at the time?
+- What price did the order actually fill at?
+- Did spread or slippage change the trade?
+- Why was an order rejected?
+- Did a stop or target trigger where you expected?
+- What caused the trade to close?
+- Does the strategy still make sense when you actually watch it trade?
 
-Tell a coding agent what strategy you want. **Observa ships its strategy
-contract, a short authoring guide and a canonical example inside the installed
-package**, so the agent does not have to guess the API:
+Observa saves what happened during the backtest so you can go back and inspect
+it instead of relying only on the final statistics.
 
-```python
-import observa
-observa.agent_spec()          # machine-readable contract (dict)
-observa.agent_guide_path()    # short authoring guide
-observa.agent_example_path()  # gold example to imitate
-```
+---
 
-```bash
-observa agent-spec --json                        # the same contract, on stdout
-observa validate-strategy strategy.py --smoke --json
-```
+## See a backtest in action
 
-The agent understands your intent and writes the strategy code. Observa defines
-the contract, validates the integration, executes deterministically and
-persists the evidence — **Observa does not call an LLM and does not generate
-strategies.**
+The easiest way to understand Observa is to run the included EUR/USD example.
 
-> ⚠️ `validate-strategy` is not a sandbox: it imports the strategy module, and
-> smoke validation executes `on_bar()`. Only validate strategy code you trust.
+It uses a simple EMA crossover strategy on a fixed sample of real EUR/USD
+15-minute market data.
 
-Details: [agent guide](docs/agent/strategy-authoring.md) · [AI starter](examples/ai_starter/) · [llms-full.txt](llms-full.txt)
+The strategy is deliberately simple:
 
-## Install
+- when the fast EMA crosses above the slow EMA → **buy**
+- when it crosses back below → **close**
+- spread, slippage and commission are included in the backtest
+- the EMA lines and trade markers are shown in the replay
 
-> ⚠️ Do **not** run `pip install observa`. The public PyPI name `observa` is an
-> unrelated project. Install the official private-MVP wheel:
+The point of the example is not to demonstrate a profitable strategy.
+
+It is to show you exactly what Observa lets you inspect.
+
+---
+
+## Install Observa
+
+> **Important:** do not run `pip install observa`.
+>
+> The `observa` package currently published on PyPI is unrelated to this
+> project.
+
+Install Observa using the wheel from the official GitHub Release:
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "<OFFICIAL_OBSERVA_WHEEL_URL>"
 ```
 
-That's the whole installation. This one install includes the Python API, local
-replay, strategy validation **and** MCP support — there is no core/AI split and
-no extras to add.
+The exact URL for the current tester wheel is on the
+[GitHub Releases page](https://github.com/ErickNgumo/observa/releases) — copy
+the newest `observa-*.whl` link from there.
 
-Run the bundled deterministic sample — no data download, no Rust toolchain:
+That's the only installation you need.
 
-```python
-import observa
-from observa.samples.sample_strategy import SampleEma
+The same installation includes:
 
-data = observa.sample_data_path()
+- backtesting
+- browser replay
+- Python inspection
+- strategy validation
+- AI authoring support
+- MCP support
 
-result = observa.run(
-    SampleEma(),
-    data,
-    config=observa.Config(dataset_source=data, interval="15m"),
-    output="runs/sample",          # create-only: use a new path to run again
-)
+You do not need Rust or Cargo to use Observa.
 
-print(result.summary())
+## Run the EUR/USD demo
+
+The demo ships inside the package, so it needs no data download, no internet
+connection and no extra libraries.
+
+```bash
+python examples/eurusd_demo.py
 ```
 
-`output=` is what persists the run (`run.json`, `events.jsonl`, `metrics.json`)
-so it can be replayed and inspected. Everything in the run is produced by the
-canonical Engine; your strategy only supplies intent.
+`examples/eurusd_demo.py` is also attached to the GitHub Release. It saves the
+run to `runs/eurusd-demo`.
 
-### Real EUR/USD, still offline
-
-The wheel also bundles a fixed **real** EUR/USD 15-minute series (600 bars,
-sourced once from Yahoo Finance). No download, no `yfinance`, no `pandas`:
+The same thing in Python:
 
 ```python
 import observa
 from observa.samples import EmaCrossover
 
-data = observa.demo_data_path()          # real market data, bundled
+data = observa.demo_data_path()          # bundled real EUR/USD, works offline
 
 result = observa.run(
     EmaCrossover(),
@@ -129,121 +118,309 @@ result = observa.run(
     config=observa.Config(dataset_source=data, interval="15m"),
     output="runs/eurusd-demo",
 )
-```
 
-The demo strategy draws both EMAs and every entry/exit on the chart and records
-a plain-language reason for each decision. Provenance (ticker, exact date range,
-bar count, download date) is in [the demo dataset notes](docs/demo-dataset.md).
-The deterministic synthetic sample above is unchanged and remains what the
-tests use.
+print(result.summary())
+```
 
 ## Replay it
 
 ```bash
-observa replay runs/sample
+observa replay runs/eurusd-demo
 ```
 
-Open the printed local URL and step through the run bar by bar: what the
-strategy saw, what it ordered, what filled, and how each position closed. The
-chart library is bundled, so replay works offline.
+Open the local URL printed in the terminal. You can step through the backtest
+bar by bar and see:
 
-## Inspect it from Python
+- market candles
+- the fast and slow EMA
+- what the strategy decided on each bar
+- entries and exits
+- trade markers on the chart
+- account state
+- the trade history
+- the final performance metrics
+
+## What is Observa doing during the backtest?
+
+Your strategy decides what it *wants* to do. For example:
+
+> "The fast EMA crossed above the slow EMA. Buy."
+
+Observa handles how that decision is simulated:
+
+- when the order can fill
+- the fill price
+- spread
+- slippage
+- commission
+- stops and targets
+- opening and closing positions
+- profit and loss
+
+It also records what happened so the run can be inspected afterwards.
+
+That means the chart you replay later is showing the backtest that was actually
+run — it is not running a second backtest in the browser.
+
+## Write your own strategy
+
+An Observa strategy is a Python class that receives each new bar and decides
+what it wants to do.
+
+```python
+class MyStrategy:
+    def initialize(self, params=None):
+        self.previous = None
+
+    def on_bar(self, bar, portfolio, history):
+        price = bar["close"]
+        crossed = self.previous is not None and price > self.previous
+        self.previous = price
+
+        if crossed and not portfolio["has_open_position"]:
+            return [{
+                "direction": "buy",
+                "size": 1.0,
+                "sl": round(price - 0.0040, 5),
+                "reason": "close rose above the previous close",
+            }]
+        return []
+
+    def teardown(self):
+        pass
+```
+
+`reason` is optional, but it is useful because Observa can preserve it with the
+decision. Later, when inspecting the backtest, you can see not only what the
+strategy did but also the reason it gave at the time.
+
+Full details, including how to close a position and how to draw on the chart:
+[writing a strategy for Observa](docs/agent/strategy-authoring.md) ·
+[strategy reference](docs/strategy-contract.md).
+
+## Use AI to write an Observa strategy
+
+You do not have to write every strategy by hand. For example, you could ask a
+coding agent:
+
+> Use Observa to create an RSI mean-reversion strategy. Buy when RSI falls
+> below 30, close when it returns above 50, and include a reason with every
+> decision.
+
+Observa ships the things an AI needs to get this right, inside the installed
+package:
+
+- strategy instructions
+- a working example
+- a machine-readable description of the rules
+
+so the agent learns the Observa strategy format instead of guessing.
+
+Before running AI-written code, validate it:
+
+```bash
+observa validate-strategy strategy.py --smoke --json
+```
+
+> ⚠️ **Security:** strategy validation is not a sandbox. Validation imports
+> strategy code, and smoke validation executes the strategy. Only validate code
+> you trust.
+
+## Inspect a saved backtest with Python
 
 ```python
 import observa
 
-run = observa.inspect_run("runs/sample")
+run = observa.inspect_run("runs/eurusd-demo")
 
-run.meta, run.metrics             # the persisted run.json / metrics.json
-observa.run_summary("runs/sample")  # one machine-readable summary dict
-
-trades = run.trades()             # completed canonical trades
-run.positions(open=None)          # all / open only / closed only
-run.rejections()                  # rejected orders, with the engine's reason
-run.bar(100)                      # everything canonical on one bar
-
-pid = trades[0]["position_id"]    # a real position id from this run
-position = run.position(pid)      # one position's full lifecycle
-seq = position["closing_order"]["order_seq"]
-run.order(seq)                    # one order, and the position it closed
+run.trades()              # completed trades
+run.positions(open=None)  # every position, or open=True / open=False
+run.rejections()          # orders the engine rejected, and why
 ```
 
-Inspection reads only the persisted artifacts — it never re-runs the strategy
-and never recomputes results. Full reference:
+This is useful when you want to analyse the backtest programmatically instead
+of using the browser replay. Reference:
 [inspection & strategy API](docs/STRATEGY_API.md).
 
-## Connect an AI to a run (MCP)
+## Let an AI inspect Observa directly
 
-MCP lets supported AI tools connect straight to Observa: they can learn how
-Observa strategies are written, and inspect saved backtests. Observa exposes
-thirteen read-only tools — ten for inspecting a persisted run, and three for
-authoring discovery (the canonical contract, the gold example and the guide,
-exactly as they ship in the wheel). It is **stdio-only**, **read-only**, and
-scoped to one local runs root.
+Observa can also connect to AI tools through MCP.
 
-**If Observa is installed, MCP is installed too** — there is no extra step:
+**What is MCP?** MCP is a way for supported AI applications and coding agents to
+connect to other software.
+
+For Observa, that means an AI can ask Observa directly for information about
+your saved backtests instead of you copying results into the chat manually.
+
+Examples of what you can ask:
+
+- Why did this trade close?
+- Show me all rejected orders.
+- What happened around this losing trade?
+- Which order opened this position?
+- How do I write an Observa strategy?
+
+MCP is optional. You do **not** need it to run, replay or inspect a backtest
+manually.
+
+**Start Observa's MCP server.** MCP support is already included when you install
+Observa:
 
 ```bash
 observa mcp --runs-dir runs/
 ```
 
-The runs directory may be missing or empty, so you can connect an agent before
-your first backtest. The authoring tools only hand back the contract and example
-that already ship in the package — they do **not** generate strategies and do
-**not** validate or run code; validation stays with
-`observa validate-strategy`.
+Your AI application still needs to be configured to launch that command as an
+MCP server — start the server and the client configuration are two separate
+steps:
 
-Tool reference, security model and client setup: [docs/MCP.md](docs/MCP.md).
+```
+Your AI tool
+    │
+    │ MCP
+    ▼
+  Observa
+    │
+    ▼
+Saved backtests
+```
 
-## Why trust the result?
+Once connected, the AI can:
 
-* One canonical Engine owns fills, pricing and economics — there is no second
-  backtest loop in the browser, the inspector or MCP.
-* Spread, slippage and commission are explicit settings, applied by the Engine
-  and visible in the recorded fill.
-* Positions close only by an explicit ticket — never an invented FIFO rule.
-* Rejected orders are recorded as canonical events, with the engine's reason.
-* A strategy can attach a `reason` to each signal and annotations to the chart,
-  so the *why* is persisted alongside the evidence.
-* Determinism is a requirement: identical inputs produce identical artifacts.
-* Runs persisted by earlier versions remain inspectable.
+- learn how Observa strategies are written
+- read the included strategy example and guide
+- list saved backtests
+- inspect trades, orders and positions
+- inspect strategy decisions
+- inspect rejected orders
+- inspect metrics and run information
+
+It cannot use MCP to run arbitrary strategy code or modify your saved runs.
+
+Setup for specific applications: [connecting an AI to Observa](docs/MCP.md).
+
+## Three ways to inspect the same backtest
+
+| Way | Command or call | Best when |
+| --- | --- | --- |
+| Replay | `observa replay runs/eurusd-demo` | you want to *see* the strategy trade |
+| Python | `observa.inspect_run("runs/eurusd-demo")` | you want to query or analyse the run programmatically |
+| AI through MCP | `observa mcp --runs-dir runs/` | you want to ask natural-language questions about the saved run |
+
+All three are looking at the same saved backtest.
+
+## Trading costs and execution
+
+Backtest results depend on how orders are simulated. Costs are applied to the
+simulated trades themselves as they happen — not merely added to the final
+statistics afterwards.
+
+```python
+config = observa.Config(
+    fill_mode=observa.NEXT_BAR_OPEN,   # or observa.BAR_CLOSE
+    spread=0.0002,
+    slippage=0.0001,
+    commission=7.0,                    # per round trip
+    commission_mode=observa.ROUND_TRIP,
+    interval="15m",
+    dataset_source=data,
+)
+```
+
+Assumptions, fill modes and cost handling in detail:
+[execution model](docs/execution-model.md).
+
+## Data
+
+Observa works with supported OHLC market data:
+
+- the bundled EUR/USD demo works offline
+- you can supply your own CSV or list of bars
+
+Format, requirements and the provenance of the bundled demo:
+[data format](docs/data-format.md) · [demo dataset](docs/demo-dataset.md).
+
+## What Observa is — and isn't
+
+Observa is designed to help you run and inspect trading-strategy backtests.
+
+It does not:
+
+- create profitable strategies for you
+- guarantee that a strategy is correct
+- predict the market
+- call an AI model by itself
+- provide live trading
+- remove the need to think carefully about your assumptions
+
+AI can help you write and analyse strategies.
+
+Observa gives that work a consistent place to run and something concrete to
+inspect afterwards.
+
+## Current status
+
+Observa is currently an early tester build.
+
+Verified environment:
+
+- Linux x86_64
+- CPython 3.10+
+- glibc 2.34+
+
+Windows, macOS and Google Colab are not currently runtime-verified.
+
+Observa is not live-trading or production trading software.
+
+See [known limitations](docs/known-limitations.md) and the
+[current release notes](docs/mvp-release-notes.md).
 
 ## Examples
 
-* [`examples/quickstart.py`](examples/quickstart.py) — bundled deterministic sample.
-* [`examples/eurusd_demo.py`](examples/eurusd_demo.py) — bundled real EUR/USD demo,
-  fully offline (no `yfinance`, no `pandas`).
-* [`examples/agent_example.py`](examples/agent_example.py) — the gold authoring example.
-* [`examples/ai_starter/`](examples/ai_starter/) — starter project for a coding agent.
-* [`examples/rsi_mean_reversion.py`](examples/rsi_mean_reversion.py) — RSI mean-reversion pattern.
-* [`examples/ema_observa.py`](examples/ema_observa.py) — downloads live EUR/USD itself
-  (needs `python -m pip install yfinance pandas`; **not** required for Observa itself).
+- [`examples/eurusd_demo.py`](examples/eurusd_demo.py) — real EUR/USD demo, fully offline.
+- [`examples/agent_example.py`](examples/agent_example.py) — a complete, correct strategy to copy.
+- [`examples/ai_starter/`](examples/ai_starter/) — starter project for a coding agent.
+- [`examples/rsi_mean_reversion.py`](examples/rsi_mean_reversion.py) — RSI mean-reversion pattern.
+- [`examples/quickstart.py`](examples/quickstart.py) — tiny deterministic sample.
+- [`examples/ema_observa.py`](examples/ema_observa.py) — downloads live EUR/USD itself
+  (needs `python -m pip install yfinance pandas`; **not** required for Observa).
 
 Technical examples only — not financial advice.
 
-## Status
-
-Private MVP tester build — **not** production or live-trading software.
-
-* Verified: Linux x86_64 (glibc ≥ 2.34), CPython ≥ 3.10 via the abi3 wheel.
-* Not runtime-verified: Windows, macOS, Google Colab.
-* The wheel has **one runtime dependency** (the official MCP SDK). Everything
-  else — replay, validation, inspection — is self-contained.
-
-See [known limitations](docs/known-limitations.md) and the
-[private MVP release notes](docs/mvp-release-notes.md).
-
 ## Documentation
 
-* [Getting started](docs/getting-started.md)
-* [Agent authoring guide](docs/agent/strategy-authoring.md) · [strategy contract](docs/strategy-contract.md)
-* [Execution model & assumptions](docs/execution-model.md)
-* [Inspection & strategy API](docs/STRATEGY_API.md) · [MCP](docs/MCP.md)
-* [Data format](docs/data-format.md) · [demo dataset provenance](docs/demo-dataset.md)
-* [known limitations](docs/known-limitations.md)
-* [Architecture](docs/ARCHITECTURE.md)
+Start here
 
-## Development (contributors — not end users)
+- [Getting started](docs/getting-started.md)
+- [Demo dataset](docs/demo-dataset.md)
+
+Writing a strategy
+
+- [Writing a strategy for Observa](docs/agent/strategy-authoring.md)
+- [Strategy reference](docs/strategy-contract.md)
+
+Using your own data
+
+- [Data format](docs/data-format.md)
+
+Inspecting backtests
+
+- [Replay](docs/getting-started.md#3-replay-it)
+- [Python inspection](docs/STRATEGY_API.md)
+- [Connect an AI with MCP](docs/MCP.md)
+
+Understanding the backtest
+
+- [Execution, fills and trading costs](docs/execution-model.md)
+- [Known limitations](docs/known-limitations.md)
+
+Contributors / internals
+
+- [Architecture](docs/ARCHITECTURE.md)
+
+## Development
+
+This section is for contributors, not normal Observa users.
 
 Building Observa requires Rust, Cargo and Maturin:
 
