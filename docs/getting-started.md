@@ -10,18 +10,10 @@ No Rust toolchain, no repository checkout, no data download.
 > ⚠️ **Do not `pip install observa`.** The public PyPI name `observa` is an
 > unrelated project.
 
-The next Observa wheel will be published on the project's GitHub Releases page:
-
-https://github.com/ErickNgumo/observa/releases
-
-> **Note:** the current published wheel (0.1.4) predates the one-install setup
-> and the bundled EUR/USD demo described here. The integrated build is pending
-> the next release; until then these work from source.
-
-Once published, that one command is the complete installation:
+Install the official Observa release:
 
 ```bash
-python -m pip install "<the wheel URL from that Releases page>"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.5-private-mvp/observa-0.1.5-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
 It includes everything Observa offers:

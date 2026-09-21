@@ -20,7 +20,7 @@ PyPI package.
 python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.5-private-mvp/observa-0.1.5-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-SHA-256: `PENDING`
+SHA-256: `1c912e05c889ea688ce9a985ce2720d918293495215e14013f66f2125ea43f38`
 
 For the real-data example also:
 

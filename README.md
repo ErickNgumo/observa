@@ -73,19 +73,10 @@ It is to show you exactly what Observa lets you inspect.
 > The `observa` package currently published on PyPI is unrelated to this
 > project.
 
-The next Observa wheel will be published on the project's GitHub Releases page:
-
-https://github.com/ErickNgumo/observa/releases
-
-> **Note:** the current published wheel (0.1.4) predates the one-install setup
-> and the bundled EUR/USD demo described here. The integrated one-install build
-> is pending the next release — until then, the demo and one-install behaviour
-> are available from source.
-
-Once the wheel is published, install it with:
+Install the official Observa release:
 
 ```bash
-python -m pip install "<the wheel URL from that Releases page>"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.5-private-mvp/observa-0.1.5-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
 That's the only installation you need.
