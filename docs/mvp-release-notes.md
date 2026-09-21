@@ -4,6 +4,13 @@
 > a small, invited cohort to validate the core product idea: **seeing what a
 > backtest actually did, bar by bar, from the canonical event history.**
 
+> **Upcoming in the next release — one install.** In 0.1.4, MCP was an optional
+> extra (`<wheel>[mcp]`). From the next release MCP ships **in the standard
+> wheel**: a single `pip install "<official wheel>"` provides the Python API,
+> replay, strategy validation **and** MCP. The old `[mcp]` extra is kept as an
+> empty compatibility alias, so existing scripts keep working. The 0.1.4
+> install instructions below are left as the historical record of that release.
+
 ## What Observa does
 
 Observa runs a strategy backtest once on the canonical Rust Engine and records

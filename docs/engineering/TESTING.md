@@ -203,14 +203,17 @@ What it locks in:
 | Concurrency / cache | eight concurrent calls agree deterministically; eight concurrent first-loads instantiate exactly once |
 
 It runs in CI in its **own** virtualenv (`.mcp-venv`), installing the built
-wheel with its optional extra — `pip install "<wheel>[mcp]"`. Keeping it
-separate means a dependency problem in the MCP stack cannot destabilise the core
-zero-dependency gates.
+wheel the normal way — `pip install "<wheel>"`. MCP is a standard dependency
+now, so the plain wheel is enough; the separate venv still isolates the MCP
+dependency stack from the core gates.
 
 Run it locally the same way:
 
 ```bash
-pip install "dist/observa-<version>-<tag>.whl[mcp]"
+pip install "dist/observa-<version>-<tag>.whl"
 python python/tests/test_mcp.py
 ```
+
+The old `[mcp]` extra is still accepted as an empty compatibility alias, so
+`pip install "<wheel>[mcp]"` also works and installs the same thing.
 

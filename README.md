@@ -77,7 +77,7 @@ strategies.**
 
 Details: [agent guide](docs/agent/strategy-authoring.md) · [AI starter](examples/ai_starter/) · [llms-full.txt](llms-full.txt)
 
-## Try it
+## Install
 
 > ⚠️ Do **not** run `pip install observa`. The public PyPI name `observa` is an
 > unrelated project. Install the official private-MVP wheel:
@@ -85,6 +85,10 @@ Details: [agent guide](docs/agent/strategy-authoring.md) · [AI starter](example
 ```bash
 python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
+
+That's the whole installation. This one install includes the Python API, local
+replay, strategy validation **and** MCP support — there is no core/AI split and
+no extras to add.
 
 Run the bundled deterministic sample — no data download, no Rust toolchain:
 
@@ -143,17 +147,18 @@ Inspection reads only the persisted artifacts — it never re-runs the strategy
 and never recomputes results. Full reference:
 [inspection & strategy API](docs/STRATEGY_API.md).
 
-## Inspect a run over MCP
+## Connect an AI to a run (MCP)
 
-MCP lets an external AI agent work with Observa through thirteen read-only
-tools: ten for inspecting a persisted run, and three for discovering how to
-write a strategy — the canonical contract, the gold example and the authoring
-guide, exactly as they ship in the wheel. It is **stdio-only**, **read-only**,
-and scoped to one local runs root. MCP is an optional extra on the **same
-wheel**:
+MCP lets supported AI tools connect straight to Observa: they can learn how
+Observa strategies are written, and inspect saved backtests. Observa exposes
+thirteen read-only tools — ten for inspecting a persisted run, and three for
+authoring discovery (the canonical contract, the gold example and the guide,
+exactly as they ship in the wheel). It is **stdio-only**, **read-only**, and
+scoped to one local runs root.
+
+**If Observa is installed, MCP is installed too** — there is no extra step:
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.4-private-mvp/observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
 observa mcp --runs-dir runs/
 ```
 
@@ -162,9 +167,6 @@ your first backtest. The authoring tools only hand back the contract and example
 that already ship in the package — they do **not** generate strategies and do
 **not** validate or run code; validation stays with
 `observa validate-strategy`.
-
-> ⚠️ Do **not** run bare `pip install "observa[mcp]"` — that resolves the
-> unrelated PyPI project, not this wheel.
 
 Tool reference, security model and client setup: [docs/MCP.md](docs/MCP.md).
 
@@ -198,8 +200,8 @@ Private MVP tester build — **not** production or live-trading software.
 
 * Verified: Linux x86_64 (glibc ≥ 2.34), CPython ≥ 3.10 via the abi3 wheel.
 * Not runtime-verified: Windows, macOS, Google Colab.
-* The base package has **zero third-party runtime dependencies**; MCP is an
-  optional extra.
+* The wheel has **one runtime dependency** (the official MCP SDK). Everything
+  else — replay, validation, inspection — is self-contained.
 
 See [known limitations](docs/known-limitations.md) and the
 [private MVP release notes](docs/mvp-release-notes.md).

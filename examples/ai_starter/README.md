@@ -20,11 +20,9 @@ python -m pip install "https://github.com/ErickNgumo/observa/releases/download/o
 > ⚠️ Do **not** run `pip install observa` or `pip install "observa[mcp]"`. The
 > public PyPI project named `observa` is unrelated to this one.
 
-MCP inspection is an optional extra on the same wheel:
-
-```bash
-python -m pip install "./observa-0.1.4-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
-```
+That one install also provides MCP, so there is nothing else to add — start it
+with `observa mcp --runs-dir runs/`. (The old `[mcp]` extra is still accepted as
+an empty compatibility alias, but it is never needed.)
 
 ## Use it
 

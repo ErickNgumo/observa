@@ -26,7 +26,7 @@ Copies in this repository: `docs/agent/strategy-authoring.md`,
 ## If you want to INSPECT a completed run
 
 * Python: `observa.inspect_run(run_dir)` / `observa.run_summary(run_dir)`
-* MCP (read-only, stdio, optional extra): `observa mcp --runs-dir runs/`
+* MCP (read-only, stdio, included in the standard install): `observa mcp --runs-dir runs/`
   — 10 inspection tools plus the 3 authoring-discovery tools above
 * Reference: `docs/MCP.md`, and section K2/K3 of `llms-full.txt`
 
@@ -47,10 +47,9 @@ Observa ships as a wheel on the private-MVP GitHub Release, **not** from PyPI:
 
     python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-<version>-private-mvp/observa-<version>-cp310-abi3-manylinux_2_34_x86_64.whl"
 
-Add the optional MCP extra to that **same wheel reference** (never to the bare
-package name):
-
-    python -m pip install "…/observa-<version>-cp310-abi3-manylinux_2_34_x86_64.whl[mcp]"
+That single install includes everything: replay, strategy validation and MCP
+support — no extra is needed. (The old `[mcp]` extra is still accepted as an
+empty compatibility alias.)
 
 **Never** run `pip install observa` or `pip install "observa[mcp]"` — the public
 PyPI project named `observa` is unrelated. Exact current URL:

@@ -1,8 +1,9 @@
-"""OBS-MCP-01 / OBS-AI-05 — read-only MCP server tests (installed wheel).
+"""OBS-MCP-01 / OBS-AI-05 / OBS-UX-02 — read-only MCP server tests (installed wheel).
 
-Run against an installed Observa wheel **with the optional MCP extra**:
+Run against an installed Observa wheel. MCP is part of the standard install, so
+the plain wheel is enough (the legacy ``[mcp]`` extra still works):
 
-    pip install "dist/observa-...whl[mcp]"
+    pip install "dist/observa-...whl"
     python python/tests/test_mcp.py
 
 Primary coverage drives the server through a **real MCP v2 client over actual
@@ -945,6 +946,7 @@ def test_cache_semantics(root):
 
 
 def test_packaging_metadata():
+    """OBS-UX-02: one install. The built wheel must pull MCP in by default."""
     try:
         import importlib.metadata as md
 
@@ -954,11 +956,26 @@ def test_packaging_metadata():
     except Exception as exc:  # noqa: BLE001
         check("installed distribution metadata is readable", False, exc)
         return
+
+    def _norm(requirement):
+        return requirement.split(";")[0].replace(" ", "").lower()
+
     unconditional = [r for r in requires if "extra ==" not in r]
-    check("base wheel declares no unconditional dependency", unconditional == [], unconditional)
-    check("the mcp extra is declared", "mcp" in extras, extras)
-    check("the mcp extra is upper-bounded below 3",
-          any("mcp" in r and "<3" in r for r in requires), requires)
+    check("MCP is a normal (unconditional) dependency",
+          any(_norm(r).startswith("mcp>=2.2,<3") for r in unconditional), unconditional)
+    check("MCP is upper-bounded below 3 in the normal dependency",
+          any("mcp" in r and "<3" in r for r in unconditional), unconditional)
+    check("MCP is the only unconditional dependency",
+          all("mcp" in r for r in unconditional), unconditional)
+    check("MCP is declared exactly once (no conflicting duplicate)",
+          len([r for r in unconditional if "mcp" in r]) == 1, unconditional)
+    check("the legacy mcp extra is still declared (compatibility alias)",
+          "mcp" in extras, extras)
+    # The alias must not add a second, possibly-conflicting MCP requirement.
+    alias_requirements = [r for r in requires
+                          if "extra ==" in r and "mcp" in _norm(r)]
+    check("the legacy mcp extra adds no extra requirement",
+          alias_requirements == [], alias_requirements)
 
 
 # ── OBS-AI-05: authoring discovery ───────────────────────────────────────

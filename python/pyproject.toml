@@ -10,16 +10,23 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Observa" }]
+# One install for everything. MCP support (run inspection + authoring discovery
+# over stdio) ships in the standard wheel, so `observa mcp` works right after
+# `pip install "<official wheel>"` — with no second step.
+dependencies = [
+    "mcp>=2.2,<3",
+]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Rust",
 ]
 
-# Optional additive surfaces. The base package stays dependency-free: the
-# `mcp` extra is only installed when a user explicitly asks for it, and nothing
-# in observa/__init__.py imports it.
+# Backward-compatible alias. MCP used to be an optional extra; it is now a
+# normal dependency, so this extra is intentionally EMPTY — `pip install
+# "<wheel>[mcp]"` still resolves and installs exactly what the plain wheel
+# installs. Documented installs always use the plain form.
 [project.optional-dependencies]
-mcp = ["mcp>=2.2,<3"]
+mcp = []
 
 [tool.maturin]
 module-name = "observa._observa"
