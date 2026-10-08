@@ -29,6 +29,14 @@ function loadEvents() {
           'candle chart is unavailable. Events, orders, positions and ' +
           'account state still replay below.');
       }
+      document.getElementById("stat-pair").textContent = instrumentLabel(data.run);
+      var started = replayEvents.find(function(e) { return e.type === "run_started"; });
+      document.getElementById("run-identity").textContent = started && started.strategy_name || "Strategy research";
+      if (data.run && Number.isInteger(data.run.price_decimals)) {
+        var precision = Math.max(0, Math.min(12, data.run.price_decimals));
+        candleSeries.applyOptions({ priceFormat: { type: 'price', precision: precision, minMove: Math.pow(10, -precision) } });
+      }
+      if (data.metrics) renderMetrics(data.metrics);
       updateProgressLabel();
       if (payload.run && payload.run.status === 'failed') {
         var meta = payload.run;
@@ -71,6 +79,11 @@ function renderToBar(k) {
   if (!payload || !replayIndex) return;
   var maxK = maxReplayBar();
   if (k > maxK) k = maxK;
+  k = Math.max(-1, k);
+  var heldRange = !chartFollowing ? chart.timeScale().getVisibleLogicalRange() : null;
+  if (activeInvestigation) clearInvestigation();
+  clearInvestigationOutlines();
+  delete investigations["max-drawdown"];
   currentBar = k;
 
   var endIdx = endEventOfBar(k);
@@ -93,6 +106,7 @@ function renderToBar(k) {
   renderBarEvents(k);
   renderTradeLog(view);
   renderCurves(endIdx, view);
+  if (payload.metrics) drawDrawdownHighlight(payload.metrics);
   updateProgressLabel();
 
   if (view.failed) {
@@ -102,7 +116,18 @@ function renderToBar(k) {
     if (payload.metrics) renderMetrics(payload.metrics);
     setPlayButton('done');
   }
-  chart.timeScale().scrollToPosition(0, false);
+  var drawdownButton = document.querySelector('[onclick="inspectMaxDrawdown()"]');
+  if (drawdownButton) {
+    drawdownButton.disabled = !investigations['max-drawdown'];
+    drawdownButton.title = drawdownButton.disabled ? 'Advance replay through the drawdown period to inspect it.' : conceptHelp['Max Drawdown'];
+  }
+  if (heldRange) chart.timeScale().setVisibleLogicalRange(heldRange);
+  else followReplayChart();
+  document.getElementById("btn-play").disabled = finished || maxK < 0;
+  document.getElementById("btn-prev").disabled = k < 0;
+  document.getElementById("btn-step").disabled = finished;
+  document.getElementById("btn-end").disabled = finished;
+  document.getElementById("inspector-bar").textContent = k < 0 ? "· before replay" : "· bar " + (k + 1) + " / " + totalBars;
 }
 
 function renderCandles(k, view) {
@@ -226,10 +251,10 @@ function renderAccountPanel(view) {
   var a = view.account;
   var html = '';
   function fig(label, value, cls) {
-    return '<div class="account-figure' + (cls ? ' ' + cls : '') + '"><span>' + label + '</span><strong>' + value + '</strong></div>';
+    return '<div class="account-figure' + (cls ? ' ' + cls : '') + '"><span>' + helpLabel(label) + '</span><strong>' + value + '</strong></div>';
   }
   if (!a) {
-    html = fig('Balance', '—') + fig('Equity', '—') + fig('Used margin', '—') + fig('Free margin', '—');
+    html = fig('Balance', '—') + fig('Equity', '—') + fig('Used margin', '—') + fig('Free margin', '—') + fig('Unrealised P&L', '—') + fig('Realised P&L', '—');
   } else {
     html = fig('Balance', '$' + fmtNum(a.balance, 2)) +
            fig('Equity', '$' + fmtNum(a.equity, 2)) +
@@ -254,14 +279,14 @@ function renderPositions(view) {
       ? '<span class="tag-open">open</span>'
       : '<span class="tag-closed">closed · ' + (exitReasonLabel[p.exit.exit_reason] || p.exit.exit_reason) + '</span>';
     rows.push(
-      '<tr class="' + (p.open ? 'row-open' : 'row-closed') + '">' +
+      '<tr tabindex="0" class="' + (p.open ? 'row-open' : 'row-closed') + '">' +
       '<td><span class="direction-badge ' + positionDirBadge(p.side) + '">' + p.side + '</span></td>' +
-      '<td>' + (p.symbol || (view.symbol || '—')) + '</td>' +
+      '<td>' + escapeHtml(p.symbol || (view.symbol || '—')) + '</td>' +
       '<td class="mono">' + p.quantity_lots + '</td>' +
       '<td class="mono">' + Number(p.entry_price).toFixed(5) + '</td>' +
       '<td class="mono">' + (p.stop_loss == null ? '—' : Number(p.stop_loss).toFixed(5)) + '</td>' +
       '<td class="mono">' + (p.take_profit == null ? '—' : Number(p.take_profit).toFixed(5)) + '</td>' +
-      '<td class="mono">' + p.position_id.slice(0, 8) + '</td>' +
+      '<td class="mono" title="' + escapeHtml(p.position_id) + '">' + escapeHtml(p.position_id.slice(0, 8)) + '</td>' +
       '<td>' + exitCell + '</td>' +
       '</tr>'
     );
@@ -281,14 +306,14 @@ function renderOrders(view) {
       : (o.order_type === 'market' ? '—' : 'pending');
     var stateCell = '<span class="order-state order-' + o.state + '">' + o.state + '</span>';
     if (o.state === 'rejected') {
-      stateCell += '<div class="reject-detail">' + (o.category || '') + (o.reason ? ': ' + o.reason : '') + '</div>';
+      stateCell += '<div class="reject-detail">' + escapeHtml(o.category || '') + (o.reason ? ': ' + escapeHtml(o.reason) : '') + '</div>';
     }
-    html += '<tr>' +
+    html += '<tr tabindex="0">' +
       '<td class="mono">' + o.seq + '</td>' +
       '<td>' + o.type + '</td>' +
       '<td>' + o.side + '</td>' +
       '<td class="mono">' + o.quantity_lots + '</td>' +
-      '<td class="mono">' + o.created_bar + '</td>' +
+      '<td class="mono">' + (o.created_bar + 1) + '</td>' +
       '<td class="mono">' + priceCell + '</td>' +
       '<td>' + stateCell + '</td>' +
       '</tr>';
@@ -318,17 +343,24 @@ function renderBarEvents(k) {
   var html = '';
   for (var i = 0; i < events.length; i++) {
     var e = events[i];
-    html += '<div class="canon-event" data-seq="' + e.event_seq + '">' +
+    html += '<details class="canon-event" data-seq="' + e.event_seq + '"><summary>' +
       '<span class="ce-seq mono">#' + e.event_seq + '</span>' +
-      '<span class="ce-type">' + e.type + '</span>' +
-      '<span class="ce-detail">' + shortPayload(e) + '</span>' +
-      '</div>';
+      '<span class="ce-type">' + escapeHtml(e.type.replace(/_/g, ' ')) + '</span>' +
+      '<span class="ce-detail">' + escapeHtml(shortPayload(e)) + '</span></summary>' +
+      '<pre>' + escapeHtml(JSON.stringify(e, null, 2)) + '</pre></details>';
   }
   if (!html) {
     html = '<div class="empty-note">No canonical events on this bar' +
       (k < 0 ? ' — press Play or Step to begin' : '') + '</div>';
   }
   list.innerHTML = html;
+  var reasons = [];
+  events.forEach(function(e) {
+    if (e.type === 'strategy_decision') (e.signals || []).forEach(function(signal) {
+      if (signal.reason) reasons.push('<p><span class="status-pill">Signal ' + (signal.signal_index + 1) + '</span> ' + escapeHtml(signal.reason) + '</p>');
+    });
+  });
+  document.getElementById('signal-reasons').innerHTML = reasons.join('') || '<span class="empty-note">No strategy reasons recorded at this bar.</span>';
   var decisionEl = document.getElementById('bar-decision');
   if (decisionEl) {
     var count = currentView ? currentView.decisionsByBar[k] : undefined;
@@ -347,23 +379,23 @@ function renderTradeLog(view) {
       : '-';
     var entryTimeUnix = t.opened_bar != null && replayBars[t.opened_bar] ? toUnix(replayBars[t.opened_bar].time) : '';
     var exitTimeUnix = t.closed_bar != null && replayBars[t.closed_bar] ? toUnix(replayBars[t.closed_bar].time) : '';
+    var exitTime = exitTimeUnix !== '' ? new Date(exitTimeUnix * 1000).toISOString().slice(0, 16).replace('T', ' ') : '—';
     var entryPrice = Number(t.entry_price).toFixed(5);
-    var sl = t.stop_loss == null ? '-' : Number(t.stop_loss).toFixed(5);
-    var tp = t.take_profit == null ? '-' : Number(t.take_profit).toFixed(5);
     var reason = exitReasonLabel[t.exit_reason] || t.exit_reason;
     var pnl = t.net_realized_pnl;
     rows +=
-      '<tr data-entry-time="' + entryTimeUnix + '" data-exit-time="' + exitTimeUnix + '">' +
+      '<tr tabindex="0" aria-selected="' + (selectedTradeId === t.position_id) + '" class="' + (selectedTradeId === t.position_id ? 'is-selected' : '') + '" data-trade-index="' + i + '" data-entry-time="' + entryTimeUnix + '" data-exit-time="' + exitTimeUnix + '">' +
       '<td class="trade-number">' + (i + 1) + '</td>' +
       '<td><span class="direction-badge ' + positionDirBadge(t.side) + '">' + t.side + '</span></td>' +
       '<td>' + entryTime + '</td>' +
+      '<td>' + exitTime + '</td>' +
       '<td>' + entryPrice + '</td>' +
       '<td>' + Number(t.exit_price).toFixed(5) + '</td>' +
-      '<td>' + sl + '</td>' +
-      '<td>' + tp + '</td>' +
-      '<td class="trade-reason">' + reason + '</td>' +
+
       '<td class="' + (pnl >= 0 ? 'pnl-positive' : 'pnl-negative') + '">' +
         (pnl >= 0 ? '+' : '') + '$' + Number(pnl).toFixed(2) + '</td>' +
+      '<td>' + tradeDuration(entryTimeUnix, exitTimeUnix) + '</td>' +
+      '<td class="trade-reason" title="' + escapeHtml(reason) + '">' + escapeHtml(reason) + '</td>' +
       '</tr>';
   }
   tbody.innerHTML = rows || '<tr><td colspan="9" class="empty-note">No closed trades yet</td></tr>';
@@ -383,6 +415,7 @@ function renderCurves(endIdx, view) {
   }
   equitySeries.setData(equityData);
   if (balanceSeries) balanceSeries.setData(balanceData);
+  equityChart.timeScale().fitContent();
 }
 
 // ── Metrics + failure presentation ─────────────
@@ -396,7 +429,7 @@ function renderMetrics(report) {
     var tag = action ? 'button' : 'div';
     return '<' + tag + (action ? ' type="button" onclick="' + action + '"' : '') +
       ' class="metric-card ' + (cls || 'neutral') + (action ? ' inspectable' : '') + '">' +
-      '<div class="metric-label">' + label + '</div>' +
+      '<div class="metric-label">' + helpLabel(label) + '</div>' +
       '<div class="metric-value ' + (cls || 'neutral') + '">' + value + '</div>' +
       (detail ? '<div class="metric-detail">' + detail + '</div>' : '') +
       '</' + tag + '>';
@@ -408,24 +441,24 @@ function renderMetrics(report) {
   }
 
   var r = report;
-  var html = '';
-  html += group('Performance', 'Return quality and risk-adjusted outcome',
+  var html = group('Overview', 'Complete-run results',
     card('Total Return', fmtNum(r.total_return_pct, 2) + '%', r.total_return_pct >= 0 ? 'positive' : 'negative') +
-    card('Annualised Return', r.annualised_return_pct != null ? fmtNum(r.annualised_return_pct, 2) + '%' : 'N/A', r.annualised_return_pct != null ? (r.annualised_return_pct >= 0 ? 'positive' : 'negative') : 'neutral') +
-    card('Sharpe Ratio', r.sharpe_ratio !== null ? fmtNum(r.sharpe_ratio, 2) : 'N/A', 'neutral') +
-    card('Calmar Ratio', r.calmar_ratio !== null ? fmtNum(r.calmar_ratio, 2) : 'N/A', 'neutral'), 'performance-group');
+    card('Max Drawdown', fmtNum(r.max_drawdown_pct, 2) + '%', 'negative', null, 'inspectMaxDrawdown()') +
+    card('Sharpe Ratio', r.sharpe_ratio != null ? fmtNum(r.sharpe_ratio, 2) : 'N/A') +
+    card('Profit Factor', r.profit_factor != null ? fmtNum(r.profit_factor, 2) : 'N/A') +
+    card('Win Rate', fmtNum(r.win_rate_pct, 1) + '%') +
+    card('Trades', r.total_trades), 'primary-metrics');
+  html += group('Performance', 'Return and average outcome',
+    card('Annualised Return', r.annualised_return_pct != null ? fmtNum(r.annualised_return_pct, 2) + '%' : 'N/A') +
+    card('Expectancy', r.expectancy != null ? '$' + fmtNum(r.expectancy, 2) : 'N/A'));
   html += group('Risk', 'Drawdown and return durability',
-    card('Max Drawdown', fmtNum(r.max_drawdown_pct, 2) + '%', 'negative', 'Inspect evidence across charts and trades', 'inspectMaxDrawdown()') +
-    card('Current Drawdown', r.current_drawdown_pct != null ? fmtNum(r.current_drawdown_pct, 2) + '%' : 'N/A', 'negative') +
-    card('Profit Factor', fmtNum(r.profit_factor, 2), 'neutral'), 'risk-group');
-  html += group('Trade Statistics', 'Execution outcomes across closed positions',
-    card('Win Rate', fmtNum(r.win_rate_pct, 1) + '%', 'neutral') +
-    card('Total Trades', r.total_trades, 'neutral') +
+    card('Calmar Ratio', r.calmar_ratio != null ? fmtNum(r.calmar_ratio, 2) : 'N/A') +
+    card('Current Drawdown', r.current_drawdown_pct != null ? fmtNum(r.current_drawdown_pct, 2) + '%' : 'N/A'));
+  html += group('Trade Statistics', 'Closed position outcomes',
     card('Winning Trades', r.winning_trades, 'positive') +
     card('Losing Trades', r.losing_trades, 'negative') +
-    card('Avg Win', '$' + fmtNum(r.avg_win, 2), 'positive') +
-    card('Avg Loss', '$' + fmtNum(r.avg_loss, 2), 'negative') +
-    card('Expectancy', '$' + fmtNum(r.expectancy, 2), r.expectancy >= 0 ? 'positive' : 'negative'), 'trades-group');
+    card('Average Win', '$' + fmtNum(r.avg_win, 2), 'positive') +
+    card('Average Loss', '$' + fmtNum(r.avg_loss, 2), 'negative'));
   grid.innerHTML = html;
   drawDrawdownHighlight(r);
 }

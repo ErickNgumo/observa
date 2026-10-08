@@ -14,7 +14,7 @@
       <div class="brand-mark" aria-hidden="true"><span></span></div>
       <div class="brand-copy">
         <div class="logo"><span>bserva</span></div>
-        <div class="tagline">Research. Replay. Refine.</div>
+        <div class="tagline" id="run-identity">Strategy research</div>
       </div>
     </div>
 
@@ -40,7 +40,7 @@
     </div>
 
     <div id="status-bar" aria-label="Backtest status">
-      <span class="instrument-chip" id="stat-pair">EURUSD M15</span>
+      <span class="instrument-chip" id="stat-pair">Loaded run</span>
       <span class="status-metric"><em>Balance</em>$<span id="stat-balance">—</span></span>
       <span class="status-metric"><em>Equity</em>$<span id="stat-equity">—</span></span>
       <span class="status-metric"><em>Open</em><span id="stat-open">—</span></span>
@@ -72,10 +72,11 @@
   <div id="run-banner" role="alert" style="display:none"></div>
 
   <div id="chart-container">
+    <div class="chart-toolbar"><span id="chart-context">Price · UTC · click a candle to inspect</span><div><button class="toolbar-btn" id="btn-follow" onclick="resumeChartFollow()" title="Keep the latest replay candle in view">Following replay</button><button class="toolbar-btn" onclick="fitReplayChart()" title="Fit all revealed candles">Fit all</button></div></div>
     <div id="chart"></div>
   </div>
 
-  <div id="panel-resize-handle" role="separator" aria-orientation="horizontal" aria-label="Resize analysis panel" tabindex="0">
+  <div id="panel-resize-handle" role="separator" aria-orientation="horizontal" aria-label="Resize inspector panel" title="Drag to resize · double-click to reset · arrow keys to adjust" tabindex="0">
     <span></span>
   </div>
 
@@ -83,7 +84,7 @@
     <div id="panel-tabs">
       <button class="panel-tab active" data-panel="equity" onclick="showPanel('equity')">Equity Curve</button>
       <button class="panel-tab" data-panel="trades" onclick="showPanel('trades')">Trade Log</button>
-      <button class="panel-tab" data-panel="replay" onclick="showPanel('replay')">Replay State</button>
+      <button class="panel-tab" data-panel="replay" onclick="showPanel('replay')">Inspector</button>
       <button class="panel-tab" data-panel="metrics" onclick="showPanel('metrics')">Metrics</button>
       <button id="panel-toggle" onclick="togglePanel()" aria-label="Collapse analysis panel" aria-expanded="true">&#9660;</button>
     </div>
@@ -91,14 +92,15 @@
       <div id="equity-panel">
         <div id="equity-context">
           <div class="analysis-heading">
-            <span class="eyebrow">Investigation view</span>
-            <span class="analysis-title">Equity trajectory</span>
+            <span class="eyebrow">Selected replay range</span>
+            <span class="analysis-title">Account history</span>
           </div>
           <div class="equity-tools">
             <div id="equity-inspector" aria-live="polite">
               <span>Point</span><strong>Hover curve</strong>
             </div>
             <div class="equity-legend" aria-label="Equity chart legend">
+              <span><i class="legend-line equity-line"></i>Equity</span>
               <span><i class="legend-line balance-line"></i>Balance</span>
               <span title="Click the red equity segment to inspect this drawdown"><i class="legend-line drawdown-line"></i>Max drawdown</span>
             </div>
@@ -111,9 +113,8 @@
         <table>
           <thead>
             <tr>
-              <th>#</th><th>Direction</th><th>Entry Time</th>
-              <th>Entry Price</th><th>Exit Price</th>
-              <th>SL</th><th>TP</th><th>Reason</th><th>PnL</th>
+              <th>#</th><th>Side</th><th>Entry Time (UTC)</th><th>Exit Time (UTC)</th>
+              <th>Entry Price</th><th>Exit Price</th><th>Net P&amp;L</th><th>Duration</th><th>Exit Reason</th>
             </tr>
           </thead>
           <tbody id="trade-log-body"></tbody>
@@ -121,29 +122,30 @@
       </div>
 
       <div id="metrics-panel">
-        <div id="metrics-grid"></div>
+        <div class="section-heading"><h3>Run statistics</h3><p>Complete run · independent of the selected replay bar</p></div><div id="metrics-grid"><div class="empty-note">No completed-run metrics available.</div></div>
       </div>
 
       <div id="replay-panel">
-        <div class="replay-heading">
-          <span class="eyebrow">Canonical state at the selected bar</span>
-          <span class="analysis-title">Account · Positions · Orders · Events</span>
-        </div>
+        <div class="section-heading"><h3>Account <span id="inspector-bar"></span></h3><p>Recorded account snapshot at the selected bar.</p></div>
         <div id="account-figures" class="account-figures"></div>
-        <div class="replay-subheading">Bar decision <span id="bar-decision" class="mono">—</span></div>
+        <div class="section-heading"><h3>Signals / Decisions <span id="bar-decision" class="status-pill">—</span></h3><p>Strategy decisions at this bar. Reasons appear when the strategy supplied them.</p></div>
+        <div id="signal-reasons" class="signal-reasons"></div>
+        <div class="section-heading"><h3>Positions</h3><p>Positions opened up to this bar, with their current open or closed status.</p></div>
         <div class="replay-table-wrap">
           <table class="replay-table">
-            <thead><tr><th>Side</th><th>Symbol</th><th>Qty</th><th>Entry</th><th>SL</th><th>TP</th><th>ID</th><th>Status</th></tr></thead>
+            <thead><tr><th>Side</th><th>Symbol</th><th>Size (lots)</th><th>Entry</th><th>SL</th><th>TP</th><th>Ticket</th><th>Status</th></tr></thead>
             <tbody id="positions-body"></tbody>
           </table>
         </div>
+        <div class="section-heading"><h3>Orders</h3><p>Orders generated and processed up to the selected bar.</p></div>
         <div class="replay-table-wrap">
           <table class="replay-table">
-            <thead><tr><th>Seq</th><th>Type</th><th>Side</th><th>Qty</th><th>Bar</th><th>Price</th><th>State</th></tr></thead>
+            <thead><tr><th>Seq</th><th>Type</th><th>Side</th><th>Size (lots)</th><th>Created bar</th><th>Price</th><th>State</th></tr></thead>
             <tbody id="orders-body"></tbody>
           </table>
         </div>
         <div class="replay-subheading">Strategy series <span id="series-legend" class="series-legend"></span></div>
+        <div class="section-heading"><h3>Events</h3><p>Recorded activity at this bar. Select an event to inspect its full details.</p></div>
         <div id="bar-events" class="bar-events"></div>
       </div>
     </div>
@@ -162,6 +164,7 @@
   <script src="/js/drawdown.js"></script>
   <script src="/js/playback.js"></script>
   <script src="/js/panels.js"></script>
+  <script src="/js/workspace.js"></script>
   <script src="/js/main.js"></script>
 </body>
 </html>

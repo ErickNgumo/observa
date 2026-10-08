@@ -21,6 +21,7 @@ function enterInvestigation(id) {
 
   clearInvestigation();
   activeInvestigation = definition;
+  document.body.style.setProperty("--inspection-color", definition.color || "var(--negative)");
   document.body.classList.add('is-inspecting');
 
   renderInvestigationEquity(definition);
@@ -54,7 +55,7 @@ function renderInvestigationEquity(definition) {
   if (points.length === 0) return;
 
   investigationEquitySeries = equityChart.addSeries(LightweightCharts.LineSeries, {
-    color: '#f06c77', lineWidth: 3, priceLineVisible: false,
+    color: definition.color ? getComputedStyle(document.body).getPropertyValue('--accent').trim() : '#f06c77', lineWidth: 3, priceLineVisible: false,
     lastValueVisible: false, crosshairMarkerVisible: false
   });
   investigationEquitySeries.setData(points);
@@ -91,7 +92,7 @@ function renderInvestigationOverlay(definition) {
   var overlay = document.createElement('div');
   overlay.id = 'investigation-overlay';
   overlay.setAttribute('aria-hidden', 'true');
-  overlay.innerHTML = '<span>' + definition.shortLabel + '</span>';
+  overlay.innerHTML = '<span>' + escapeHtml(definition.shortLabel) + '</span>';
   container.appendChild(overlay);
   updateInvestigationOverlay();
 }
@@ -128,7 +129,7 @@ function highlightInvestigationTrades(range) {
 function showInvestigationBanner(definition) {
   var banner = document.createElement('aside');
   banner.id = 'investigation-banner';
-  banner.innerHTML = '<div><span>Inspection mode</span><strong>' + definition.label + ' <em>' + definition.summary + '</em></strong></div>' +
+  banner.innerHTML = '<div><span>Inspection mode</span><strong>' + escapeHtml(definition.label) + ' <em>' + escapeHtml(definition.summary) + '</em></strong></div>' +
     '<button type="button" onclick="clearInvestigation()">Clear inspection</button>';
   document.getElementById('chart-container').appendChild(banner);
 }

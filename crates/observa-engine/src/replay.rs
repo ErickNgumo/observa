@@ -32,6 +32,8 @@ pub struct RunMeta {
     pub error_category: Option<String>,
     pub error_message: Option<String>,
     pub instrument_symbol: Option<String>,
+    pub dataset_interval: Option<String>,
+    pub price_decimals: Option<u64>,
 }
 
 fn bar_to_json(b: &Bar) -> Value {
@@ -102,6 +104,8 @@ pub fn replay_payload(
             "error_category": run.error_category,
             "error_message": run.error_message,
             "symbol": run.instrument_symbol,
+            "interval": run.dataset_interval,
+            "price_decimals": run.price_decimals,
         },
         "bars": bar_values,
         "events": event_values,
@@ -222,6 +226,13 @@ pub fn run_meta_from_run_json(run_json: &Value) -> RunMeta {
             .get("error")
             .and_then(Value::as_str)
             .map(String::from),
+        price_decimals: run_json
+            .pointer("/config/instrument/price_decimals")
+            .and_then(Value::as_u64),
+        dataset_interval: run_json
+            .pointer("/config/dataset/interval")
+            .and_then(Value::as_str)
+            .map(String::from),
         instrument_symbol: run_json
             .get("config")
             .and_then(|c| c.get("instrument"))
@@ -337,6 +348,20 @@ mod tests {
         let mut s = BuyOnce { sent: false };
         let result = engine.run(&bars, &mut s).unwrap();
         (bars, result, config())
+    }
+
+    #[test]
+    fn optional_interval_is_display_metadata_only() {
+        let meta = run_meta_from_run_json(&json!({
+            "config": {"instrument": {"symbol": "NQ"}, "dataset": {"interval": "5m"}}
+        }));
+        let payload = replay_payload(&[], &[], &meta, None);
+        assert_eq!(payload["run"]["symbol"], "NQ");
+        assert_eq!(payload["run"]["interval"], "5m");
+        assert_eq!(payload["events"], json!([]));
+        let legacy = run_meta_from_run_json(&json!({}));
+        assert!(legacy.dataset_interval.is_none());
+        assert!(legacy.instrument_symbol.is_none());
     }
 
     #[test]

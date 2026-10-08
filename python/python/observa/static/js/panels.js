@@ -5,13 +5,13 @@
 // ══════════════════════════════════════════════
 
 var workspaceStorageKey = 'observa-workspace';
-var workspaceState = { collapsed: false, height: 210, activeTab: 'equity' };
+var workspaceState = { collapsed: false, height: 280, activeTab: 'equity' };
 
 function getWorkspaceLimits() {
   var viewport = window.innerHeight;
   return {
     min: window.innerWidth <= 760 ? 150 : 130,
-    max: Math.max(window.innerWidth <= 760 ? 240 : 220, Math.round(viewport * 0.62))
+    max: Math.max(130, viewport - document.getElementById("chart-container").getBoundingClientRect().top - 263)
   };
 }
 
@@ -30,6 +30,7 @@ function applyWorkspaceState(animate) {
   workspaceState.height = clampPanelHeight(workspaceState.height);
   panel.style.setProperty('--panel-height', workspaceState.height + 'px');
   panel.classList.toggle('collapsed', workspaceState.collapsed);
+  updateResizeAccessibility();
   toggle.setAttribute('aria-expanded', String(!workspaceState.collapsed));
   toggle.setAttribute('aria-label', workspaceState.collapsed ? 'Expand analysis panel' : 'Collapse analysis panel');
   showPanel(workspaceState.activeTab, false);
@@ -86,6 +87,7 @@ function showPanel(tab, persist) {
     tabs[i].classList.toggle('active', tabs[i].getAttribute('data-panel') === tab);
   }
   workspaceState.activeTab = tab;
+  if (persist !== false && workspaceState.collapsed) { workspaceState.collapsed = false; applyWorkspaceState(false); }
   if (persist !== false) saveWorkspaceState();
   requestAnimationFrame(resizeCharts);
 }
@@ -112,6 +114,7 @@ function setupPanelResize() {
     if (startY === undefined) return;
     workspaceState.height = clampPanelHeight(startHeight + (startY - clientY));
     panel.style.setProperty('--panel-height', workspaceState.height + 'px');
+    updateResizeAccessibility();
     resizeCharts();
   }
 
@@ -122,6 +125,10 @@ function setupPanelResize() {
     saveWorkspaceState();
   }
 
+  handle.addEventListener('dblclick', function() {
+    workspaceState.height = 280; workspaceState.collapsed = false;
+    applyWorkspaceState(false); saveWorkspaceState();
+  });
   handle.addEventListener('pointerdown', function(event) {
     beginResize(event.clientY);
     if (startY !== undefined) handle.setPointerCapture(event.pointerId);
@@ -135,6 +142,7 @@ function setupPanelResize() {
     event.preventDefault();
     workspaceState.height = clampPanelHeight(workspaceState.height + (event.key === 'ArrowUp' ? 24 : -24));
     panel.style.setProperty('--panel-height', workspaceState.height + 'px');
+    updateResizeAccessibility();
     resizeCharts();
     saveWorkspaceState();
   });
@@ -158,4 +166,13 @@ function renderSeriesLegend(state) {
       '</span>';
   }
   host.innerHTML = html;
+}
+
+function updateResizeAccessibility() {
+  var handle = document.getElementById('panel-resize-handle');
+  var limits = getWorkspaceLimits();
+  handle.setAttribute('aria-valuemin', limits.min);
+  handle.setAttribute('aria-valuemax', limits.max);
+  handle.setAttribute('aria-valuenow', workspaceState.height);
+  handle.setAttribute('aria-valuetext', workspaceState.collapsed ? 'Collapsed' : workspaceState.height + ' pixels');
 }
