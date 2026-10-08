@@ -1,6 +1,6 @@
 # OBS-UI-01 — Replay Workspace Redesign
 
-Status: implementation; human visual review required. Branch: obs-ui-01-replay-workspace.
+Status: implemented and verified; awaiting human visual review. Branch: obs-ui-01-replay-workspace.
 
 Scope: the user-approved replay workspace redesign; no economics, strategy,
 canonical reducer, or persistence changes. Explicit trade/chart interactions in
@@ -28,3 +28,6 @@ this ticket supersede the historical MVP exclusion. Do not merge or release.
 ## Implementation / verification
 
 See docs/engineering/OBS-UI-01-report.md for final checks and review artifacts.
+
+Final evidence: 39 browser checks and 13 real demo screenshots; canonical baseline,
+replay/annotation, engine and server/CLI regressions pass. Do not merge or release.

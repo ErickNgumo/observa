@@ -87,6 +87,14 @@ This document is a migration of the **current-state claims in the source knowled
 - Strategy drawings.
 - Replay controls.
 
+### Replay workspace (OBS-UI-01 branch; awaiting visual acceptance)
+- Resizable/collapsible inspector with session-only layout state and bounded table scrolling.
+- Named Account, Decisions, Positions, Orders and Events sections; recorded strategy reasons.
+- Compact complete-run metrics, equity/balance legend and keyboard-accessible evidence selection.
+- Dynamic persisted symbol/interval and price precision through display-only metadata.
+- Chart follow with manual-navigation override, explicit Fit all, trade-period focus and bar selection.
+- Review artifacts and verification: `docs/engineering/OBS-UI-01-report.md`.
+
 ### CLI
 
 The installed `observa` console script (from the wheel) provides:

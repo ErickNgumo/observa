@@ -327,9 +327,11 @@ function shortPayload(e) {
   });
   var parts = keys.map(function (k) {
     var v = e[k];
-    if (typeof v === 'number') v = Number(v).toPrecision(8);
+    if (typeof v === 'number') v = Number.isInteger(v) ? String(v) : fmtNum(v, 5);
+    if (Array.isArray(v)) v = v.length + (v.length === 1 ? ' item' : ' items');
+    else if (v && typeof v === 'object') v = 'expand for details';
     if (v === null) v = 'null';
-    return k + '=' + v;
+    return k.replace(/_/g, ' ') + ': ' + v;
   });
   var detail = parts.slice(0, 6).join(' ');
   return detail ? ' · ' + detail : '';
