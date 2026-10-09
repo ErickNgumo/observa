@@ -1,6 +1,6 @@
 [package]
 name    = "observa-execution"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 
 # Execution model — applies spread, slippage, commission.
@@ -11,4 +11,3 @@ chrono = { version = "0.4", features = ["serde"]}
 thiserror = "1.0"
 uuid = { version = "1.0", features = ["v4", "serde"]}
 observa-core = { path = "../observa-core" }
-
