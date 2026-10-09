@@ -10,6 +10,7 @@ function boot() {
   initCharts();
   initializeInvestigationMode();
   initializeWorkspaceLayout();
+  initializeResearchWorkspace();
   loadEvents().then(function() {
     console.log('Observa ready. Press Play to start replay.');
   });

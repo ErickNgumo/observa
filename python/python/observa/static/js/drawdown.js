@@ -19,6 +19,7 @@ function closestEquityPoint(targetUnix) {
 
 function drawDrawdownHighlight(report) {
   if (!report.max_drawdown_start || !report.max_drawdown_end) return;
+  if (!equityData.length || equityData[equityData.length - 1].time < toUnix(report.max_drawdown_end)) return;
 
   var startPoint = closestEquityPoint(toUnix(report.max_drawdown_start));
   var endPoint = closestEquityPoint(toUnix(report.max_drawdown_end));

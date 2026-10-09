@@ -19,7 +19,7 @@ function nextReplayBar() {
   var next = currentBar + 1;
   if (next > maxK) return; // already at final processed bar
   renderToBar(next);
-  if (finished) { stopPlayback(); setPlayButton('done'); }
+  if (finished) { stopPlayback(); isPlaying = false; setPlayButton('done'); }
 }
 
 function previousReplayBar() {
@@ -80,6 +80,7 @@ function stepOnce() {
 function resetReplay() {
   stopPlayback();
   isPlaying = false;
+  chartFollowing = true; selectedTradeId = null; updateFollowControl();
   currentBar = -1;
   finished = false;
   currentView = null;

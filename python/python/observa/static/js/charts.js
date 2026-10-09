@@ -27,7 +27,8 @@ function initCharts() {
       timeVisible:    true,
       secondsVisible: false,
       rightOffset:    5,
-      barSpacing:     4
+      barSpacing:     8,
+      shiftVisibleRangeOnNewBar: false
     },
     width:  document.getElementById('chart').clientWidth,
     height: document.getElementById('chart').clientHeight

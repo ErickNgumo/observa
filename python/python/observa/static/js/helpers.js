@@ -14,7 +14,10 @@ function toUnix(iso) {
 // Formats a number with a fixed number of decimals
 // and thousands separators, e.g. 10000 -> "10,000.00"
 function fmtNum(n, dec) {
-  return Number(n).toLocaleString('en-US', {
+  var value = Number(n);
+  // Negative zero is a floating-point representation, not a negative amount.
+  if (Object.is(value, -0)) value = 0;
+  return value.toLocaleString('en-US', {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec
   });
