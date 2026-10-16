@@ -4,3 +4,4 @@ pub mod trade_stats;
 pub mod sharpe;
 pub mod calmar;
 pub mod metrics;
+pub mod evaluation;

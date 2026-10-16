@@ -694,7 +694,7 @@ fn main() {
             &bars,
             &result.events,
             &result,
-            4.0 * 24.0 * 252.0,
+            None,
             &dataset_source,
         ) {
             Ok(dir) => {
@@ -717,30 +717,18 @@ fn main() {
         }
     }
 
-    // ── Derive presentation metrics from the canonical result ──
-    let initial_balance = result
-        .bars
-        .first()
-        .map(|b| b.snapshot.balance)
-        .unwrap_or(legacy.account.initial_balance);
-    let mut metrics = MetricsEngine::new(initial_balance, 4.0 * 24.0 * 252.0);
-    for b in &result.bars {
-        metrics.on_snapshot(b.snapshot.timestamp, b.snapshot.equity);
-    }
-    for trade in &result.trades {
-        metrics.on_trade_closed(trade.net_realized_pnl);
-    }
-    let report = metrics.report();
-
+    // ── Derive metrics from the canonical result (single implementation) ──
+    // Annualisation is resolved from the configured interval; it is never
+    // guessed for intraday bars (see docs/metrics.md).
+    let metrics_value =
+        observa_engine::persistence::derive_metrics_json(&result, engine.config(), &bars, None);
     let metrics_view = MetricsReportView {
-        total_return_pct: report.total_return_pct,
-        max_drawdown_pct: report.max_drawdown_pct,
+        total_return_pct: metrics_value["total_return_pct"].as_f64().unwrap_or(0.0),
+        max_drawdown_pct: metrics_value["max_drawdown_pct"].as_f64().unwrap_or(0.0),
     };
     print_summary(&result, &metrics_view);
 
     // ── Serve the replay UI (canonical events + bars + derived metrics) ──
-    let metrics_value =
-        observa_engine::persistence::derive_metrics_json(&result, 4.0 * 24.0 * 252.0);
     let symbol = engine.config().instrument.symbol.clone();
     let payload = replay_payload_for(&result, &bars, &metrics_value, &symbol);
     serve_payload(&payload, args.port);

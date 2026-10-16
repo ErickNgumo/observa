@@ -289,10 +289,13 @@ def g_T06(ws, run, fails, py):
           "REPORT.md does not identify the margin rejection as the cause", fails)
 
 
-def _sharpe(eq, ppy):
-    if len(eq) < 30:
+def _sharpe(eq, ppy, start):
+    """Sharpe as defined in docs/metrics.md (metrics schema 2): per-bar
+    returns from the starting balance, sample std, sqrt(bars per year)."""
+    bases = [start] + eq[:-1]
+    r = [e / b - 1.0 for e, b in zip(eq, bases)]
+    if len(r) < 30:
         return None
-    r = [eq[i] / eq[i - 1] - 1.0 for i in range(1, len(eq)) if eq[i - 1] > 0]
     n = len(r)
     m = sum(r) / n
     sd = math.sqrt(sum((x - m) ** 2 for x in r) / (n - 1))
@@ -304,7 +307,8 @@ def g_T07(ws, run, fails, py):
     if not common(ws, run, fails, len(bars)):
         return
     eq = [e["equity"] for e in run.of("portfolio_snapshot")]
-    exp = _sharpe(eq, 252 * 288)
+    start = run.run.get("config", {}).get("account", {}).get("starting_balance", 10000.0)
+    exp = _sharpe(eq, 252 * 288, start)
     got = (run.metrics or {}).get("sharpe_ratio")
     if check(exp is not None and got is not None, "sharpe missing (got %r, expected %r)" % (got, exp), fails):
         check(abs(got - exp) <= 1e-6 * max(1.0, abs(exp)),

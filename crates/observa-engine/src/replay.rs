@@ -405,7 +405,7 @@ mod tests {
             &bars,
             &result.events,
             &result,
-            24.0 * 252.0,
+            None,
             "test.csv",
         )
         .unwrap();

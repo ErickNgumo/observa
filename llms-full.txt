@@ -439,6 +439,21 @@ dataset hash).
 The run directory is create-only: writing to an existing directory raises
 FileExistsError.
 
+Metrics (schema 2, full definitions in `docs/metrics.md`): returns, risk
+(volatility, Sharpe, Sortino, Calmar, drawdown depth/amount/duration/recovery),
+trade outcomes (net of commission), exposure and costs, plus `sample`,
+`assumptions` and `unavailable` (metric -> reason). Undefined metrics are
+`null` with a reason, never 0. Annualised metrics need bars per year: pass
+`observa.run(..., bars_per_year=...)` or `Config(bars_per_year=...)` (e.g.
+`252 * 96` for 15-minute bars of a 24h market traded 252 days a year). Daily
+bars default to 252 (trading-day calendar) or 365 (bars on every calendar
+day), weekly to 52, only when the observed spacing/calendar agrees; intraday
+bars have no default, so annualised metrics are unavailable without it. See
+`metrics["warnings"]` for caveats such as short samples.
+Returns over less than one year are never annualised. Report metrics with the
+`sample` block (bars, returns, closed trades). Costs are commission, spread
+and slippage only: financing / swap / funding is not modelled.
+
 ## K. Replay
 
 Running a backtest and launching replay are two separate actions. Replay a

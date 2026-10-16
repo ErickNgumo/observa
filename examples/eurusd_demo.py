@@ -35,6 +35,10 @@ config = observa.Config(
     commission=7.0,
     commission_mode=observa.ROUND_TRIP,
     interval="15m",
+    # Annualisation for metrics only (never economics): EUR/USD trades about
+    # 24 hours a day on about 252 days a year -> 252 * 96 fifteen-minute bars.
+    # Without it, annualised metrics are reported as unavailable, not guessed.
+    bars_per_year=252 * 96,
     params={"fast": 12, "slow": 26},
     strategy_name="EmaCrossover",
     dataset_source=data_file,  # records the bundled path so replay restores candles
@@ -49,6 +53,18 @@ print(f"final equity:    {result.final_equity:.2f}")
 print(f"trades:          {len(result.trades)}")
 print(f"open positions:  {result.open_positions}")
 print(f"events:          {len(result.events)}")
+m = result.metrics
+
+
+def show(key, unit=""):
+    v = m.get(key)
+    return f"{v:.2f}{unit}" if v is not None else "unavailable — " + m["unavailable"][key]
+
+
+print(f"total return:    {show('total_return_pct', '%')}")
+print(f"max drawdown:    {show('max_drawdown_pct', '%')}")
+print(f"sharpe (ann.):   {show('sharpe_ratio')}")
+print(f"annual return:   {show('annualised_return_pct', '%')}")
 print()
 print("Run saved to:      runs/eurusd-demo")
 print("Replay with:       observa replay runs/eurusd-demo")

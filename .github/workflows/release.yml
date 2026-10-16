@@ -77,6 +77,7 @@ jobs:
           .release-venv/bin/python python/tests/test_history_contract.py
           .release-venv/bin/python python/tests/test_causality.py
           .release-venv/bin/python harness/finance/golden_ledgers.py
+          .release-venv/bin/python python/tests/test_metrics_fixtures.py
       - name: Verify built wheel (agent authoring contract)
         # OBS-AI-04: a release must not be publishable if the bundled strategy
         # authoring assets (spec.json, guide, gold example, AGENTS template)

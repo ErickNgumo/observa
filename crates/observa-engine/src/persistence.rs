@@ -21,11 +21,16 @@ use serde_json::{json, Value};
 use thiserror::Error;
 
 use observa_core::bar::Bar;
-use observa_core::config::BacktestConfig;
-use observa_metrics::metrics::{MetricsEngine, MetricsReport};
+use std::collections::BTreeMap;
+
+use observa_core::config::{BacktestConfig, BarInterval};
+use observa_metrics::evaluation::{
+    compute_metrics, resolve_annualisation, Annualisation, BarPoint, FillCost, IntervalKind,
+    MetricsInput, TradePoint,
+};
 
 use crate::engine::RunResult;
-use crate::runevents::{EngineEvent, METRICS_SCHEMA_VERSION, RUN_SCHEMA_VERSION};
+use crate::runevents::{EngineEvent, RUN_SCHEMA_VERSION};
 use crate::sha256::Sha256;
 
 /// Errors produced by run persistence.
@@ -130,65 +135,97 @@ fn event_line(event: &EngineEvent) -> Result<String, PersistenceError> {
     serde_json::to_string(event).map_err(|e| PersistenceError::Serialization(e.to_string()))
 }
 
-/// Derives the canonical metrics report from a `RunResult` (metrics consume
-/// canonical run data; they are never a financial authority).
-fn derive_metrics(result: &RunResult, bars_per_year: f64) -> MetricsReport {
-    let initial = result
-        .bars
-        .first()
-        .map(|b| b.snapshot.balance)
-        .unwrap_or(0.0);
-    let mut m = MetricsEngine::new(initial, bars_per_year);
-    for b in &result.bars {
-        m.on_snapshot(b.snapshot.timestamp, b.snapshot.equity);
-    }
-    for trade in &result.trades {
-        m.on_trade_closed(trade.net_realized_pnl);
-    }
-    m.report()
+/// Resolves how metrics annualise for this run (see
+/// `observa_metrics::evaluation::resolve_annualisation`): an explicit
+/// `bars_per_year` wins; daily/weekly intervals get a conventional default
+/// only when the bar spacing agrees; intraday intervals get none.
+pub fn annualisation_for(
+    config: &BacktestConfig,
+    bars: &[Bar],
+    explicit_bars_per_year: Option<f64>,
+) -> Annualisation {
+    let interval = config
+        .dataset
+        .as_ref()
+        .map(|d| d.interval)
+        .unwrap_or(BarInterval::Day);
+    let kind = match interval {
+        BarInterval::Day => IntervalKind::Daily,
+        BarInterval::Week => IntervalKind::Weekly,
+        other => IntervalKind::Intraday(other.to_duration().map(|d| d.num_seconds()).unwrap_or(0)),
+    };
+    let timestamps: Vec<DateTime<Utc>> = bars.iter().map(|b| b.timestamp).collect();
+    resolve_annualisation(explicit_bars_per_year, &interval.to_string(), kind, &timestamps)
 }
 
-/// Serializes a `MetricsReport` to JSON, mapping any non-finite value to
-/// `null` (e.g. profit factor when there are no losing trades) instead of
-/// emitting invalid JSON or inventing zero.
-pub fn derive_metrics_json(result: &RunResult, bars_per_year: f64) -> Value {
-    let report = derive_metrics(result, bars_per_year);
-    let num = |v: f64| -> Value {
-        if v.is_finite() {
-            json!(v)
-        } else {
-            Value::Null
+/// Derives the canonical schema-2 metrics object from a `RunResult` and its
+/// configuration. Metrics consume canonical run data only (snapshots, closed
+/// trades, fills); they are never a financial authority.
+pub fn derive_metrics_json(
+    result: &RunResult,
+    config: &BacktestConfig,
+    bars: &[Bar],
+    explicit_bars_per_year: Option<f64>,
+) -> Value {
+    let contract_size = config.instrument.contract_size;
+    // Entry bar of each position, from the canonical event history.
+    let mut entry_bar: BTreeMap<String, usize> = BTreeMap::new();
+    for e in &result.events {
+        if let Ok(v) = serde_json::to_value(e) {
+            if v["type"] == "position_opened" {
+                if let (Some(pid), Some(bi)) = (v["position_id"].as_str(), v["bar_index"].as_u64()) {
+                    entry_bar.insert(pid.to_string(), bi as usize);
+                }
+            }
         }
+    }
+    let input = MetricsInput {
+        starting_balance: config.account.starting_balance,
+        leverage: config.account.leverage,
+        bars: result
+            .bars
+            .iter()
+            .map(|b| BarPoint {
+                timestamp: b.snapshot.timestamp,
+                equity: b.snapshot.equity,
+                balance: b.snapshot.balance,
+                used_margin: b.snapshot.used_margin,
+                open_positions: b.snapshot.open_positions.len(),
+                commissions_paid: b.snapshot.commissions_paid,
+            })
+            .collect(),
+        trades: result
+            .trades
+            .iter()
+            .map(|t| TradePoint {
+                net_pnl: t.net_realized_pnl,
+                entry_bar: entry_bar.get(&t.position_id.to_string()).copied(),
+                exit_bar: t.bar_index,
+            })
+            .collect(),
+        fills: result
+            .fills
+            .iter()
+            .map(|f| {
+                let units = f.quantity_lots.abs() * contract_size;
+                FillCost {
+                    spread_cost: f.spread_applied.abs() * units,
+                    slippage_cost: f.slippage_applied.abs() * units,
+                }
+            })
+            .collect(),
+        annualisation: annualisation_for(config, bars, explicit_bars_per_year),
+        interval_label: config
+            .dataset
+            .as_ref()
+            .map(|d| d.interval.to_string())
+            .unwrap_or_else(|| "1d".to_string()),
+        currency: config.account.currency.clone(),
+        final_balance: result.final_state.final_balance,
+        final_equity: result.final_state.final_equity,
+        open_positions_remaining: result.final_state.open_positions_remaining,
     };
-    let val = json!({
-        "metrics_schema_version": METRICS_SCHEMA_VERSION,
-        "total_return_pct": num(report.total_return_pct),
-        "annualised_return_pct": num(report.annualised_return_pct),
-        "max_drawdown_pct": num(report.max_drawdown_pct),
-        "max_drawdown_start": report.max_drawdown_start,
-        "max_drawdown_end": report.max_drawdown_end,
-        "current_drawdown_pct": num(report.current_drawdown_pct),
-        "sharpe_ratio": report.sharpe_ratio,
-        "calmar_ratio": report.calmar_ratio,
-        "total_trades": report.total_trades,
-        "winning_trades": report.winning_trades,
-        "losing_trades": report.losing_trades,
-        "win_rate_pct": num(report.win_rate_pct),
-        "avg_win": num(report.avg_win),
-        "avg_loss": num(report.avg_loss),
-        "profit_factor": if report.profit_factor.is_finite() {
-            json!(report.profit_factor)
-        } else {
-            Value::Null
-        },
-        "expectancy": num(report.expectancy),
-        "largest_win": num(report.largest_win),
-        "largest_loss": num(report.largest_loss),
-        "final_balance": result.final_state.final_balance,
-        "final_equity": result.final_state.final_equity,
-        "open_positions_remaining": result.final_state.open_positions_remaining,
-    });
-    val
+    compute_metrics(&input)
 }
 
 /// Writes the canonical artifacts of a completed run into `output_dir`
@@ -201,14 +238,14 @@ pub fn persist_completed_run(
     bars: &[Bar],
     events: &[EngineEvent],
     result: &RunResult,
-    bars_per_year: f64,
+    explicit_bars_per_year: Option<f64>,
     dataset_source: &str,
 ) -> Result<PathBuf, PersistenceError> {
     let dir = create_output_dir(output_dir)?;
 
     let dataset = dataset_identity(bars)?;
     let strategy_sha = strategy_identity(config)?;
-    let metrics = derive_metrics_json(result, bars_per_year);
+    let metrics = derive_metrics_json(result, config, bars, explicit_bars_per_year);
 
     let run_json = json!({
         "run_schema_version": RUN_SCHEMA_VERSION,

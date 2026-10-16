@@ -422,48 +422,7 @@ function renderCurves(endIdx, view) {
 
 // ── Metrics + failure presentation ─────────────
 
-function renderMetrics(report) {
-  lastMetricsReport = report;
-  var grid = document.getElementById('metrics-grid');
-  if (!grid || !report) return;
-
-  function card(label, value, cls, detail, action) {
-    var tag = action ? 'button' : 'div';
-    return '<' + tag + (action ? ' type="button" onclick="' + action + '"' : '') +
-      ' class="metric-card ' + (cls || 'neutral') + (action ? ' inspectable' : '') + '">' +
-      '<div class="metric-label">' + helpLabel(label) + '</div>' +
-      '<div class="metric-value ' + (cls || 'neutral') + '">' + value + '</div>' +
-      (detail ? '<div class="metric-detail">' + detail + '</div>' : '') +
-      '</' + tag + '>';
-  }
-  function group(title, description, cards, extraClass) {
-    return '<section class="metric-group ' + (extraClass || '') + '">' +
-      '<div class="metric-group-heading"><div><h3>' + title + '</h3><p>' + description + '</p></div></div>' +
-      '<div class="metric-group-cards">' + cards + '</div></section>';
-  }
-
-  var r = report;
-  var html = group('Overview', 'Complete-run results',
-    card('Total Return', fmtNum(r.total_return_pct, 2) + '%', r.total_return_pct >= 0 ? 'positive' : 'negative') +
-    card('Max Drawdown', fmtNum(r.max_drawdown_pct, 2) + '%', 'negative', null, 'inspectMaxDrawdown()') +
-    card('Sharpe Ratio', r.sharpe_ratio != null ? fmtNum(r.sharpe_ratio, 2) : 'N/A') +
-    card('Profit Factor', r.profit_factor != null ? fmtNum(r.profit_factor, 2) : 'N/A') +
-    card('Win Rate', fmtNum(r.win_rate_pct, 1) + '%') +
-    card('Trades', r.total_trades), 'primary-metrics');
-  html += group('Performance', 'Return and average outcome',
-    card('Annualised Return', r.annualised_return_pct != null ? fmtNum(r.annualised_return_pct, 2) + '%' : 'N/A') +
-    card('Expectancy', r.expectancy != null ? '$' + fmtNum(r.expectancy, 2) : 'N/A'));
-  html += group('Risk', 'Drawdown and return durability',
-    card('Calmar Ratio', r.calmar_ratio != null ? fmtNum(r.calmar_ratio, 2) : 'N/A') +
-    card('Current Drawdown', r.current_drawdown_pct != null ? fmtNum(r.current_drawdown_pct, 2) + '%' : 'N/A'));
-  html += group('Trade Statistics', 'Closed position outcomes',
-    card('Winning Trades', r.winning_trades, 'positive') +
-    card('Losing Trades', r.losing_trades, 'negative') +
-    card('Average Win', '$' + fmtNum(r.avg_win, 2), 'positive') +
-    card('Average Loss', '$' + fmtNum(r.avg_loss, 2), 'negative'));
-  grid.innerHTML = html;
-  drawDrawdownHighlight(r);
-}
+// renderMetrics lives in js/metrics.js (presentation of the canonical report).
 
 function showNotice(message) {
   var banner = document.getElementById('run-banner');
@@ -493,11 +452,6 @@ function hideRunFailed() {
   document.getElementById('btn-step').disabled = false;
 }
 
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, function (c) {
-    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-  });
-}
 
 function setPlayButton(state) {
   var btn = document.getElementById('btn-play');

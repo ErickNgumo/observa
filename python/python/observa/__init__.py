@@ -116,6 +116,12 @@ class Config:
     commission_mode: str = PER_SIDE
     commission_rate_per_unit: float = 0.0
     interval: str = "1d"
+    # Annualisation factor for derived metrics only (never economics). When
+    # None: daily bars get 252 (trading-day calendar) or 365 (bars on every
+    # calendar day) from the observed calendar, weekly bars 52, and intraday
+    # bars nothing — annualised metrics then report why. Example: 15-minute
+    # bars of a 24h market traded 252 days a year -> 252 * 96 = 24192.
+    bars_per_year: Optional[float] = None
 
     # Accepted and type-checked, but NOT recorded in run artifacts yet (the run
     # is named after the strategy class). Recording it needs a run-schema
@@ -182,7 +188,7 @@ def run(
     data: Union[str, Sequence[Any], Any],
     config: Union[Config, dict, None] = None,
     output: Optional[str] = None,
-    bars_per_year: float = 252.0,
+    bars_per_year: Optional[float] = None,
 ) -> RunResult:
     """Runs a canonical backtest with ``strategy``.
 
@@ -201,8 +207,16 @@ def run(
         Optional output directory for the canonical artifacts
         (``run.json`` / ``events.jsonl`` / ``metrics.json``). Create-only.
     bars_per_year:
-        Annualization factor for derived metrics only (never economics).
+        Annualisation factor for derived metrics only (never economics);
+        same as ``Config.bars_per_year`` (1 to 31,622,400). ``None`` uses 252
+        (trading-day calendar) or 365 (every calendar day) for daily bars and
+        52 for weekly bars when the bar spacing agrees, and leaves annualised
+        metrics *unavailable* for intraday bars — it is never guessed. See
+        ``docs/metrics.md``.
     """
+    if isinstance(bars_per_year, bool):
+        raise coded(ValueError("invalid configuration: bars_per_year must be a number, not a bool"),
+                    "CONFIG_INVALID", {"field": "bars_per_year"})
     if inspect.isclass(strategy):
         strategy = strategy()
     data = _coerce_data(data)

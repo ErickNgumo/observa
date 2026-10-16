@@ -249,6 +249,12 @@ tasks; same model family as the implementer; isolation by instruction only.
 
 ### Decisions for the owner
 
+> **Update (0.2.0):** Decision 1 was implemented as metrics schema 2 — the
+> annualisation factor is recorded, intraday bars are never annualised without
+> an explicit `bars_per_year`, and missing inputs make the metric unavailable
+> with a reason instead of failing the run (`docs/metrics.md`). Decision 2:
+> released as 0.2.0.
+
 1. **Intraday annualisation (FC-4, M01–M03).** Today `bars_per_year` defaults
    to 252 for every interval and is not persisted, so annualised return, Sharpe
    and Calmar are mis-scaled for every non-daily run — including the shipped

@@ -632,8 +632,8 @@ fn repeated_runs_produce_byte_identical_reason_bytes() {
 
     let (ta, tb) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let (da, db) = (ta.path().join("a"), tb.path().join("b"));
-    persistence::persist_completed_run(&da, &config, &bars, &a.events, &a, 24.0 * 252.0, "test.csv").unwrap();
-    persistence::persist_completed_run(&db, &config, &bars, &b.events, &b, 24.0 * 252.0, "test.csv").unwrap();
+    persistence::persist_completed_run(&da, &config, &bars, &a.events, &a, None, "test.csv").unwrap();
+    persistence::persist_completed_run(&db, &config, &bars, &b.events, &b, None, "test.csv").unwrap();
     assert_eq!(
         std::fs::read(da.join("events.jsonl")).unwrap(),
         std::fs::read(db.join("events.jsonl")).unwrap(),

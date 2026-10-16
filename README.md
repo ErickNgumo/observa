@@ -115,7 +115,10 @@ data = observa.demo_data_path()          # bundled real EUR/USD, works offline
 result = observa.run(
     EmaCrossover(),
     data,
-    config=observa.Config(dataset_source=data, interval="15m"),
+    # bars_per_year only affects annualised metrics: EUR/USD trades ~24h on
+    # ~252 days a year -> 252 * 96 fifteen-minute bars. Leave it out and the
+    # annualised metrics say "unavailable" (with the reason) instead of guessing.
+    config=observa.Config(dataset_source=data, interval="15m", bars_per_year=252 * 96),
     output="runs/eurusd-demo",
 )
 

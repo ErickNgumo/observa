@@ -346,7 +346,7 @@ fn drawings_round_trip_through_persisted_artifacts() {
         &bars,
         &result.events,
         &result,
-        252.0,
+        None,
         "test.csv",
     )
     .unwrap();

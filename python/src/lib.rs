@@ -31,7 +31,6 @@ use observa_engine::persistence::{self, PersistenceError};
 use observa_engine::replay::{self as replay_mod};
 use observa_engine::runevents::RUN_SCHEMA_VERSION;
 use observa_engine::strategy::{PortfolioView, Strategy, StrategyFailure, StrategySignal};
-use observa_metrics::metrics::MetricsEngine;
 
 // ────────────────────────────────────────────────
 // Error mapping
@@ -194,14 +193,14 @@ fn signal_suggestion(key: &str) -> Option<&'static str> {
 /// Every key the Python config dict may contain. `observa.Config` produces a
 /// subset of these; anything else is a typo that would otherwise silently
 /// fall back to a default (e.g. `spred` → the default spread).
-const CONFIG_FIELDS: [&str; 26] = [
+const CONFIG_FIELDS: [&str; 27] = [
     "starting_balance", "currency", "leverage",
     "symbol", "base_currency", "quote_currency", "contract_size", "price_decimals",
     "tick_size", "pip_size", "min_quantity", "max_quantity", "quantity_step",
     "order_model", "fill_mode", "spread", "slippage",
     "commission", "commission_mode", "commission_rate_per_unit",
     "interval", "params", "strategy_params", "strategy_name", "strategy_source",
-    "dataset_source",
+    "dataset_source", "bars_per_year",
 ];
 
 const ORDER_MODEL_FIELDS: [&str; 3] = ["market", "limit", "stop"];
@@ -1582,54 +1581,6 @@ impl Strategy for PyStrategy {
 // Metrics (derived, non-authoritative)
 // ────────────────────────────────────────────────
 
-fn num_or_null(v: f64) -> Value {
-    if v.is_finite() {
-        json!(v)
-    } else {
-        Value::Null
-    }
-}
-
-fn metrics_value(result: &EngineRunResult, bars_per_year: f64) -> Value {
-    let initial = result
-        .bars
-        .first()
-        .map(|b| b.snapshot.balance)
-        .unwrap_or(0.0);
-    let mut m = MetricsEngine::new(initial, bars_per_year);
-    for b in &result.bars {
-        m.on_snapshot(b.snapshot.timestamp, b.snapshot.equity);
-    }
-    for t in &result.trades {
-        m.on_trade_closed(t.net_realized_pnl);
-    }
-    let r = m.report();
-    json!({
-        "metrics_schema_version": 1,
-        "total_return_pct": num_or_null(r.total_return_pct),
-        "annualised_return_pct": num_or_null(r.annualised_return_pct),
-        "max_drawdown_pct": num_or_null(r.max_drawdown_pct),
-        "max_drawdown_start": r.max_drawdown_start,
-        "max_drawdown_end": r.max_drawdown_end,
-        "current_drawdown_pct": num_or_null(r.current_drawdown_pct),
-        "sharpe_ratio": match r.sharpe_ratio { Some(v) if v.is_finite() => json!(v), _ => Value::Null },
-        "calmar_ratio": match r.calmar_ratio { Some(v) if v.is_finite() => json!(v), _ => Value::Null },
-        "total_trades": r.total_trades,
-        "winning_trades": r.winning_trades,
-        "losing_trades": r.losing_trades,
-        "win_rate_pct": num_or_null(r.win_rate_pct),
-        "avg_win": num_or_null(r.avg_win),
-        "avg_loss": num_or_null(r.avg_loss),
-        "profit_factor": if r.profit_factor.is_finite() { json!(r.profit_factor) } else { Value::Null },
-        "expectancy": num_or_null(r.expectancy),
-        "largest_win": num_or_null(r.largest_win),
-        "largest_loss": num_or_null(r.largest_loss),
-        "final_balance": result.final_state.final_balance,
-        "final_equity": result.final_state.final_equity,
-        "open_positions_remaining": result.final_state.open_positions_remaining,
-    })
-}
-
 // ────────────────────────────────────────────────
 // Result object
 // ────────────────────────────────────────────────
@@ -1640,7 +1591,8 @@ struct RunResult {
     config: BacktestConfig,
     bars: Vec<Bar>,
     result: EngineRunResult,
-    bars_per_year: f64,
+    /// Explicit annualisation factor, when the caller gave one (OBS-METRICS).
+    bars_per_year: Option<f64>,
     dataset_source: String,
     artifact_dir: Option<String>,
     /// Derived metrics are expensive to compute; cache the canonical derived
@@ -1819,7 +1771,12 @@ impl RunResult {
         if let Some(cached) = self.metrics_cache.borrow().as_ref() {
             return cached.clone();
         }
-        let value = metrics_value(&self.result, self.bars_per_year);
+        let value = persistence::derive_metrics_json(
+            &self.result,
+            &self.config,
+            &self.bars,
+            self.bars_per_year,
+        );
         *self.metrics_cache.borrow_mut() = Some(value.clone());
         value
     }
@@ -1834,20 +1791,62 @@ impl RunResult {
 /// `data` is a CSV path or a list of bars; `config` is a dict of canonical
 /// config fields; `output` optionally persists the canonical artifacts.
 #[pyfunction]
-#[pyo3(signature = (strategy, data, config=None, output=None, bars_per_year=252.0))]
+#[pyo3(signature = (strategy, data, config=None, output=None, bars_per_year=None))]
 fn run(
     py: Python<'_>,
     strategy: &Bound<'_, pyo3::PyAny>,
     data: &Bound<'_, pyo3::PyAny>,
     config: Option<&Bound<'_, PyDict>>,
     output: Option<String>,
-    bars_per_year: f64,
+    bars_per_year: Option<f64>,
 ) -> PyResult<RunResult> {
     let bars = bars_from_py(data)?;
 
     if let Some(d) = config {
         check_config_keys(py, d)?;
     }
+    // Annualisation factor (metrics only, never economics): the run() argument
+    // and Config.bars_per_year are both accepted; they must agree.
+    let cfg_bpy = match config {
+        Some(d) => {
+            if let Some(v) = d.get_item("bars_per_year")? {
+                if v.is_instance_of::<pyo3::types::PyBool>() {
+                    return Err(config_err(py, "bars_per_year must be a number, not a bool"));
+                }
+            }
+            opt_f64(d, "bars_per_year").map_err(|e| config_err(py, e))?
+        }
+        None => None,
+    };
+    // Validate both sources, even when both are given.
+    for b in [bars_per_year, cfg_bpy].into_iter().flatten() {
+        if !(b.is_finite()
+            && (observa_metrics::evaluation::MIN_BARS_PER_YEAR
+                ..=observa_metrics::evaluation::MAX_BARS_PER_YEAR)
+                .contains(&b))
+        {
+            return Err(config_err(
+                py,
+                format!(
+                    "bars_per_year must be a finite number between {} (one bar a year) and {} \
+                     (one bar a second), got {b}",
+                    observa_metrics::evaluation::MIN_BARS_PER_YEAR,
+                    observa_metrics::evaluation::MAX_BARS_PER_YEAR
+                ),
+            ));
+        }
+    }
+    let bars_per_year = match (bars_per_year, cfg_bpy) {
+        (Some(a), Some(b)) if (a - b).abs() > 1e-9 * a.abs().max(1.0) => {
+            return Err(config_err(
+                py,
+                format!("bars_per_year given twice with different values ({a} and {b})"),
+            ))
+        }
+        (Some(a), _) => Some(a),
+        (None, b) => b,
+    };
+
     let mut cfg = match config {
         Some(d) => config_from_dict(d).map_err(|e| config_err(py, e))?,
         None => BacktestConfig::default(),
