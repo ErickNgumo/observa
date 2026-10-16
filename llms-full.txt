@@ -52,7 +52,7 @@ Verify you imported the correct package:
 ## C. Strategy contract (generated from `observa.agent_spec()`)
 
 <!-- BEGIN GENERATED: strategy-contract -->
-**strategy_api_version `1`** (observa 0.1.6). This block is generated from `observa.agent_spec()`; edit the contract, not this text.
+**strategy_api_version `1`** (observa 0.2.0). This block is generated from `observa.agent_spec()`; edit the contract, not this text.
 
 A strategy is a plain Python class (subclassing `observa.Strategy` is optional):
 

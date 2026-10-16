@@ -51,7 +51,7 @@ from .inspection import PersistedRun, inspect_run
 from .replay import ReplayServer
 from .validation import validate_strategy
 
-__version__ = "0.1.6"
+__version__ = "0.2.0"
 
 # ``history`` passed to ``on_bar`` is a read-only, list-like view of the
 # strictly prior bars (O(1) per bar). Registering it makes

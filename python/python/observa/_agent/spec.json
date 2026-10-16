@@ -132,7 +132,7 @@
     "local_wheel": "python -m pip install \"./<wheel_filename>\"",
     "local_wheel_mcp": "python -m pip install \"./<wheel_filename>\"",
     "mcp_extra": "python -m pip install \"<wheel_url>\"",
-    "release_tag": "observa-0.1.6-private-mvp",
+    "release_tag": "observa-0.2.0-private-mvp",
     "repository": "ErickNgumo/observa",
     "unsupported": [
       "Windows",
@@ -143,8 +143,8 @@
       "linux-x86_64 (glibc>=2.34)",
       "CPython>=3.10 (abi3)"
     ],
-    "wheel_filename": "observa-0.1.6-cp310-abi3-manylinux_2_34_x86_64.whl",
-    "wheel_url": "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.6-private-mvp/observa-0.1.6-cp310-abi3-manylinux_2_34_x86_64.whl"
+    "wheel_filename": "observa-0.2.0-cp310-abi3-manylinux_2_34_x86_64.whl",
+    "wheel_url": "https://github.com/ErickNgumo/observa/releases/download/observa-0.2.0-private-mvp/observa-0.2.0-cp310-abi3-manylinux_2_34_x86_64.whl"
   },
   "lifecycle": {
     "base_class": "observa.Strategy",
@@ -171,7 +171,7 @@
       "teardown": "teardown(self)"
     }
   },
-  "observa_version": "0.1.6",
+  "observa_version": "0.2.0",
   "on_bar": {
     "accepted_returns": [
       "[]  # no action",
