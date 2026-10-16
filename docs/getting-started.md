@@ -13,7 +13,7 @@ No Rust toolchain, no repository checkout, no data download.
 Install the official Observa release:
 
 ```bash
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.6-private-mvp/observa-0.1.6-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.2.0-private-mvp/observa-0.2.0-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
 It includes everything Observa offers:

@@ -27,7 +27,7 @@ WARNING: do not `pip install observa`. The public PyPI name `observa` is an
 unrelated project. Install the official wheel by URL from the private-MVP
 GitHub Release:
 
-    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.6-private-mvp/observa-0.1.6-cp310-abi3-manylinux_2_34_x86_64.whl"
+    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.2.0-private-mvp/observa-0.2.0-cp310-abi3-manylinux_2_34_x86_64.whl"
 
 SHA-256 of this exact private-MVP wheel: `921a2ebd3f358941f379457c4a84d30fe57cacaab8618fb68ff1a1dcd218cd12` (optional check;
 not required for basic use).
@@ -618,7 +618,7 @@ Install: nothing to install beyond Observa itself. MCP ships in the standard
 wheel (one install provides the API, replay, validation and MCP), so the plain
 official wheel is enough:
 
-    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.6-private-mvp/observa-0.1.6-cp310-abi3-manylinux_2_34_x86_64.whl"
+    python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.2.0-private-mvp/observa-0.2.0-cp310-abi3-manylinux_2_34_x86_64.whl"
 
 The old `[mcp]` extra is still accepted as an empty compatibility alias, but it
 is never needed. Never `pip install "observa[mcp]"` — that resolves an unrelated

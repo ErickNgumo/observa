@@ -101,7 +101,7 @@ open in replay, `inspect_run`, `run_summary` and the MCP server.
 ## Package
 
 - Wheel: `observa-0.2.0-cp310-abi3-manylinux_2_34_x86_64.whl`
-- SHA-256: listed on the GitHub release (built by CI)
+- SHA-256: `71dbeba77469041ec5fe4c371b9418525ef0a8b73f31a5a55c8ee6466dc8fac7`
 - Linux x86_64, manylinux_2_34, CPython abi3 for Python 3.10+
 
 Install from the wheel attached to this release. Do not install the unrelated

@@ -14,7 +14,7 @@ coding agent. Four files, no configuration.
 
 ```bash
 # official private-MVP wheel (see observa.agent_spec()["installation"])
-python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.1.6-private-mvp/observa-0.1.6-cp310-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "https://github.com/ErickNgumo/observa/releases/download/observa-0.2.0-private-mvp/observa-0.2.0-cp310-abi3-manylinux_2_34_x86_64.whl"
 ```
 
 > ⚠️ Do **not** run `pip install observa` or `pip install "observa[mcp]"`. The
