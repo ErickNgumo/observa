@@ -1,0 +1,264 @@
+A: /tmp/claude-1000/-home-erick-Documents-observa/8e8c655e-9ac3-4519-a485-898ac80f66b3/scratchpad/trust/cb_rel (History=False)
+B: /tmp/claude-1000/-home-erick-Documents-observa/8e8c655e-9ac3-4519-a485-898ac80f66b3/scratchpad/trust/cb_fix (History=True)
+PASS  bundled_sample_demo                      status                 completed / completed  
+PASS  bundled_sample_demo                      events.jsonl identical 
+PASS  bundled_sample_demo                      metrics.json identical 
+PASS  bundled_sample_demo                      run.json identical     
+PASS  bundled_sample_demo                      observations           bars 600/600
+PASS  bundled_sample_demo                      signals                
+PASS  bundled_sample_m15                       status                 completed / completed  
+PASS  bundled_sample_m15                       events.jsonl identical 
+PASS  bundled_sample_m15                       metrics.json identical 
+PASS  bundled_sample_m15                       run.json identical     
+PASS  bundled_sample_m15                       observations           bars 200/200
+PASS  bundled_sample_m15                       signals                
+PASS  golden_G10_open_at_end                   status                 completed / completed  
+PASS  golden_G10_open_at_end                   events.jsonl identical 
+PASS  golden_G10_open_at_end                   metrics.json identical 
+PASS  golden_G10_open_at_end                   run.json identical     
+PASS  golden_G10_open_at_end                   observations           bars 3/3
+PASS  golden_G10_open_at_end                   signals                
+PASS  golden_G11_margin_rejection              status                 completed / completed  
+PASS  golden_G11_margin_rejection              events.jsonl identical 
+PASS  golden_G11_margin_rejection              metrics.json identical 
+PASS  golden_G11_margin_rejection              run.json identical     
+PASS  golden_G11_margin_rejection              observations           bars 5/5
+PASS  golden_G11_margin_rejection              signals                
+PASS  golden_G1_long_next_bar_open             status                 completed / completed  
+PASS  golden_G1_long_next_bar_open             events.jsonl identical 
+PASS  golden_G1_long_next_bar_open             metrics.json identical 
+PASS  golden_G1_long_next_bar_open             run.json identical     
+PASS  golden_G1_long_next_bar_open             observations           bars 5/5
+PASS  golden_G1_long_next_bar_open             signals                
+PASS  golden_G2_long_bar_close                 status                 completed / completed  
+PASS  golden_G2_long_bar_close                 events.jsonl identical 
+PASS  golden_G2_long_bar_close                 metrics.json identical 
+PASS  golden_G2_long_bar_close                 run.json identical     
+PASS  golden_G2_long_bar_close                 observations           bars 5/5
+PASS  golden_G2_long_bar_close                 signals                
+PASS  golden_G3a_short_comm7_per_side          status                 completed / completed  
+PASS  golden_G3a_short_comm7_per_side          events.jsonl identical 
+PASS  golden_G3a_short_comm7_per_side          metrics.json identical 
+PASS  golden_G3a_short_comm7_per_side          run.json identical     
+PASS  golden_G3a_short_comm7_per_side          observations           bars 5/5
+PASS  golden_G3a_short_comm7_per_side          signals                
+PASS  golden_G3b_short_comm7_round_trip        status                 completed / completed  
+PASS  golden_G3b_short_comm7_round_trip        events.jsonl identical 
+PASS  golden_G3b_short_comm7_round_trip        metrics.json identical 
+PASS  golden_G3b_short_comm7_round_trip        run.json identical     
+PASS  golden_G3b_short_comm7_round_trip        observations           bars 5/5
+PASS  golden_G3b_short_comm7_round_trip        signals                
+PASS  golden_G4a_rate_per_unit                 status                 completed / completed  
+PASS  golden_G4a_rate_per_unit                 events.jsonl identical 
+PASS  golden_G4a_rate_per_unit                 metrics.json identical 
+PASS  golden_G4a_rate_per_unit                 run.json identical     
+PASS  golden_G4a_rate_per_unit                 observations           bars 4/4
+PASS  golden_G4a_rate_per_unit                 signals                
+PASS  golden_G4b_flat_plus_rate                status                 completed / completed  
+PASS  golden_G4b_flat_plus_rate                events.jsonl identical 
+PASS  golden_G4b_flat_plus_rate                metrics.json identical 
+PASS  golden_G4b_flat_plus_rate                run.json identical     
+PASS  golden_G4b_flat_plus_rate                observations           bars 4/4
+PASS  golden_G4b_flat_plus_rate                signals                
+PASS  golden_G5_sl_intrabar                    status                 completed / completed  
+PASS  golden_G5_sl_intrabar                    events.jsonl identical 
+PASS  golden_G5_sl_intrabar                    metrics.json identical 
+PASS  golden_G5_sl_intrabar                    run.json identical     
+PASS  golden_G5_sl_intrabar                    observations           bars 4/4
+PASS  golden_G5_sl_intrabar                    signals                
+PASS  golden_G5b_sl_same_bar_as_open_fill      status                 completed / completed  
+PASS  golden_G5b_sl_same_bar_as_open_fill      events.jsonl identical 
+PASS  golden_G5b_sl_same_bar_as_open_fill      metrics.json identical 
+PASS  golden_G5b_sl_same_bar_as_open_fill      run.json identical     
+PASS  golden_G5b_sl_same_bar_as_open_fill      observations           bars 3/3
+PASS  golden_G5b_sl_same_bar_as_open_fill      signals                
+PASS  golden_G5s_short_sl_intrabar             status                 completed / completed  
+PASS  golden_G5s_short_sl_intrabar             events.jsonl identical 
+PASS  golden_G5s_short_sl_intrabar             metrics.json identical 
+PASS  golden_G5s_short_sl_intrabar             run.json identical     
+PASS  golden_G5s_short_sl_intrabar             observations           bars 4/4
+PASS  golden_G5s_short_sl_intrabar             signals                
+PASS  golden_G6_tp_intrabar                    status                 completed / completed  
+PASS  golden_G6_tp_intrabar                    events.jsonl identical 
+PASS  golden_G6_tp_intrabar                    metrics.json identical 
+PASS  golden_G6_tp_intrabar                    run.json identical     
+PASS  golden_G6_tp_intrabar                    observations           bars 4/4
+PASS  golden_G6_tp_intrabar                    signals                
+PASS  golden_G6g_tp_gap                        status                 completed / completed  
+PASS  golden_G6g_tp_gap                        events.jsonl identical 
+PASS  golden_G6g_tp_gap                        metrics.json identical 
+PASS  golden_G6g_tp_gap                        run.json identical     
+PASS  golden_G6g_tp_gap                        observations           bars 4/4
+PASS  golden_G6g_tp_gap                        signals                
+PASS  golden_G6s_short_tp_intrabar             status                 completed / completed  
+PASS  golden_G6s_short_tp_intrabar             events.jsonl identical 
+PASS  golden_G6s_short_tp_intrabar             metrics.json identical 
+PASS  golden_G6s_short_tp_intrabar             run.json identical     
+PASS  golden_G6s_short_tp_intrabar             observations           bars 4/4
+PASS  golden_G6s_short_tp_intrabar             signals                
+PASS  golden_G7_sl_gap                         status                 completed / completed  
+PASS  golden_G7_sl_gap                         events.jsonl identical 
+PASS  golden_G7_sl_gap                         metrics.json identical 
+PASS  golden_G7_sl_gap                         run.json identical     
+PASS  golden_G7_sl_gap                         observations           bars 4/4
+PASS  golden_G7_sl_gap                         signals                
+PASS  golden_G8_sl_and_tp_same_bar             status                 completed / completed  
+PASS  golden_G8_sl_and_tp_same_bar             events.jsonl identical 
+PASS  golden_G8_sl_and_tp_same_bar             metrics.json identical 
+PASS  golden_G8_sl_and_tp_same_bar             run.json identical     
+PASS  golden_G8_sl_and_tp_same_bar             observations           bars 4/4
+PASS  golden_G8_sl_and_tp_same_bar             signals                
+PASS  golden_G9a_buy_limit                     status                 completed / completed  
+PASS  golden_G9a_buy_limit                     events.jsonl identical 
+PASS  golden_G9a_buy_limit                     metrics.json identical 
+PASS  golden_G9a_buy_limit                     run.json identical     
+PASS  golden_G9a_buy_limit                     observations           bars 5/5
+PASS  golden_G9a_buy_limit                     signals                
+PASS  golden_G9b_buy_stop                      status                 completed / completed  
+PASS  golden_G9b_buy_stop                      events.jsonl identical 
+PASS  golden_G9b_buy_stop                      metrics.json identical 
+PASS  golden_G9b_buy_stop                      run.json identical     
+PASS  golden_G9b_buy_stop                      observations           bars 5/5
+PASS  golden_G9b_buy_stop                      signals                
+PASS  golden_G9c_buy_stop_gap                  status                 completed / completed  
+PASS  golden_G9c_buy_stop_gap                  events.jsonl identical 
+PASS  golden_G9c_buy_stop_gap                  metrics.json identical 
+PASS  golden_G9c_buy_stop_gap                  run.json identical     
+PASS  golden_G9c_buy_stop_gap                  observations           bars 3/3
+PASS  golden_G9c_buy_stop_gap                  signals                
+PASS  golden_G9d_buy_limit_gap                 status                 completed / completed  
+PASS  golden_G9d_buy_limit_gap                 events.jsonl identical 
+PASS  golden_G9d_buy_limit_gap                 metrics.json identical 
+PASS  golden_G9d_buy_limit_gap                 run.json identical     
+PASS  golden_G9d_buy_limit_gap                 observations           bars 3/3
+PASS  golden_G9d_buy_limit_gap                 signals                
+PASS  history_heavy_BAR_CLOSE_PER_SIDE         status                 completed / completed  
+PASS  history_heavy_BAR_CLOSE_PER_SIDE         events.jsonl identical 
+PASS  history_heavy_BAR_CLOSE_PER_SIDE         metrics.json identical 
+PASS  history_heavy_BAR_CLOSE_PER_SIDE         run.json identical     
+PASS  history_heavy_BAR_CLOSE_PER_SIDE         observations           bars 600/600
+PASS  history_heavy_BAR_CLOSE_PER_SIDE         signals                
+PASS  history_heavy_BAR_CLOSE_ROUND_TRIP       status                 completed / completed  
+PASS  history_heavy_BAR_CLOSE_ROUND_TRIP       events.jsonl identical 
+PASS  history_heavy_BAR_CLOSE_ROUND_TRIP       metrics.json identical 
+PASS  history_heavy_BAR_CLOSE_ROUND_TRIP       run.json identical     
+PASS  history_heavy_BAR_CLOSE_ROUND_TRIP       observations           bars 600/600
+PASS  history_heavy_BAR_CLOSE_ROUND_TRIP       signals                
+PASS  history_heavy_NEXT_BAR_OPEN_PER_SIDE     status                 completed / completed  
+PASS  history_heavy_NEXT_BAR_OPEN_PER_SIDE     events.jsonl identical 
+PASS  history_heavy_NEXT_BAR_OPEN_PER_SIDE     metrics.json identical 
+PASS  history_heavy_NEXT_BAR_OPEN_PER_SIDE     run.json identical     
+PASS  history_heavy_NEXT_BAR_OPEN_PER_SIDE     observations           bars 600/600
+PASS  history_heavy_NEXT_BAR_OPEN_PER_SIDE     signals                
+PASS  history_heavy_NEXT_BAR_OPEN_ROUND_TRIP   status                 completed / completed  
+PASS  history_heavy_NEXT_BAR_OPEN_ROUND_TRIP   events.jsonl identical 
+PASS  history_heavy_NEXT_BAR_OPEN_ROUND_TRIP   metrics.json identical 
+PASS  history_heavy_NEXT_BAR_OPEN_ROUND_TRIP   run.json identical     
+PASS  history_heavy_NEXT_BAR_OPEN_ROUND_TRIP   observations           bars 600/600
+PASS  history_heavy_NEXT_BAR_OPEN_ROUND_TRIP   signals                
+PASS  input_csv                                status                 completed / completed  
+PASS  input_csv                                events.jsonl identical 
+PASS  input_csv                                metrics.json identical 
+PASS  input_csv                                run.json identical     
+PASS  input_csv                                observations           bars 600/600
+PASS  input_csv                                signals                
+PASS  input_epoch_float_whole                  status                 completed / completed  
+PASS  input_epoch_float_whole                  events.jsonl identical 
+PASS  input_epoch_float_whole                  metrics.json identical 
+PASS  input_epoch_float_whole                  run.json identical     
+PASS  input_epoch_float_whole                  observations           bars 600/600
+PASS  input_epoch_float_whole                  signals                
+PASS  input_epoch_int                          status                 completed / completed  
+PASS  input_epoch_int                          events.jsonl identical 
+PASS  input_epoch_int                          metrics.json identical 
+PASS  input_epoch_int                          run.json identical     
+PASS  input_epoch_int                          observations           bars 600/600
+PASS  input_epoch_int                          signals                
+PASS  input_no_volume                          status                 completed / completed  
+PASS  input_no_volume                          events.jsonl identical 
+PASS  input_no_volume                          metrics.json identical 
+PASS  input_no_volume                          run.json identical     
+PASS  input_no_volume                          observations           bars 600/600
+PASS  input_no_volume                          signals                
+PASS  input_plus00                             status                 completed / completed  
+PASS  input_plus00                             events.jsonl identical 
+PASS  input_plus00                             metrics.json identical 
+PASS  input_plus00                             run.json identical     
+PASS  input_plus00                             observations           bars 600/600
+PASS  input_plus00                             signals                
+PASS  input_space                              status                 completed / completed  
+PASS  input_space                              events.jsonl identical 
+PASS  input_space                              metrics.json identical 
+PASS  input_space                              run.json identical     
+PASS  input_space                              observations           bars 600/600
+PASS  input_space                              signals                
+PASS  input_volume_none                        status                 completed / completed  
+PASS  input_volume_none                        events.jsonl identical 
+PASS  input_volume_none                        metrics.json identical 
+PASS  input_volume_none                        run.json identical     
+PASS  input_volume_none                        observations           bars 600/600
+PASS  input_volume_none                        signals                
+PASS  random_BAR_CLOSE_PER_SIDE                status                 completed / completed  
+PASS  random_BAR_CLOSE_PER_SIDE                events.jsonl identical 
+PASS  random_BAR_CLOSE_PER_SIDE                metrics.json identical 
+PASS  random_BAR_CLOSE_PER_SIDE                run.json identical     
+PASS  random_BAR_CLOSE_PER_SIDE                observations           bars 600/600
+PASS  random_BAR_CLOSE_PER_SIDE                signals                
+PASS  random_BAR_CLOSE_ROUND_TRIP              status                 completed / completed  
+PASS  random_BAR_CLOSE_ROUND_TRIP              events.jsonl identical 
+PASS  random_BAR_CLOSE_ROUND_TRIP              metrics.json identical 
+PASS  random_BAR_CLOSE_ROUND_TRIP              run.json identical     
+PASS  random_BAR_CLOSE_ROUND_TRIP              observations           bars 600/600
+PASS  random_BAR_CLOSE_ROUND_TRIP              signals                
+PASS  random_NEXT_BAR_OPEN_PER_SIDE            status                 completed / completed  
+PASS  random_NEXT_BAR_OPEN_PER_SIDE            events.jsonl identical 
+PASS  random_NEXT_BAR_OPEN_PER_SIDE            metrics.json identical 
+PASS  random_NEXT_BAR_OPEN_PER_SIDE            run.json identical     
+PASS  random_NEXT_BAR_OPEN_PER_SIDE            observations           bars 600/600
+PASS  random_NEXT_BAR_OPEN_PER_SIDE            signals                
+PASS  random_NEXT_BAR_OPEN_ROUND_TRIP          status                 completed / completed  
+PASS  random_NEXT_BAR_OPEN_ROUND_TRIP          events.jsonl identical 
+PASS  random_NEXT_BAR_OPEN_ROUND_TRIP          metrics.json identical 
+PASS  random_NEXT_BAR_OPEN_ROUND_TRIP          run.json identical     
+PASS  random_NEXT_BAR_OPEN_ROUND_TRIP          observations           bars 600/600
+PASS  random_NEXT_BAR_OPEN_ROUND_TRIP          signals                
+PASS  sma_BAR_CLOSE_PER_SIDE                   status                 completed / completed  
+PASS  sma_BAR_CLOSE_PER_SIDE                   events.jsonl identical 
+PASS  sma_BAR_CLOSE_PER_SIDE                   metrics.json identical 
+PASS  sma_BAR_CLOSE_PER_SIDE                   run.json identical     
+PASS  sma_BAR_CLOSE_PER_SIDE                   observations           bars 600/600
+PASS  sma_BAR_CLOSE_PER_SIDE                   signals                
+PASS  sma_BAR_CLOSE_ROUND_TRIP                 status                 completed / completed  
+PASS  sma_BAR_CLOSE_ROUND_TRIP                 events.jsonl identical 
+PASS  sma_BAR_CLOSE_ROUND_TRIP                 metrics.json identical 
+PASS  sma_BAR_CLOSE_ROUND_TRIP                 run.json identical     
+PASS  sma_BAR_CLOSE_ROUND_TRIP                 observations           bars 600/600
+PASS  sma_BAR_CLOSE_ROUND_TRIP                 signals                
+PASS  sma_NEXT_BAR_OPEN_PER_SIDE               status                 completed / completed  
+PASS  sma_NEXT_BAR_OPEN_PER_SIDE               events.jsonl identical 
+PASS  sma_NEXT_BAR_OPEN_PER_SIDE               metrics.json identical 
+PASS  sma_NEXT_BAR_OPEN_PER_SIDE               run.json identical     
+PASS  sma_NEXT_BAR_OPEN_PER_SIDE               observations           bars 600/600
+PASS  sma_NEXT_BAR_OPEN_PER_SIDE               signals                
+PASS  sma_NEXT_BAR_OPEN_ROUND_TRIP             status                 completed / completed  
+PASS  sma_NEXT_BAR_OPEN_ROUND_TRIP             events.jsonl identical 
+PASS  sma_NEXT_BAR_OPEN_ROUND_TRIP             metrics.json identical 
+PASS  sma_NEXT_BAR_OPEN_ROUND_TRIP             run.json identical     
+PASS  sma_NEXT_BAR_OPEN_ROUND_TRIP             observations           bars 600/600
+PASS  sma_NEXT_BAR_OPEN_ROUND_TRIP             signals                
+PASS  cb_rel:input_csv                         events == input_plus00 
+PASS  cb_rel:input_epoch_float_whole           events == input_plus00 
+PASS  cb_rel:input_epoch_int                   events == input_plus00 
+PASS  cb_rel:input_no_volume                   events == input_plus00 
+PASS  cb_rel:input_plus00                      events == input_plus00 
+PASS  cb_rel:input_space                       events == input_plus00 
+PASS  cb_rel:input_volume_none                 events == input_plus00 
+PASS  cb_fix:input_csv                         events == input_plus00 
+PASS  cb_fix:input_epoch_float_whole           events == input_plus00 
+PASS  cb_fix:input_epoch_int                   events == input_plus00 
+PASS  cb_fix:input_no_volume                   events == input_plus00 
+PASS  cb_fix:input_plus00                      events == input_plus00 
+PASS  cb_fix:input_space                       events == input_plus00 
+PASS  cb_fix:input_volume_none                 events == input_plus00 
+
+TOTAL: 260 passed, 0 failed

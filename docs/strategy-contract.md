@@ -26,8 +26,23 @@ class MyStrategy:
 
 ## `bar`
 
-A read-only dict: `timestamp` (RFC 3339 string), `open`, `high`, `low`,
+A read-only dict: `timestamp`, `timestamp_ms`, `open`, `high`, `low`,
 `close`, `volume` (float or `None`).
+
+* `timestamp` is always the canonical UTC string
+  `YYYY-MM-DDTHH:MM:SS[.f…]+00:00` (fractional seconds only when non-zero), whatever form the input used — an input of
+  `2025-06-01T00:05:00Z` is presented as `2025-06-01T00:05:00+00:00` (issue #8).
+* `timestamp_ms` is the integer epoch milliseconds. Join external data on
+  `timestamp_ms` (or a parsed datetime), never on the raw input string.
+
+`history` is a read-only, list-like sequence of the strictly prior bar dicts
+(`len`, indexing, slices that return lists, iteration). It cannot be mutated;
+`list(history)` returns a list. Providing it costs O(1) per bar.
+
+Strict contract (since the 2026-10 trust audit): a signal key outside the
+eight canonical keys fails the run with `SIGNAL_FIELD_UNKNOWN`; returning
+`None`, a bare signal dict, or a dict without a `signals` list fails with
+`STRATEGY_RETURN_INVALID`. Both report the offending `bar_index`.
 
 ## `portfolio`
 

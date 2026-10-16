@@ -1,0 +1,239 @@
+dataset: seed=20261016 bars=500 units=100; observa runs under /tmp/claude-1000/-home-erick-Documents-observa/8e8c655e-9ac3-4519-a485-898ac80f66b3/scratchpad/trust/observa_diff_a7g43zp_
+
+== zero_cost: observa trades=16 backtesting.py trades=16
+PASS  zero_cost observa order_rejected                           observa=0                      backtesting.py=0
+PASS  zero_cost closed trade count                               observa=16                     backtesting.py=16
+PASS  zero_cost t0 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t0 entry_bar                                     observa=26                     backtesting.py=26
+PASS  zero_cost t0 exit_bar                                      observa=29                     backtesting.py=29
+PASS  zero_cost t0 entry_price                                   observa=99.62                  backtesting.py=99.62
+PASS  zero_cost t0 exit_price                                    observa=98.12                  backtesting.py=98.12
+PASS  zero_cost t0 net P&L (price x units, less commission)      observa=-150.0                 backtesting.py=-150.0
+PASS  zero_cost t0 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t1 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t1 entry_bar                                     observa=34                     backtesting.py=34
+PASS  zero_cost t1 exit_bar                                      observa=35                     backtesting.py=35
+PASS  zero_cost t1 entry_price                                   observa=99.02                  backtesting.py=99.02
+PASS  zero_cost t1 exit_price                                    observa=98.32                  backtesting.py=98.32
+PASS  zero_cost t1 net P&L (price x units, less commission)      observa=-70.00000000000028     backtesting.py=-70.00000000000028
+PASS  zero_cost t1 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t2 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t2 entry_bar                                     observa=42                     backtesting.py=42
+PASS  zero_cost t2 exit_bar                                      observa=63                     backtesting.py=63
+PASS  zero_cost t2 entry_price                                   observa=98.95                  backtesting.py=98.95
+PASS  zero_cost t2 exit_price                                    observa=102.7                  backtesting.py=102.7
+PASS  zero_cost t2 net P&L (price x units, less commission)      observa=375.0                  backtesting.py=375.0
+PASS  zero_cost t2 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t3 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t3 entry_bar                                     observa=66                     backtesting.py=66
+PASS  zero_cost t3 exit_bar                                      observa=93                     backtesting.py=93
+PASS  zero_cost t3 entry_price                                   observa=104.37                 backtesting.py=104.37
+PASS  zero_cost t3 exit_price                                    observa=107.94                 backtesting.py=107.94
+PASS  zero_cost t3 net P&L (price x units, less commission)      observa=356.9999999999993      backtesting.py=356.9999999999993
+PASS  zero_cost t3 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t4 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t4 entry_bar                                     observa=122                    backtesting.py=122
+PASS  zero_cost t4 exit_bar                                      observa=126                    backtesting.py=126
+PASS  zero_cost t4 entry_price                                   observa=104.48                 backtesting.py=104.48
+PASS  zero_cost t4 exit_price                                    observa=103.58                 backtesting.py=103.58
+PASS  zero_cost t4 net P&L (price x units, less commission)      observa=-90.00000000000057     backtesting.py=-90.00000000000057
+PASS  zero_cost t4 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t5 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t5 entry_bar                                     observa=129                    backtesting.py=129
+PASS  zero_cost t5 exit_bar                                      observa=133                    backtesting.py=133
+PASS  zero_cost t5 entry_price                                   observa=104.41                 backtesting.py=104.41
+PASS  zero_cost t5 exit_price                                    observa=103.52                 backtesting.py=103.52
+PASS  zero_cost t5 net P&L (price x units, less commission)      observa=-89.00000000000006     backtesting.py=-89.00000000000006
+PASS  zero_cost t5 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t6 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t6 entry_bar                                     observa=152                    backtesting.py=152
+PASS  zero_cost t6 exit_bar                                      observa=169                    backtesting.py=169
+PASS  zero_cost t6 entry_price                                   observa=100.35                 backtesting.py=100.35
+PASS  zero_cost t6 exit_price                                    observa=99.22                  backtesting.py=99.22
+PASS  zero_cost t6 net P&L (price x units, less commission)      observa=-112.99999999999955    backtesting.py=-112.99999999999955
+PASS  zero_cost t6 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t7 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t7 entry_bar                                     observa=201                    backtesting.py=201
+PASS  zero_cost t7 exit_bar                                      observa=220                    backtesting.py=220
+PASS  zero_cost t7 entry_price                                   observa=96.72                  backtesting.py=96.72
+PASS  zero_cost t7 exit_price                                    observa=98.33                  backtesting.py=98.33
+PASS  zero_cost t7 net P&L (price x units, less commission)      observa=160.99999999999994     backtesting.py=160.99999999999994
+PASS  zero_cost t7 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t8 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t8 entry_bar                                     observa=235                    backtesting.py=235
+PASS  zero_cost t8 exit_bar                                      observa=253                    backtesting.py=253
+PASS  zero_cost t8 entry_price                                   observa=99.94                  backtesting.py=99.94
+PASS  zero_cost t8 exit_price                                    observa=99.29                  backtesting.py=99.29
+PASS  zero_cost t8 net P&L (price x units, less commission)      observa=-64.99999999999915     backtesting.py=-64.99999999999915
+PASS  zero_cost t8 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t9 units                                         observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t9 entry_bar                                     observa=258                    backtesting.py=258
+PASS  zero_cost t9 exit_bar                                      observa=278                    backtesting.py=278
+PASS  zero_cost t9 entry_price                                   observa=101.31                 backtesting.py=101.31
+PASS  zero_cost t9 exit_price                                    observa=102.19                 backtesting.py=102.19
+PASS  zero_cost t9 net P&L (price x units, less commission)      observa=87.99999999999955      backtesting.py=87.99999999999955
+PASS  zero_cost t9 commission                                    observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t10 units                                        observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t10 entry_bar                                    observa=289                    backtesting.py=289
+PASS  zero_cost t10 exit_bar                                     observa=306                    backtesting.py=306
+PASS  zero_cost t10 entry_price                                  observa=103.58                 backtesting.py=103.58
+PASS  zero_cost t10 exit_price                                   observa=104.72                 backtesting.py=104.72
+PASS  zero_cost t10 net P&L (price x units, less commission)     observa=114.00000000000006     backtesting.py=114.00000000000006
+PASS  zero_cost t10 commission                                   observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t11 units                                        observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t11 entry_bar                                    observa=315                    backtesting.py=315
+PASS  zero_cost t11 exit_bar                                     observa=341                    backtesting.py=341
+PASS  zero_cost t11 entry_price                                  observa=104.72                 backtesting.py=104.72
+PASS  zero_cost t11 exit_price                                   observa=108.25                 backtesting.py=108.25
+PASS  zero_cost t11 net P&L (price x units, less commission)     observa=353.0000000000001      backtesting.py=353.0000000000001
+PASS  zero_cost t11 commission                                   observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t12 units                                        observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t12 entry_bar                                    observa=372                    backtesting.py=372
+PASS  zero_cost t12 exit_bar                                     observa=373                    backtesting.py=373
+PASS  zero_cost t12 entry_price                                  observa=104.98                 backtesting.py=104.98
+PASS  zero_cost t12 exit_price                                   observa=104.28                 backtesting.py=104.28
+PASS  zero_cost t12 net P&L (price x units, less commission)     observa=-70.00000000000028     backtesting.py=-70.00000000000028
+PASS  zero_cost t12 commission                                   observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t13 units                                        observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t13 entry_bar                                    observa=388                    backtesting.py=388
+PASS  zero_cost t13 exit_bar                                     observa=394                    backtesting.py=394
+PASS  zero_cost t13 entry_price                                  observa=104.77                 backtesting.py=104.77
+PASS  zero_cost t13 exit_price                                   observa=103.09                 backtesting.py=103.09
+PASS  zero_cost t13 net P&L (price x units, less commission)     observa=-167.99999999999926    backtesting.py=-167.99999999999926
+PASS  zero_cost t13 commission                                   observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t14 units                                        observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t14 entry_bar                                    observa=415                    backtesting.py=415
+PASS  zero_cost t14 exit_bar                                     observa=420                    backtesting.py=420
+PASS  zero_cost t14 entry_price                                  observa=101.51                 backtesting.py=101.51
+PASS  zero_cost t14 exit_price                                   observa=99.87                  backtesting.py=99.87
+PASS  zero_cost t14 net P&L (price x units, less commission)     observa=-164.00000000000006    backtesting.py=-164.00000000000006
+PASS  zero_cost t14 commission                                   observa=0.0                    backtesting.py=0.0
+PASS  zero_cost t15 units                                        observa=100.0                  backtesting.py=100.0
+PASS  zero_cost t15 entry_bar                                    observa=460                    backtesting.py=460
+PASS  zero_cost t15 exit_bar                                     observa=480                    backtesting.py=480
+PASS  zero_cost t15 entry_price                                  observa=98.01                  backtesting.py=98.01
+PASS  zero_cost t15 exit_price                                   observa=97.81                  backtesting.py=97.81
+PASS  zero_cost t15 net P&L (price x units, less commission)     observa=-20.000000000000284    backtesting.py=-20.000000000000284
+PASS  zero_cost t15 commission                                   observa=0.0                    backtesting.py=0.0
+PASS  zero_cost open position units at end                       observa=100.0                  backtesting.py=100.0
+PASS  zero_cost final equity                                     observa=1000282.0              backtesting.py=1000282.0
+
+== commission: observa trades=16 backtesting.py trades=16
+PASS  commission observa order_rejected                          observa=0                      backtesting.py=0
+PASS  commission closed trade count                              observa=16                     backtesting.py=16
+PASS  commission t0 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t0 entry_bar                                    observa=26                     backtesting.py=26
+PASS  commission t0 exit_bar                                     observa=29                     backtesting.py=29
+PASS  commission t0 entry_price                                  observa=99.62                  backtesting.py=99.62
+PASS  commission t0 exit_price                                   observa=98.12                  backtesting.py=98.12
+PASS  commission t0 net P&L (price x units, less commission)     observa=-156.0                 backtesting.py=-156.0
+PASS  commission t0 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t1 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t1 entry_bar                                    observa=34                     backtesting.py=34
+PASS  commission t1 exit_bar                                     observa=35                     backtesting.py=35
+PASS  commission t1 entry_price                                  observa=99.02                  backtesting.py=99.02
+PASS  commission t1 exit_price                                   observa=98.32                  backtesting.py=98.32
+PASS  commission t1 net P&L (price x units, less commission)     observa=-76.00000000000028     backtesting.py=-76.00000000000028
+PASS  commission t1 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t2 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t2 entry_bar                                    observa=42                     backtesting.py=42
+PASS  commission t2 exit_bar                                     observa=63                     backtesting.py=63
+PASS  commission t2 entry_price                                  observa=98.95                  backtesting.py=98.95
+PASS  commission t2 exit_price                                   observa=102.7                  backtesting.py=102.7
+PASS  commission t2 net P&L (price x units, less commission)     observa=369.0                  backtesting.py=369.0
+PASS  commission t2 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t3 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t3 entry_bar                                    observa=66                     backtesting.py=66
+PASS  commission t3 exit_bar                                     observa=93                     backtesting.py=93
+PASS  commission t3 entry_price                                  observa=104.37                 backtesting.py=104.37
+PASS  commission t3 exit_price                                   observa=107.94                 backtesting.py=107.94
+PASS  commission t3 net P&L (price x units, less commission)     observa=350.9999999999993      backtesting.py=350.9999999999993
+PASS  commission t3 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t4 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t4 entry_bar                                    observa=122                    backtesting.py=122
+PASS  commission t4 exit_bar                                     observa=126                    backtesting.py=126
+PASS  commission t4 entry_price                                  observa=104.48                 backtesting.py=104.48
+PASS  commission t4 exit_price                                   observa=103.58                 backtesting.py=103.58
+PASS  commission t4 net P&L (price x units, less commission)     observa=-96.00000000000057     backtesting.py=-96.00000000000057
+PASS  commission t4 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t5 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t5 entry_bar                                    observa=129                    backtesting.py=129
+PASS  commission t5 exit_bar                                     observa=133                    backtesting.py=133
+PASS  commission t5 entry_price                                  observa=104.41                 backtesting.py=104.41
+PASS  commission t5 exit_price                                   observa=103.52                 backtesting.py=103.52
+PASS  commission t5 net P&L (price x units, less commission)     observa=-95.00000000000006     backtesting.py=-95.00000000000006
+PASS  commission t5 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t6 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t6 entry_bar                                    observa=152                    backtesting.py=152
+PASS  commission t6 exit_bar                                     observa=169                    backtesting.py=169
+PASS  commission t6 entry_price                                  observa=100.35                 backtesting.py=100.35
+PASS  commission t6 exit_price                                   observa=99.22                  backtesting.py=99.22
+PASS  commission t6 net P&L (price x units, less commission)     observa=-118.99999999999955    backtesting.py=-118.99999999999955
+PASS  commission t6 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t7 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t7 entry_bar                                    observa=201                    backtesting.py=201
+PASS  commission t7 exit_bar                                     observa=220                    backtesting.py=220
+PASS  commission t7 entry_price                                  observa=96.72                  backtesting.py=96.72
+PASS  commission t7 exit_price                                   observa=98.33                  backtesting.py=98.33
+PASS  commission t7 net P&L (price x units, less commission)     observa=154.99999999999994     backtesting.py=154.99999999999994
+PASS  commission t7 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t8 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t8 entry_bar                                    observa=235                    backtesting.py=235
+PASS  commission t8 exit_bar                                     observa=253                    backtesting.py=253
+PASS  commission t8 entry_price                                  observa=99.94                  backtesting.py=99.94
+PASS  commission t8 exit_price                                   observa=99.29                  backtesting.py=99.29
+PASS  commission t8 net P&L (price x units, less commission)     observa=-70.99999999999915     backtesting.py=-70.99999999999915
+PASS  commission t8 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t9 units                                        observa=100.0                  backtesting.py=100.0
+PASS  commission t9 entry_bar                                    observa=258                    backtesting.py=258
+PASS  commission t9 exit_bar                                     observa=278                    backtesting.py=278
+PASS  commission t9 entry_price                                  observa=101.31                 backtesting.py=101.31
+PASS  commission t9 exit_price                                   observa=102.19                 backtesting.py=102.19
+PASS  commission t9 net P&L (price x units, less commission)     observa=81.99999999999955      backtesting.py=81.99999999999955
+PASS  commission t9 commission                                   observa=6.0                    backtesting.py=6.0
+PASS  commission t10 units                                       observa=100.0                  backtesting.py=100.0
+PASS  commission t10 entry_bar                                   observa=289                    backtesting.py=289
+PASS  commission t10 exit_bar                                    observa=306                    backtesting.py=306
+PASS  commission t10 entry_price                                 observa=103.58                 backtesting.py=103.58
+PASS  commission t10 exit_price                                  observa=104.72                 backtesting.py=104.72
+PASS  commission t10 net P&L (price x units, less commission)    observa=108.00000000000006     backtesting.py=108.00000000000006
+PASS  commission t10 commission                                  observa=6.0                    backtesting.py=6.0
+PASS  commission t11 units                                       observa=100.0                  backtesting.py=100.0
+PASS  commission t11 entry_bar                                   observa=315                    backtesting.py=315
+PASS  commission t11 exit_bar                                    observa=341                    backtesting.py=341
+PASS  commission t11 entry_price                                 observa=104.72                 backtesting.py=104.72
+PASS  commission t11 exit_price                                  observa=108.25                 backtesting.py=108.25
+PASS  commission t11 net P&L (price x units, less commission)    observa=347.0000000000001      backtesting.py=347.0000000000001
+PASS  commission t11 commission                                  observa=6.0                    backtesting.py=6.0
+PASS  commission t12 units                                       observa=100.0                  backtesting.py=100.0
+PASS  commission t12 entry_bar                                   observa=372                    backtesting.py=372
+PASS  commission t12 exit_bar                                    observa=373                    backtesting.py=373
+PASS  commission t12 entry_price                                 observa=104.98                 backtesting.py=104.98
+PASS  commission t12 exit_price                                  observa=104.28                 backtesting.py=104.28
+PASS  commission t12 net P&L (price x units, less commission)    observa=-76.00000000000028     backtesting.py=-76.00000000000028
+PASS  commission t12 commission                                  observa=6.0                    backtesting.py=6.0
+PASS  commission t13 units                                       observa=100.0                  backtesting.py=100.0
+PASS  commission t13 entry_bar                                   observa=388                    backtesting.py=388
+PASS  commission t13 exit_bar                                    observa=394                    backtesting.py=394
+PASS  commission t13 entry_price                                 observa=104.77                 backtesting.py=104.77
+PASS  commission t13 exit_price                                  observa=103.09                 backtesting.py=103.09
+PASS  commission t13 net P&L (price x units, less commission)    observa=-173.99999999999926    backtesting.py=-173.99999999999926
+PASS  commission t13 commission                                  observa=6.0                    backtesting.py=6.0
+PASS  commission t14 units                                       observa=100.0                  backtesting.py=100.0
+PASS  commission t14 entry_bar                                   observa=415                    backtesting.py=415
+PASS  commission t14 exit_bar                                    observa=420                    backtesting.py=420
+PASS  commission t14 entry_price                                 observa=101.51                 backtesting.py=101.51
+PASS  commission t14 exit_price                                  observa=99.87                  backtesting.py=99.87
+PASS  commission t14 net P&L (price x units, less commission)    observa=-170.00000000000006    backtesting.py=-170.00000000000006
+PASS  commission t14 commission                                  observa=6.0                    backtesting.py=6.0
+PASS  commission t15 units                                       observa=100.0                  backtesting.py=100.0
+PASS  commission t15 entry_bar                                   observa=460                    backtesting.py=460
+PASS  commission t15 exit_bar                                    observa=480                    backtesting.py=480
+PASS  commission t15 entry_price                                 observa=98.01                  backtesting.py=98.01
+PASS  commission t15 exit_price                                  observa=97.81                  backtesting.py=97.81
+PASS  commission t15 net P&L (price x units, less commission)    observa=-26.000000000000284    backtesting.py=-26.000000000000284
+PASS  commission t15 commission                                  observa=6.0                    backtesting.py=6.0
+PASS  commission open position units at end                      observa=100.0                  backtesting.py=100.0
+PASS  commission final equity                                    observa=1000183.0              backtesting.py=1000183.0
+
+TOTAL: 232 passed, 0 failed

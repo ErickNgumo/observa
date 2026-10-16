@@ -1,0 +1,68 @@
+{
+  "results": [
+    {
+      "task": "T01_sma_sl_tp",
+      "passed": false,
+      "failures": [
+        "REPORT.md missing"
+      ]
+    },
+    {
+      "task": "T02_close_by_ticket",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T03_external_join",
+      "passed": false,
+      "failures": [
+        "REPORT.md missing"
+      ]
+    },
+    {
+      "task": "T04_intraday_100k",
+      "passed": false,
+      "failures": [
+        "REPORT.md missing",
+        "run/run.json missing (run not persisted to ./run)"
+      ]
+    },
+    {
+      "task": "T05_repair_strategy",
+      "passed": false,
+      "failures": [
+        "REPORT.md missing"
+      ]
+    },
+    {
+      "task": "T06_zero_trade_diagnosis",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T07_intraday_sharpe",
+      "passed": false,
+      "failures": [
+        "REPORT.md missing",
+        "REPORT.md does not state the correct Sharpe"
+      ]
+    },
+    {
+      "task": "T08_limit_order",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T09_inspect_run",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T10_short_breakout",
+      "passed": true,
+      "failures": []
+    }
+  ],
+  "passed": 5,
+  "total": 10
+}

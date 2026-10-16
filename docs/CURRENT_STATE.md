@@ -17,6 +17,17 @@ This document is a migration of the **current-state claims in the source knowled
 - Historical-only strategy history.
 - Signal to order-intent flow.
 
+### Trust boundary (OBS-TRUST-01..03, 2026-10 trust audit)
+- Unknown signal keys fail with `SIGNAL_FIELD_UNKNOWN` (with a suggestion);
+  `None` / bare-dict / malformed envelope returns fail with
+  `STRATEGY_RETURN_INVALID`; unknown config-dict keys fail with `CONFIG_INVALID`.
+- Market data validated identically on CSV and Python paths: finite positive
+  prices, OHLC consistency, finite non-negative volume; timestamps must carry a
+  timezone; epoch inputs must be seconds.
+- Strategy-facing `bar["timestamp"]` is canonical UTC `...+00:00`; new
+  `bar["timestamp_ms"]` join key.
+- `history` is a read-only O(1)-per-bar sequence view (`observa.History`).
+
 ### Python bridge
 - PyO3 embedding.
 - Python strategy loading.

@@ -17,12 +17,28 @@ timestamp,open,high,low,close,volume
 2024-01-01 00:15:00+00:00,1.09990,1.10002,1.09971,1.09990,439.8
 ```
 
-Requirements:
+Requirements (identical for CSV, list and DataFrame inputs):
 
-* `timestamp` must parse as RFC 3339 (with timezone) or
-  `YYYY-MM-DD HH:MM:SS+00:00` (UTC).
+* `timestamp` must carry a timezone: RFC 3339 with `Z` or an offset, or
+  `YYYY-MM-DD HH:MM:SS+00:00`. List/DataFrame inputs may also use
+  timezone-aware `datetime` objects (incl. `pandas.Timestamp`) or numeric epoch
+  **seconds** (sub-second precision is kept). Timezone-less timestamps,
+  booleans and numbers too large to be epoch seconds (e.g. milliseconds) are
+  rejected with `DATA_INVALID` and a hint — Observa never guesses a timezone or
+  a unit.
+* Prices must be finite and positive (NaN/inf are rejected). Volume, when
+  present, must be finite and non-negative; a NaN volume (pandas' missing-value
+  marker) is treated as missing, like an empty cell.
 * `open ≤ high`, `low ≤ open/close ≤ high`, `low ≤ close` are validated per
   bar.
+* The error names the offending row: `exc.details["row"]` is the zero-based
+  data row (the first bar is row 0) for CSV and list inputs alike.
+
+Strategies always see `bar["timestamp"]` as the canonical UTC string
+`YYYY-MM-DDTHH:MM:SS[.f…]+00:00` (fractional seconds only when non-zero, with
+3, 6 or 9 digits) plus `bar["timestamp_ms"]` (epoch
+milliseconds). Join external data on `timestamp_ms`, not on input strings.
+Extra columns are ignored (see issue #1 for external features).
 * Bars must be strictly chronological — the Engine refuses out-of-order data.
 * Data rows are used exactly as supplied: Observa does not invent missing
   candles or interpolate prices. A time gap in the file is treated as a real

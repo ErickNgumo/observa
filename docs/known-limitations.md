@@ -22,5 +22,12 @@ Honest scope of the MVP release candidate:
   part of the contract yet; a band is expressed as three series.
 * **Platform verification** — wheel verified on Linux x86_64 / CPython 3.13;
   other platforms are unverified (see README).
+* **Annualised metrics assume `bars_per_year=252`** unless you pass
+  `observa.run(..., bars_per_year=...)`; the `interval` setting does not change
+  it, and the factor is not recorded in the run artifacts. For intraday data,
+  annualised return, Sharpe and Calmar are mis-scaled unless you set it (see the
+  2026-10 trust audit, finding M01, pending a product decision).
+* **Memory** — every bar's canonical events and snapshot are kept in memory;
+  expect roughly 1 KB per bar (about 1 GB for 1,000,000 bars).
 * **Offline replay** — the chart library is bundled in the wheel (Apache-2.0
   licensed), so replay works offline after installation.

@@ -35,7 +35,9 @@ import inspect
 from dataclasses import asdict, dataclass, field
 from typing import Any, Optional, Sequence, Union
 
-from ._observa import RunResult, run as _run
+import collections.abc as _abc
+
+from ._observa import History, RunResult, run as _run
 from ._agent import (
     STRATEGY_API_VERSION,
     agent_agents_template_path,
@@ -50,6 +52,11 @@ from .replay import ReplayServer
 from .validation import validate_strategy
 
 __version__ = "0.1.6"
+
+# ``history`` passed to ``on_bar`` is a read-only, list-like view of the
+# strictly prior bars (O(1) per bar). Registering it makes
+# ``isinstance(history, collections.abc.Sequence)`` true.
+_abc.Sequence.register(History)
 
 # ────────────────────────────────────────────────
 # Public enums (string constants — deterministic and strict)
@@ -97,6 +104,10 @@ class Config:
     max_quantity: float = 100.0
     quantity_step: float = 0.01
     price_decimals: int = 5
+    # Optional instrument precision fields (issue #5). ``None`` keeps the
+    # canonical default derived from ``price_decimals``.
+    tick_size: Optional[float] = None
+    pip_size: Optional[float] = None
 
     fill_mode: str = NEXT_BAR_OPEN
     spread: float = 0.0002
@@ -106,6 +117,9 @@ class Config:
     commission_rate_per_unit: float = 0.0
     interval: str = "1d"
 
+    # Accepted and type-checked, but NOT recorded in run artifacts yet (the run
+    # is named after the strategy class). Recording it needs a run-schema
+    # change; see docs/audit/2026-10-trust-audit.md §8, decision 3.
     strategy_name: Optional[str] = None
     params: dict = field(default_factory=dict)
     order_model: Optional[dict] = None
@@ -375,6 +389,7 @@ __all__ = [
     "demo_data_path",
     "sample_strategy_path",
     "RunResult",
+    "History",
     "Config",
     "Strategy",
     "MARKET",

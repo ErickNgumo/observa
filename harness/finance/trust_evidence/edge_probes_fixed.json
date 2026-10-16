@@ -1,0 +1,2145 @@
+{
+ "C00_csv_baseline": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "C01_csv_nan_close": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: Bar validation failed at row 9: Price field 'close' must be a finite number, got NaN",
+  "result": "error"
+ },
+ "C02_csv_empty_volume": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "0b52f0635f7eb3acc2396b3a37222ac37eac8181b5a3b85a8233a89455451074",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "C03_csv_nan_volume": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: Bar validation failed at row 9: Volume must be a finite number when present, got NaN",
+  "result": "error"
+ },
+ "C04_csv_zero_volume": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "be70a2e9fa687a79de1de5797612eeaea95230e34d74ddcd822a270e3e7bfb4f",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D00_baseline": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D01_zero_volume_all": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "be70a2e9fa687a79de1de5797612eeaea95230e34d74ddcd822a270e3e7bfb4f",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D02_flat_bars_OHLC_equal": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -240.0
+    ],
+    [
+     17,
+     "Signal",
+     60.0
+    ],
+    [
+     23,
+     "Signal",
+     160.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "e4bc0923330b32cd564633d4d671ad0930fe0af0f0de96784cb7f9a595dbe80b",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.0998
+    ],
+    [
+     14,
+     "Buy",
+     1.1032
+    ]
+   ],
+   "final": [
+    10200.0,
+    9980.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 10,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D03_volume_nan_one_bar": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Volume must be a finite number when present, got NaN",
+  "result": "error"
+ },
+ "D04_close_nan_one_bar": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Price field 'close' must be a finite number, got NaN",
+  "result": "error"
+ },
+ "D05_high_inf": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Price field 'high' must be a finite number, got inf",
+  "result": "error"
+ },
+ "D06_high_below_low": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): High (1.1005) is below another price (1.103); High (1.1005) is below another price (1.1015); High (1.1005) is below another price (1.102); Low (1.1015) is above ano",
+  "result": "error"
+ },
+ "D07_close_above_high_by_1e-12": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): High (1.1035) is below another price (1.103500000001)",
+  "result": "error"
+ },
+ "D08_negative_prices": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Price field 'low' must be positive, got -0.5",
+  "result": "error"
+ },
+ "D09_zero_low": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Price field 'low' must be positive, got 0",
+  "result": "error"
+ },
+ "D10_naive_space_string": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: timestamp '2024-01-01 00:00:00' has no timezone; append 'Z' for UTC or an explicit offset such as '+00:00' (Observa does not guess a timezone)",
+  "result": "error"
+ },
+ "D11_naive_T_string": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: timestamp '2024-01-01T00:00:00' has no timezone; append 'Z' for UTC or an explicit offset such as '+00:00' (Observa does not guess a timezone)",
+  "result": "error"
+ },
+ "D12_plus03_offset_string": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D13_epoch_ms_int": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: epoch timestamp 1704067200000 is too large for seconds \u2014 it looks like milliseconds or microseconds; numeric timestamps must be epoch SECONDS (divide by 1000)",
+  "result": "error"
+ },
+ "D14_epoch_float_half_second": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "e12ce8b7bbe24169998d2391da8d9360a9b31bacdb9fc0ae68d3768ca7bae270",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00.500Z",
+    "2024-01-01T01:00:00.500Z",
+    "2024-01-01T02:00:00.500Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D15_epoch_float_floor_collision": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "b77de6c4cccf9dbf65b2908b3c1ec406fe0b229b6d264584e16ca5d0045a8c29",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2023-11-14T22:13:20Z",
+    "2023-11-14T22:13:20.400Z",
+    "2023-11-14T22:13:20.800Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D16_aware_datetime": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D17_naive_datetime": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: timestamp 2024-01-01 00:00:00 is a timezone-naive datetime; attach a timezone (e.g. dt.replace(tzinfo=timezone.utc)) \u2014 Observa does not guess one",
+  "result": "error"
+ },
+ "D18_subsecond_string": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "5b0525b7b86a0a24c79f404046a619afe411e17af0d336c7043b12c68a982acb",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00.250Z",
+    "2024-01-01T01:00:00.250Z",
+    "2024-01-01T02:00:00.250Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D19_duplicate_timestamp": {
+  "code": "ENGINE_ERROR",
+  "msg": "RuntimeError: engine error: invalid runtime state: bars must be in strictly increasing chronological order",
+  "result": "error"
+ },
+ "D20_volume_int": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "H_history_compat": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "c9a03bed57db8ec114bcc5277f0674d72fa9d78b526e65913bb54e4d4e1ea964",
+   "fills_head": [],
+   "final": [
+    10000.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "HistProbe",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "HistProbe",
+    "params_sha256": "b579d858d64f903464e6cbde798b50a307c219001dd92ebe840dafa739f45982",
+    "source": null
+   }
+  },
+  "observations": {
+   "append": "EXC AttributeError",
+   "bar_keys": "['close', 'high', 'low', 'open', 'timestamp', 'timestamp_ms', 'volume']",
+   "bool_bar0": "False",
+   "copy_type": "'list'",
+   "deepcopy_len": "EXC TypeError",
+   "eq_empty_list_bar0": "True",
+   "eq_list_copy": "True",
+   "hist_keys": "['close', 'high', 'low', 'open', 'timestamp', 'timestamp_ms', 'volume']",
+   "isinstance_list": "False",
+   "json_dumps_len": "EXC TypeError",
+   "kept_view_len": "3",
+   "len_bar": "7",
+   "list_plus": "7",
+   "max_by": "1.1055",
+   "mutate_then_reread": "1.104",
+   "neg_index": "'2024-01-01T00:00:00+00:00'",
+   "next_bar_hist5_close": "1.104",
+   "next_bar_len_after_append": "7",
+   "np_array_len": "EXC TypeError",
+   "np_array_shape": "()",
+   "np_closes_mean": "1.1031666666666669",
+   "pd_df_columns": "['open', 'high', 'low', 'close', 'timestamp', 'timestamp_ms', 'volume']",
+   "pd_df_numeric_mean_cols": "['open', 'high', 'low', 'close', 'timestamp_ms', 'volume']",
+   "pd_df_shape": "(6, 7)",
+   "pickle_len": "EXC TypeError",
+   "plus_list": "7",
+   "reverse_slice_first": "'2024-01-01T05:00:00+00:00'",
+   "sort": "EXC AttributeError",
+   "sorted_first_close": "1.101",
+   "sum_values_last": "1704085200104.418",
+   "type_name": "'History'"
+  },
+  "result": "accepted"
+ },
+ "History": true,
+ "K00_no_strategy_name": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "K01_strategy_name_set": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "MyLabel",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "MyLabel",
+    "params_sha256": "f2d822aa5cb181c1af107cdcef25773163ac8579e72f6cb2c4a87b67216d251d",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "K02_other_class_same_label": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "MyLabel",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "MyLabel",
+    "params_sha256": "f2d822aa5cb181c1af107cdcef25773163ac8579e72f6cb2c4a87b67216d251d",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "K03_dict_typo_spred": {
+  "code": "CONFIG_INVALID",
+  "msg": "invalid configuration: unknown config field 'spred' \u2014 did you mean 'spread'? (an unknown field would otherwise be ignored and its default used)",
+  "result": "error"
+ },
+ "K04_dict_tick_pip": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "K05_Config_tick_pip": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "P00_df_string_ts": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "P01_df_tz_aware": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "P02_df_naive_datetime64": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: timestamp 2024-01-01 00:00:00 is a timezone-naive datetime; attach a timezone (e.g. dt.replace(tzinfo=timezone.utc)) \u2014 Observa does not guess one",
+  "result": "error"
+ },
+ "P03_df_missing_volume_nan": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Volume must be a finite number when present, got NaN",
+  "result": "error"
+ },
+ "P04_df_int64_volume": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_bare_dict": {
+  "code": "STRATEGY_RETURN_INVALID",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_bare_dict",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_bare_dict",
+    "params_sha256": "2d16ec670d81635d45e90d1944cb39ae9c6db767107357f092c8229a2c9281cd",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_bare_dict' on_bar() returned a bare signal dict \u2014 wrap it in a list: return [signal]",
+  "result": "error"
+ },
+ "R_drawings_only": {
+  "code": "STRATEGY_RETURN_INVALID",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_drawings_only",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_drawings_only",
+    "params_sha256": "6c7d01055cba8e2fd75107718e6bc57d40f51b310656f9f568a465af282e2af2",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_drawings_only' on_bar() returned a dict without a 'signals' key \u2014 use {'signals': [...], 'drawings': [...]} (signals may be [])",
+  "result": "error"
+ },
+ "R_empty_dict": {
+  "code": "STRATEGY_RETURN_INVALID",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_empty_dict",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_empty_dict",
+    "params_sha256": "e4c380a9a344635b4e54e70f69f0aeba0181662e659723e90837a4e06b0e2d7a",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_empty_dict' on_bar() returned a dict without a 'signals' key \u2014 use {'signals': [...], 'drawings': [...]} (signals may be [])",
+  "result": "error"
+ },
+ "R_env_extra_key": {
+  "code": "STRATEGY_RETURN_INVALID",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_env_extra_key",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_env_extra_key",
+    "params_sha256": "767a2151e4c81715f368c41092b59d1b6bd90bbcee732f6906d7a36eacb4dcec",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_env_extra_key' on_bar() returned a dict with unknown key(s) 'meta' (allowed: 'signals', 'drawings')",
+  "result": "error"
+ },
+ "R_env_ok": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [
+    [
+     4,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10000.0,
+    9780.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 1,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_env_ok",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_env_ok",
+    "params_sha256": "53802d42bc14f1878e8765b692bb7d40cef447cc9edd9fbcf92fbc7cac59440c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_invalid_first_signal": {
+  "code": "STRATEGY_ERROR",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_invalid_first_signal",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_invalid_first_signal",
+    "params_sha256": "82f071762f44f9d028f1b0fa1094c4415f2a67797dd60b38eb8688831b9fdba2",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_invalid_first_signal' returned an invalid signal: ValueError: unknown direction 'hold' \u2014 use 'buy', 'sell', or 'close'",
+  "result": "error"
+ },
+ "R_invalid_second_signal": {
+  "code": "STRATEGY_ERROR",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_invalid_second_signal",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_invalid_second_signal",
+    "params_sha256": "850b941d89850e95462a06e25b114411157da9e9e26b8519d03a28e5b689e23f",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_invalid_second_signal' returned an invalid signal: ValueError: unknown direction 'hold' \u2014 use 'buy', 'sell', or 'close'",
+  "result": "error"
+ },
+ "R_none": {
+  "code": "STRATEGY_RETURN_INVALID",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_none",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_none",
+    "params_sha256": "dc9864fba7039fff32948c0fa1a532192e4596b11abede95a8999fbec8968ce8",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_none' on_bar() returned None \u2014 return [] for no action (is a `return` statement missing on some path?)",
+  "result": "error"
+ },
+ "R_quantity_key": {
+  "code": "SIGNAL_FIELD_UNKNOWN",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_quantity_key",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_quantity_key",
+    "params_sha256": "e80cfb9b2ece8fe9cf64c76bc2b68f3583344cb5e002e1d12027ee9fb3621f9e",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_quantity_key' returned a signal with unknown field 'quantity' \u2014 did you mean 'size'? (signal 0 on bar 3; allowed: direction, size, order_type, price, sl, tp, reason, ticket)",
+  "result": "error"
+ },
+ "R_signals_none": {
+  "code": "STRATEGY_RETURN_INVALID",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_signals_none",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_signals_none",
+    "params_sha256": "34e5fad688ced475178928475debc9c4803d5cb081b878927d89c1e481dde508",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_signals_none' on_bar() returned 'signals' of type NoneType; it must be a list",
+  "result": "error"
+ },
+ "R_stop_loss_key": {
+  "code": "SIGNAL_FIELD_UNKNOWN",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_stop_loss_key",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_stop_loss_key",
+    "params_sha256": "a09393e8a864b23d60a4e9314cf959a593c40b337501b587a04a91a012409411",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_stop_loss_key' returned a signal with unknown field 'stop_loss' \u2014 did you mean 'sl'? (signal 0 on bar 3; allowed: direction, size, order_type, price, sl, tp, reason, ticket)",
+  "result": "error"
+ },
+ "R_tuple": {
+  "code": "STRATEGY_RETURN_INVALID",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_tuple",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_tuple",
+    "params_sha256": "c98444717ec19a95d5b809424e1146ce917a1204dfe55216dc5788f19a67097a",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_tuple' on_bar() returned a tuple; it must return a list of signal dicts or a dict with 'signals'",
+  "result": "error"
+ },
+ "R_upper_SL_key": {
+  "code": "SIGNAL_FIELD_UNKNOWN",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_upper_SL_key",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_upper_SL_key",
+    "params_sha256": "75a2a49451f870a2d7044b5d5d32f543c6ff3bc1f8f197c7afab704a327e2e52",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_upper_SL_key' returned a signal with unknown field 'SL' \u2014 did you mean 'sl'? (signal 0 on bar 3; allowed: direction, size, order_type, price, sl, tp, reason, ticket)",
+  "result": "error"
+ },
+ "observa": "/tmp/claude-1000/-home-erick-Documents-observa/8e8c655e-9ac3-4519-a485-898ac80f66b3/scratchpad/venv-dev/lib/python3.13/site-packages/observa/__init__.py",
+ "pandas": "3.0.6"
+}

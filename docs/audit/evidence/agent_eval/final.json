@@ -1,0 +1,56 @@
+{
+  "results": [
+    {
+      "task": "T01_sma_sl_tp",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T02_close_by_ticket",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T03_external_join",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T04_intraday_100k",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T05_repair_strategy",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T06_zero_trade_diagnosis",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T07_intraday_sharpe",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T08_limit_order",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T09_inspect_run",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "task": "T10_short_breakout",
+      "passed": true,
+      "failures": []
+    }
+  ],
+  "passed": 10,
+  "total": 10
+}

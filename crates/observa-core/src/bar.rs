@@ -21,6 +21,12 @@ pub enum BarValidationError {
 
     /// Volume cannot be negative if present
     NegativeVolume { volume: f64 },
+
+    /// Prices must be finite numbers (NaN and ±inf are rejected)
+    NonFinitePrice { field: String, value: f64 },
+
+    /// Volume, when present, must be a finite number
+    NonFiniteVolume { volume: f64 },
 }
 
 // This lets us print the error as a human readable message
@@ -38,6 +44,12 @@ impl std::fmt::Display for BarValidationError {
             }
             BarValidationError::NegativeVolume { volume } => {
                 write!(f, "Volume cannot be negative, got {volume}")
+            }
+            BarValidationError::NonFinitePrice { field, value } => {
+                write!(f, "Price field '{field}' must be a finite number, got {value}")
+            }
+            BarValidationError::NonFiniteVolume { volume } => {
+                write!(f, "Volume must be a finite number when present, got {volume}")
             }
         }
     }
@@ -111,7 +123,14 @@ impl Bar {
             ("low",   self.low),
             ("close", self.close),
         ] {
-            if value <= 0.0 {
+            // NaN compares false with everything, so it would pass every
+            // ordering rule below; reject non-finite values explicitly.
+            if !value.is_finite() {
+                errors.push(BarValidationError::NonFinitePrice {
+                    field: field.to_string(),
+                    value,
+                });
+            } else if value <= 0.0 {
                 errors.push(BarValidationError::NonPositivePrice {
                     field: field.to_string(),
                     value,
@@ -141,7 +160,9 @@ impl Bar {
 
         // Rule 4 — volume cannot be negative if present
         if let Some(vol) = self.volume {
-            if vol < 0.0 {
+            if !vol.is_finite() {
+                errors.push(BarValidationError::NonFiniteVolume { volume: vol });
+            } else if vol < 0.0 {
                 errors.push(BarValidationError::NegativeVolume { volume: vol });
             }
         }
@@ -198,6 +219,32 @@ mod tests {
     fn valid_bar_passes_validation() {
         let bar = sample_bar();
         assert!(bar.validate().is_ok());
+    }
+
+    #[test]
+    fn non_finite_prices_fail_validation() {
+        // OBS-TRUST-02: NaN compares false with every ordering rule, so it
+        // used to pass validation silently.
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for field in 0..4 {
+                let mut p = [1.1376, 1.13787, 1.1376, 1.13786];
+                p[field] = bad;
+                let bar = Bar::new(sample_bar().timestamp, p[0], p[1], p[2], p[3], None);
+                let errors = bar.validate().expect_err("non-finite price must fail");
+                assert!(
+                    errors.iter().any(|e| matches!(e, BarValidationError::NonFinitePrice { .. })),
+                    "field {field} = {bad}: {errors:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn non_finite_volume_fails_validation() {
+        let mut bar = sample_bar();
+        bar.volume = Some(f64::NAN);
+        let errors = bar.validate().expect_err("NaN volume must fail");
+        assert!(errors.iter().any(|e| matches!(e, BarValidationError::NonFiniteVolume { .. })));
     }
 
     #[test]

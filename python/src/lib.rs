@@ -7,11 +7,14 @@
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex, RwLock};
 
 use chrono::{DateTime, TimeZone, Utc};
-use pyo3::exceptions::{PyFileExistsError, PyFileNotFoundError, PyRuntimeError, PyValueError};
+use pyo3::exceptions::{
+    PyFileExistsError, PyFileNotFoundError, PyIndexError, PyRuntimeError, PyValueError,
+};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyString};
+use pyo3::types::{PyDict, PyList, PySlice, PyString};
 use serde_json::{json, Value};
 
 use observa_core::bar::Bar;
@@ -130,6 +133,138 @@ fn map_persistence(py: Python<'_>, e: PersistenceError) -> PyErr {
             None,
         ),
     }
+}
+
+// ────────────────────────────────────────────────
+// Unknown-key detection (OBS-TRUST-01)
+// ────────────────────────────────────────────────
+
+/// Levenshtein distance, used only to suggest the intended key.
+fn edit_distance(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.chars().enumerate() {
+        let mut cur = vec![i + 1; b.len() + 1];
+        for (j, cb) in b.iter().enumerate() {
+            let cost = usize::from(ca != *cb);
+            cur[j + 1] = (prev[j] + cost).min(prev[j + 1] + 1).min(cur[j] + 1);
+        }
+        prev = cur;
+    }
+    prev[b.len()]
+}
+
+/// The closest allowed key within edit distance 2, if any.
+fn closest_key(key: &str, allowed: &[&'static str]) -> Option<&'static str> {
+    let k = key.to_ascii_lowercase();
+    allowed
+        .iter()
+        .map(|a| (edit_distance(&k, a), *a))
+        .filter(|(d, _)| *d <= 2)
+        .min_by_key(|(d, _)| *d)
+        .map(|(_, a)| a)
+}
+
+/// The eight canonical signal keys (the strategy contract, `spec.json`).
+const SIGNAL_FIELDS: [&str; 8] = [
+    "direction", "size", "order_type", "price", "sl", "tp", "reason", "ticket",
+];
+
+/// Common names for the canonical signal keys (e.g. the portfolio view's own
+/// OUTPUT names `stop_loss` / `take_profit`, which are not signal INPUTS).
+fn signal_suggestion(key: &str) -> Option<&'static str> {
+    let k = key.to_ascii_lowercase();
+    let alias = match k.as_str() {
+        "stop_loss" | "stoploss" | "sl_price" | "stop_loss_price" | "stop_level" => Some("sl"),
+        "take_profit" | "takeprofit" | "tp_price" | "take_profit_price" | "target" => Some("tp"),
+        "quantity" | "qty" | "lots" | "lot" | "volume" | "amount" | "units" | "quantity_lots" => {
+            Some("size")
+        }
+        "side" | "action" | "dir" => Some("direction"),
+        "type" | "kind" | "ordertype" | "order" => Some("order_type"),
+        "limit_price" | "stop_price" | "entry" | "entry_price" | "trigger" | "trigger_price"
+        | "limit" => Some("price"),
+        "position_id" | "position" | "pos_id" | "id" => Some("ticket"),
+        "comment" | "note" | "tag" | "label" | "message" | "why" => Some("reason"),
+        _ => None,
+    };
+    alias.or_else(|| closest_key(&k, &SIGNAL_FIELDS))
+}
+
+/// Every key the Python config dict may contain. `observa.Config` produces a
+/// subset of these; anything else is a typo that would otherwise silently
+/// fall back to a default (e.g. `spred` → the default spread).
+const CONFIG_FIELDS: [&str; 26] = [
+    "starting_balance", "currency", "leverage",
+    "symbol", "base_currency", "quote_currency", "contract_size", "price_decimals",
+    "tick_size", "pip_size", "min_quantity", "max_quantity", "quantity_step",
+    "order_model", "fill_mode", "spread", "slippage",
+    "commission", "commission_mode", "commission_rate_per_unit",
+    "interval", "params", "strategy_params", "strategy_name", "strategy_source",
+    "dataset_source",
+];
+
+const ORDER_MODEL_FIELDS: [&str; 3] = ["market", "limit", "stop"];
+
+fn unknown_config_key(
+    py: Python<'_>,
+    field: String,
+    suggestion: Option<String>,
+    allowed: &[&str],
+) -> PyErr {
+    let hint = suggestion
+        .as_ref()
+        .map(|s| format!(" — did you mean '{s}'?"))
+        .unwrap_or_default();
+    coded(
+        py,
+        PyValueError::new_err(format!(
+            "invalid configuration: unknown config field '{field}'{hint} \
+             (an unknown field would otherwise be ignored and its default used)"
+        )),
+        "CONFIG_INVALID",
+        Some(details(
+            py,
+            vec![
+                ("field", field.into_py(py)),
+                ("suggestion", suggestion.into_py(py)),
+                ("allowed", allowed.to_vec().into_py(py)),
+            ],
+        )),
+    )
+}
+
+/// Rejects config dict keys that the binding would otherwise silently ignore.
+fn check_config_keys(py: Python<'_>, d: &Bound<'_, PyDict>) -> PyResult<()> {
+    for (k, v) in d.iter() {
+        let key: String = k.extract().map_err(|_| {
+            config_err(py, "config keys must be strings")
+        })?;
+        if !CONFIG_FIELDS.contains(&key.as_str()) {
+            let s = closest_key(&key, &CONFIG_FIELDS).map(str::to_string);
+            return Err(unknown_config_key(py, key, s, &CONFIG_FIELDS));
+        }
+        if key == "order_model" {
+            if let Ok(om) = v.downcast::<PyDict>() {
+                for (ok, _) in om.iter() {
+                    let okey: String = ok.extract().map_err(|_| {
+                        config_err(py, "order_model keys must be strings")
+                    })?;
+                    if !ORDER_MODEL_FIELDS.contains(&okey.as_str()) {
+                        let s = closest_key(&okey, &ORDER_MODEL_FIELDS)
+                            .map(|s| format!("order_model.{s}"));
+                        return Err(unknown_config_key(
+                            py,
+                            format!("order_model.{okey}"),
+                            s,
+                            &ORDER_MODEL_FIELDS,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 // ────────────────────────────────────────────────
@@ -376,24 +511,94 @@ fn value_from_py(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<Value> {
 // Bar loading
 // ────────────────────────────────────────────────
 
+/// Largest magnitude accepted as epoch *seconds* (≈ year 5138). Anything
+/// larger is almost certainly milliseconds/microseconds and used to be read
+/// as seconds silently (OBS-TRUST-02).
+const MAX_EPOCH_SECONDS: f64 = 1e11;
+
+/// Parses an RFC 3339 timestamp that carries an explicit offset (`Z` or
+/// `±HH:MM`). A space separator (`2024-01-01 00:00:00+00:00`, the CSV form) is
+/// accepted. Timezone-less strings are rejected rather than assumed to be UTC.
+fn parse_timestamp_str(s: &str) -> PyResult<DateTime<Utc>> {
+    let t = s.trim();
+    let normalized = match t.find(' ') {
+        Some(10) => t.replacen(' ', "T", 1),
+        _ => t.to_string(),
+    };
+    if let Ok(dt) = DateTime::parse_from_rfc3339(&normalized) {
+        return Ok(dt.with_timezone(&Utc));
+    }
+    let naive = ["%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%.f", "%Y-%m-%d"];
+    if naive
+        .iter()
+        .any(|f| chrono::NaiveDateTime::parse_from_str(&normalized, f).is_ok()
+            || chrono::NaiveDate::parse_from_str(&normalized, f).is_ok())
+    {
+        return Err(PyValueError::new_err(format!(
+            "timestamp '{s}' has no timezone; append 'Z' for UTC or an explicit offset \
+             such as '+00:00' (Observa does not guess a timezone)"
+        )));
+    }
+    Err(PyValueError::new_err(format!(
+        "cannot parse timestamp '{s}' (expected RFC 3339 with an offset, e.g. \
+         '2024-01-01T00:00:00Z')"
+    )))
+}
+
+fn epoch_seconds_to_utc(secs: f64, repr: &str) -> PyResult<DateTime<Utc>> {
+    if !secs.is_finite() {
+        return Err(PyValueError::new_err(format!("invalid epoch timestamp {repr}")));
+    }
+    if secs.abs() > MAX_EPOCH_SECONDS {
+        return Err(PyValueError::new_err(format!(
+            "epoch timestamp {repr} is too large for seconds — it looks like milliseconds \
+             or microseconds; numeric timestamps must be epoch SECONDS (divide by 1000)"
+        )));
+    }
+    let whole = secs.floor();
+    // Keep sub-second precision (to the microsecond) instead of flooring.
+    let mut micros = ((secs - whole) * 1e6).round() as i64;
+    let mut whole = whole as i64;
+    if micros >= 1_000_000 {
+        whole += 1;
+        micros -= 1_000_000;
+    }
+    Utc.timestamp_opt(whole, (micros * 1_000) as u32)
+        .single()
+        .ok_or_else(|| PyValueError::new_err(format!("invalid epoch timestamp {repr}")))
+}
+
+/// Accepted timestamp inputs: an RFC 3339 string with an offset, a
+/// timezone-aware `datetime` (incl. `pandas.Timestamp`), or epoch seconds
+/// (int/float). Ambiguous inputs are rejected with a hint, never guessed.
 fn timestamp_from_py(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<DateTime<Utc>> {
-    if let Ok(s) = obj.extract::<String>() {
-        return chrono::DateTime::parse_from_rfc3339(&s)
-            .map(|t| t.with_timezone(&Utc))
-            .or_else(|_| {
-                chrono::NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S")
-                    .map(|n| Utc.from_utc_datetime(&n))
-            })
-            .map_err(|_| PyValueError::new_err(format!("cannot parse timestamp '{s}'")));
+    if let Ok(s) = obj.downcast::<PyString>() {
+        return parse_timestamp_str(&s.to_string_lossy());
+    }
+    if obj.is_instance_of::<pyo3::types::PyBool>() {
+        return Err(PyValueError::new_err("timestamp must not be a bool"));
+    }
+    // datetime-like (duck-typed: the abi3 build has no PyDateTime API).
+    if obj.hasattr("utcoffset")? && obj.hasattr("isoformat")? {
+        if obj.call_method0("utcoffset")?.is_none() {
+            let repr = obj.str().map(|s| s.to_string()).unwrap_or_default();
+            return Err(PyValueError::new_err(format!(
+                "timestamp {repr} is a timezone-naive datetime; attach a timezone \
+                 (e.g. dt.replace(tzinfo=timezone.utc)) — Observa does not guess one"
+            )));
+        }
+        let iso: String = obj.call_method0("isoformat")?.extract()?;
+        return parse_timestamp_str(&iso);
+    }
+    if let Ok(i) = obj.extract::<i64>() {
+        return epoch_seconds_to_utc(i as f64, &i.to_string());
     }
     if let Ok(secs) = obj.extract::<f64>() {
-        return Utc
-            .timestamp_opt(secs.floor() as i64, 0)
-            .single()
-            .ok_or_else(|| PyValueError::new_err(format!("invalid epoch timestamp {secs}")));
+        return epoch_seconds_to_utc(secs, &secs.to_string());
     }
     Err(PyValueError::new_err(
-        "timestamp must be an RFC 3339 string or epoch seconds",
+        "timestamp must be an RFC 3339 string with an offset, a timezone-aware datetime, \
+         or epoch seconds",
     ))
 }
 
@@ -409,8 +614,14 @@ fn bar_from_py(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<Bar> {
                 .extract::<f64>()
                 .map_err(|e| PyValueError::new_err(format!("bar field '{k}': {e}")))
         };
+        // NaN volume is pandas' marker for a missing value; volume has no
+        // economic role, so it is treated as missing (∞ is still rejected).
         let volume = match d.get_item("volume")? {
-            Some(v) if !v.is_none() => Some(v.extract::<f64>()?),
+            Some(v) if !v.is_none() => Some(
+                v.extract::<f64>()
+                    .map_err(|e| PyValueError::new_err(format!("bar field 'volume': {e}")))?,
+            )
+            .filter(|x| !x.is_nan()),
             _ => None,
         };
         return Ok(Bar::new(
@@ -431,7 +642,7 @@ fn bar_from_py(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<Bar> {
             ));
         }
         let volume = if items.len() >= 6 && !items[5].is_none() {
-            Some(items[5].extract::<f64>()?)
+            Some(items[5].extract::<f64>()?).filter(|x| !x.is_nan())
         } else {
             None
         };
@@ -463,7 +674,28 @@ fn bars_from_py(data: &Bound<'_, pyo3::PyAny>) -> PyResult<Vec<Bar>> {
                     Some(details(py, vec![("path", known.into_py(py))])),
                 );
             }
-            data_err(py, e)
+            use observa_data::error::DataError as DE;
+            let line = match &e {
+                DE::CsvParseError { row, .. }
+                | DE::InvalidTimestamp { row, .. }
+                | DE::InvalidPrice { row, .. }
+                | DE::InvalidBar { row, .. }
+                | DE::NonMonotonicTimestamp { row, .. } => Some(*row),
+                _ => None,
+            };
+            match line {
+                // The loader's `row` counts records from 2 (header = 1);
+                // expose the zero-based data row, consistent with the list
+                // path. (No file line: the csv reader skips blank lines, so
+                // the record count is not a reliable line number.)
+                Some(line) => coded(
+                    py,
+                    PyValueError::new_err(format!("invalid data: {e}")),
+                    "DATA_INVALID",
+                    Some(details(py, vec![("row", line.saturating_sub(2).into_py(py))])),
+                ),
+                None => data_err(py, e),
+            }
         });
     }
     if let Ok(list) = data.downcast::<PyList>() {
@@ -477,6 +709,27 @@ fn bars_from_py(data: &Bound<'_, pyo3::PyAny>) -> PyResult<Vec<Bar>> {
                     Some(details(py, vec![("row", i.into_py(py))])),
                 )
             })?;
+            // OBS-TRUST-02: the list/DataFrame path applies the same bar
+            // invariants as the CSV loader (it used to apply none).
+            if let Err(errors) = bar.validate() {
+                let violations: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
+                return Err(coded(
+                    py,
+                    PyValueError::new_err(format!(
+                        "invalid data: bar at row {i} ({}): {}",
+                        bar.timestamp.to_rfc3339(),
+                        violations.join("; ")
+                    )),
+                    "DATA_INVALID",
+                    Some(details(
+                        py,
+                        vec![
+                            ("row", i.into_py(py)),
+                            ("violations", violations.into_py(py)),
+                        ],
+                    )),
+                ));
+            }
             bars.push(bar);
         }
         return Ok(bars);
@@ -508,6 +761,10 @@ struct PyStrategy {
     drawings: DrawingRegistry,
     /// Zero-based index of the bar currently being processed.
     bar_index: usize,
+    /// Append-only copy of the bars the strategy has already observed, shared
+    /// by every `History` view handed out (OBS-TRUST-03). Each view records its
+    /// own length, so it only ever exposes strictly-prior bars.
+    history_store: Arc<RwLock<Vec<Bar>>>,
 }
 
 impl PyStrategy {
@@ -520,7 +777,327 @@ impl PyStrategy {
             pending_drawings: Vec::new(),
             drawings: DrawingRegistry::new(),
             bar_index: 0,
+            history_store: Arc::new(RwLock::new(Vec::new())),
         }
+    }
+
+    /// Brings the shared store in line with the Engine's strictly-prior
+    /// history (one appended bar per call) and returns an O(1) view of it.
+    fn history_view(&self, py: Python<'_>, history: &[Bar]) -> PyResult<Py<HistoryView>> {
+        {
+            let mut store = self
+                .history_store
+                .write()
+                .map_err(|_| PyRuntimeError::new_err("history store poisoned"))?;
+            if store.len() > history.len() {
+                store.clear();
+            }
+            let start = store.len();
+            store.extend_from_slice(&history[start..]);
+        }
+        Py::new(
+            py,
+            HistoryView {
+                store: Arc::clone(&self.history_store),
+                len: history.len(),
+                cache: Mutex::new(BTreeMap::new()),
+            },
+        )
+    }
+
+    fn return_invalid(&mut self, message: String, received: &str) {
+        self.last_error = Some(StrategyFailure::coded(
+            "STRATEGY_RETURN_INVALID",
+            format!("strategy '{}' {message}", self.class_name),
+            json!({ "bar_index": self.bar_index, "received": received }),
+        ));
+    }
+}
+
+// ────────────────────────────────────────────────
+// Read-only strategy history (OBS-TRUST-03, issue #6)
+// ────────────────────────────────────────────────
+
+/// A read-only, list-like view of the bars strictly before the current one.
+///
+/// Creating a view is O(1) (the previous adapter rebuilt a list of dicts of
+/// every prior bar on every bar: O(N²) per run). Each bar's dict is built
+/// lazily on first access and then reused by this view, so — exactly as with
+/// the old per-bar list — `history[0] is history[0]` and an in-place edit is
+/// visible for the rest of the current bar, while the next bar's view starts
+/// from fresh dicts (edits never leak across bars). A view retained from an
+/// earlier bar keeps its original length forever.
+#[pyclass(name = "History", module = "observa._observa", frozen, sequence)]
+struct HistoryView {
+    store: Arc<RwLock<Vec<Bar>>>,
+    len: usize,
+    /// Dicts already materialised by this view (only the accessed indices).
+    cache: Mutex<BTreeMap<usize, Py<PyDict>>>,
+}
+
+impl HistoryView {
+    fn bar_dict(&self, py: Python<'_>, i: usize) -> PyResult<PyObject> {
+        let poisoned = || PyRuntimeError::new_err("history store poisoned");
+        if let Some(d) = self.cache.lock().map_err(|_| poisoned())?.get(&i) {
+            return Ok(d.clone_ref(py).into_py(py));
+        }
+        // Copy the bar out and release the lock BEFORE creating Python objects:
+        // allocation can trigger GC/finalizers that switch threads, and no lock
+        // may be held across that (deadlock risk on older CPythons).
+        let bar = {
+            let store = self.store.read().map_err(|_| poisoned())?;
+            store[i].clone()
+        };
+        let dict = bar_to_py_dict(py, &bar)?.unbind();
+        let previous = self
+            .cache
+            .lock()
+            .map_err(|_| poisoned())?
+            .insert(i, dict.clone_ref(py));
+        drop(previous); // dropped after the lock is released
+        Ok(dict.into_py(py))
+    }
+
+    fn to_list<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let out = PyList::empty_bound(py);
+        for i in 0..self.len {
+            out.append(self.bar_dict(py, i)?)?;
+        }
+        Ok(out)
+    }
+
+    fn eq_seq(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
+        let items: Vec<Bound<'_, PyAny>> = if let Ok(h) = other.downcast::<HistoryView>() {
+            h.get().to_list(py)?.iter().collect()
+        } else if let Ok(l) = other.downcast::<PyList>() {
+            l.iter().collect()
+        } else {
+            return Ok(None);
+        };
+        if items.len() != self.len {
+            return Ok(Some(false));
+        }
+        for (i, item) in items.iter().enumerate() {
+            if !self.bar_dict(py, i)?.bind(py).eq(item)? {
+                return Ok(Some(false));
+            }
+        }
+        Ok(Some(true))
+    }
+}
+
+#[pymethods]
+impl HistoryView {
+    fn __len__(&self) -> usize {
+        self.len
+    }
+
+    fn __getitem__(&self, py: Python<'_>, index: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+        if let Ok(slice) = index.downcast::<PySlice>() {
+            let ind = slice.indices(self.len as isize)?;
+            let out = PyList::empty_bound(py);
+            let mut i = ind.start;
+            for _ in 0..ind.slicelength {
+                out.append(self.bar_dict(py, i as usize)?)?;
+                i += ind.step;
+            }
+            return Ok(out.into_py(py));
+        }
+        let mut i: isize = match index.extract() {
+            Ok(i) => i,
+            Err(_) if index.is_instance_of::<pyo3::types::PyInt>() => {
+                return Err(PyIndexError::new_err("history index out of range"))
+            }
+            Err(_) => {
+                return Err(pyo3::exceptions::PyTypeError::new_err(
+                    "history indices must be integers or slices",
+                ))
+            }
+        };
+        if i < 0 {
+            i += self.len as isize;
+        }
+        if i < 0 || i as usize >= self.len {
+            return Err(PyIndexError::new_err("history index out of range"));
+        }
+        self.bar_dict(py, i as usize)
+    }
+
+    fn __iter__(slf: &Bound<'_, Self>) -> HistoryIter {
+        HistoryIter {
+            view: Some(slf.clone().unbind()),
+            next: 0,
+            end: slf.get().len,
+            reverse: false,
+        }
+    }
+
+    fn __reversed__(slf: &Bound<'_, Self>) -> HistoryIter {
+        HistoryIter {
+            view: Some(slf.clone().unbind()),
+            next: 0,
+            end: slf.get().len,
+            reverse: true,
+        }
+    }
+
+    fn __contains__(&self, py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+        for i in 0..self.len {
+            if self.bar_dict(py, i)?.bind(py).eq(value)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    #[pyo3(signature = (value, start=0, stop=None))]
+    fn index(
+        &self,
+        py: Python<'_>,
+        value: &Bound<'_, PyAny>,
+        start: isize,
+        stop: Option<isize>,
+    ) -> PyResult<usize> {
+        let n = self.len as isize;
+        let norm = |x: isize| if x < 0 { (x + n).max(0) } else { x.min(n) };
+        let (a, b) = (norm(start), norm(stop.unwrap_or(n)));
+        for i in a..b {
+            if self.bar_dict(py, i as usize)?.bind(py).eq(value)? {
+                return Ok(i as usize);
+            }
+        }
+        Err(PyValueError::new_err("bar is not in history"))
+    }
+
+    fn count(&self, py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
+        let mut c = 0;
+        for i in 0..self.len {
+            if self.bar_dict(py, i)?.bind(py).eq(value)? {
+                c += 1;
+            }
+        }
+        Ok(c)
+    }
+
+    /// A mutable `list` copy (the view itself is read-only).
+    fn copy<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        self.to_list(py)
+    }
+
+    /// `copy.copy(history)` returns a list (like `list.copy()`).
+    fn __copy__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        self.to_list(py)
+    }
+
+    /// `copy.deepcopy(history)` returns a deep-copied list.
+    fn __deepcopy__(&self, py: Python<'_>, memo: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+        let copy = py.import_bound("copy")?;
+        Ok(copy.call_method1("deepcopy", (self.to_list(py)?, memo))?.unbind())
+    }
+
+    /// Pickling yields a plain list of bar dicts.
+    fn __reduce__(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let list_type = py.import_bound("builtins")?.getattr("list")?;
+        Ok((list_type, (self.to_list(py)?,)).into_py(py))
+    }
+
+    fn __add__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+        let out = self.to_list(py)?;
+        for item in other.iter()? {
+            out.append(item?)?;
+        }
+        Ok(out.into_py(py))
+    }
+
+    fn __radd__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+        let out = PyList::empty_bound(py);
+        for item in other.iter()? {
+            out.append(item?)?;
+        }
+        for i in 0..self.len {
+            out.append(self.bar_dict(py, i)?)?;
+        }
+        Ok(out.into_py(py))
+    }
+
+    fn __richcmp__(
+        &self,
+        py: Python<'_>,
+        other: &Bound<'_, PyAny>,
+        op: pyo3::basic::CompareOp,
+    ) -> PyResult<PyObject> {
+        use pyo3::basic::CompareOp;
+        match op {
+            CompareOp::Eq | CompareOp::Ne => match self.eq_seq(py, other)? {
+                Some(eq) => Ok((if matches!(op, CompareOp::Eq) { eq } else { !eq }).into_py(py)),
+                None => Ok(py.NotImplemented()),
+            },
+            _ => Ok(py.NotImplemented()),
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("<observa History: {} prior bars (read-only)>", self.len)
+    }
+
+    // The cache holds Python dicts; expose them to the cycle collector so a
+    // cycle through a view (e.g. a view stored inside one of its own dicts) is
+    // freed.
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        if let Ok(cache) = self.cache.try_lock() {
+            for d in cache.values() {
+                visit.call(d)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn __clear__(&self) {
+        // Take the dicts out first; drop them after the lock is released.
+        let taken = match self.cache.lock() {
+            Ok(mut cache) => std::mem::take(&mut *cache),
+            Err(_) => return,
+        };
+        drop(taken);
+    }
+}
+
+#[pyclass(module = "observa._observa")]
+struct HistoryIter {
+    view: Option<Py<HistoryView>>,
+    next: usize,
+    end: usize,
+    reverse: bool,
+}
+
+#[pymethods]
+impl HistoryIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        if self.next >= self.end {
+            return Ok(None);
+        }
+        let view = match &self.view {
+            Some(v) => v.clone_ref(py),
+            None => return Ok(None),
+        };
+        let i = if self.reverse { self.end - 1 - self.next } else { self.next };
+        self.next += 1;
+        Ok(Some(view.get().bar_dict(py, i)?))
+    }
+
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        if let Some(v) = &self.view {
+            visit.call(v)?;
+        }
+        Ok(())
+    }
+
+    fn __clear__(&mut self) {
+        self.view = None;
     }
 }
 
@@ -585,7 +1162,11 @@ fn bar_to_py_dict<'py>(py: Python<'py>, bar: &Bar) -> PyResult<Bound<'py, PyDict
     d.set_item("high", bar.high)?;
     d.set_item("low", bar.low)?;
     d.set_item("close", bar.close)?;
+    // Canonical strategy-facing format (issue #8, documented and test-pinned):
+    // UTC, `YYYY-MM-DDTHH:MM:SS[.fff]+00:00`, whatever the input form was.
+    // `timestamp_ms` is the unambiguous join key for external data.
     d.set_item("timestamp", bar.timestamp.to_rfc3339())?;
+    d.set_item("timestamp_ms", bar.timestamp.timestamp_millis())?;
     match bar.volume {
         Some(v) => d.set_item("volume", v)?,
         None => d.set_item("volume", py.None())?,
@@ -641,6 +1222,49 @@ fn parse_order_kind(s: &str) -> PyResult<OrderKind> {
             "unknown order_type '{other}' — use 'market', 'limit', or 'stop'"
         ))),
     }
+}
+
+/// Rejects signal keys the Engine would otherwise silently ignore
+/// (OBS-TRUST-01): e.g. `stop_loss` instead of `sl` used to open a position
+/// with no stop at all.
+fn check_signal_keys(
+    d: &Bound<'_, PyDict>,
+    class_name: &str,
+    bar_index: usize,
+    signal_index: usize,
+) -> Result<(), StrategyFailure> {
+    for (k, _) in d.iter() {
+        let key = match k.downcast::<PyString>() {
+            Ok(s) => s.to_string_lossy().into_owned(),
+            Err(_) => {
+                return Err(StrategyFailure::coded(
+                    "SIGNAL_FIELD_UNKNOWN",
+                    format!("strategy '{class_name}': signal keys must be strings"),
+                    json!({ "bar_index": bar_index, "signal_index": signal_index,
+                            "field": k.str().map(|s| s.to_string()).unwrap_or_default(),
+                            "suggestion": Value::Null, "allowed": SIGNAL_FIELDS }),
+                ))
+            }
+        };
+        if SIGNAL_FIELDS.contains(&key.as_str()) {
+            continue;
+        }
+        let suggestion = signal_suggestion(&key);
+        let hint = suggestion
+            .map(|s| format!(" — did you mean '{s}'?"))
+            .unwrap_or_default();
+        return Err(StrategyFailure::coded(
+            "SIGNAL_FIELD_UNKNOWN",
+            format!(
+                "strategy '{class_name}' returned a signal with unknown field '{key}'{hint} \
+                 (signal {signal_index} on bar {bar_index}; allowed: {})",
+                SIGNAL_FIELDS.join(", ")
+            ),
+            json!({ "bar_index": bar_index, "signal_index": signal_index, "field": key,
+                    "suggestion": suggestion, "allowed": SIGNAL_FIELDS }),
+        ));
+    }
+    Ok(())
 }
 
 fn signal_from_py(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<StrategySignal> {
@@ -751,12 +1375,13 @@ impl Strategy for PyStrategy {
                     return vec![];
                 }
             };
-            let py_history = PyList::empty_bound(py);
-            for h in history {
-                if let Ok(d) = bar_to_py_dict(py, h) {
-                    py_history.append(d).ok();
+            let py_history = match self.history_view(py, history) {
+                Ok(h) => h,
+                Err(e) => {
+                    self.last_error = Some(StrategyFailure::new(format!("history conversion failed: {e}")));
+                    return vec![];
                 }
-            }
+            };
 
             let result =
                 match self
@@ -774,15 +1399,79 @@ impl Strategy for PyStrategy {
                 };
 
             // Accept either a plain list of signal dicts or
-            // {'signals': [...], 'drawings': [...]}.
+            // {'signals': [...], 'drawings': [...]}. Anything else fails the
+            // run (OBS-TRUST-01): a bare signal dict, `None` (a forgotten
+            // `return`) or a misspelled envelope key used to be ignored,
+            // producing a "successful" run with the intent silently lost.
             //
             // Annotations are descriptive only (OBS-AI-02): they are validated
             // strictly, recorded on the canonical timeline and never fed into
             // order processing. Malformed annotations fail the run instead of
             // being silently discarded.
+            let bound = result.bind(py);
+            if bound.is_none() {
+                self.return_invalid(
+                    "on_bar() returned None — return [] for no action (is a `return` \
+                     statement missing on some path?)"
+                        .to_string(),
+                    "NoneType",
+                );
+                return vec![];
+            }
             let mut list_opt = Some(result.clone_ref(py).into_bound(py));
             if let Ok(d) = result.downcast_bound::<PyDict>(py) {
+                if d.contains("direction").unwrap_or(false) && !d.contains("signals").unwrap_or(false) {
+                    self.return_invalid(
+                        "on_bar() returned a bare signal dict — wrap it in a list: \
+                         return [signal]"
+                            .to_string(),
+                        "dict",
+                    );
+                    return vec![];
+                }
+                let mut extra = Vec::new();
+                for (k, _) in d.iter() {
+                    let key = k.str().map(|s| s.to_string()).unwrap_or_default();
+                    if key != "signals" && key != "drawings" {
+                        extra.push(key);
+                    }
+                }
+                if !extra.is_empty() {
+                    let hint = if extra.iter().any(|k| closest_key(k, &["signals"]).is_some()) {
+                        " — did you mean 'signals'?"
+                    } else {
+                        ""
+                    };
+                    self.return_invalid(
+                        format!(
+                            "on_bar() returned a dict with unknown key(s) {}{hint} (allowed: \
+                             'signals', 'drawings')",
+                            extra.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", ")
+                        ),
+                        "dict",
+                    );
+                    return vec![];
+                }
                 list_opt = d.get_item("signals").ok().flatten();
+                if list_opt.is_none() {
+                    self.return_invalid(
+                        "on_bar() returned a dict without a 'signals' key — use \
+                         {'signals': [...], 'drawings': [...]} (signals may be [])"
+                            .to_string(),
+                        "dict",
+                    );
+                    return vec![];
+                }
+                if let Some(sig) = &list_opt {
+                    if !sig.is_instance_of::<PyList>() {
+                        let t = sig.get_type().name().map(|n| n.to_string()).unwrap_or_default();
+                        self.return_invalid(
+                            format!("on_bar() returned 'signals' of type {t}; it must be a list"),
+                            &t,
+                        );
+                        return vec![];
+                    }
+                }
                 match d.get_item("drawings") {
                     Ok(Some(drawings_obj)) => {
                         let values = match py_to_json(&drawings_obj) {
@@ -832,7 +1521,15 @@ impl Strategy for PyStrategy {
             let mut out = Vec::new();
             if let Some(list_obj) = list_opt {
                 if let Ok(list) = list_obj.downcast::<PyList>() {
-                    for item in list.iter() {
+                    for (signal_index, item) in list.iter().enumerate() {
+                        if let Ok(d) = item.downcast::<PyDict>() {
+                            if let Err(f) =
+                                check_signal_keys(d, &self.class_name, self.bar_index, signal_index)
+                            {
+                                self.last_error = Some(f);
+                                return vec![];
+                            }
+                        }
                         match signal_from_py(&item) {
                             Ok(s) => out.push(s),
                             Err(e) => {
@@ -840,14 +1537,20 @@ impl Strategy for PyStrategy {
                                     "strategy '{}' returned an invalid signal: {e}",
                                     self.class_name
                                 )));
+                                return vec![];
                             }
                         }
                     }
-                } else if !list_obj.is_none() {
-                    self.last_error = Some(StrategyFailure::new(format!(
-                        "strategy '{}' on_bar() must return a list or a dict with 'signals'",
-                        self.class_name
-                    )));
+                } else {
+                    let t = list_obj.get_type().name().map(|n| n.to_string()).unwrap_or_default();
+                    self.return_invalid(
+                        format!(
+                            "on_bar() returned a {t}; it must return a list of signal dicts or \
+                             a dict with 'signals'"
+                        ),
+                        &t,
+                    );
+                    return vec![];
                 }
             }
             self.bar_index += 1;
@@ -1142,6 +1845,9 @@ fn run(
 ) -> PyResult<RunResult> {
     let bars = bars_from_py(data)?;
 
+    if let Some(d) = config {
+        check_config_keys(py, d)?;
+    }
     let mut cfg = match config {
         Some(d) => config_from_dict(d).map_err(|e| config_err(py, e))?,
         None => BacktestConfig::default(),
@@ -1153,6 +1859,13 @@ fn run(
         .and_then(|c| c.getattr("__name__"))
         .and_then(|n| n.extract::<String>())
         .unwrap_or_else(|_| "Strategy".to_string());
+    if let Some(d) = config {
+        // Type-checked even though it is not recorded yet (see note below).
+        opt_str(d, "strategy_name").map_err(|e| config_err(py, e))?;
+    }
+    // NOTE: `strategy_name` is accepted but not yet recorded: recording it as
+    // the strategy `name` would change the strategy identity hash
+    // (`params_sha256`). Deferred to a run-schema change (trust audit §8).
     let params = match config {
         Some(d) => params_from_dict(d).map_err(|e| config_err(py, e))?,
         None => BTreeMap::new(),
@@ -1325,5 +2038,7 @@ fn _observa(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run, m)?)?;
     m.add_function(wrap_pyfunction!(replay_payload_fn, m)?)?;
     m.add_class::<RunResult>()?;
+    m.add_class::<HistoryView>()?;
+    m.add_class::<HistoryIter>()?;
     Ok(())
 }
