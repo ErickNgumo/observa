@@ -361,3 +361,54 @@ tr.is-selected td:first-child { box-shadow: inset 3px 0 var(--accent); }
   .theme-control { margin-left: auto; }
   .status-metric { display: inline-flex; }
 }
+
+/* ── Metrics panel (schema 2) ─────────────────────────────────────────── */
+#metrics-grid { display: grid; gap: 18px; }
+.metrics-sample { display: flex; flex-wrap: wrap; gap: 6px; }
+.sample-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-raised); color: var(--muted); font-size: 10.5px; white-space: nowrap; }
+.sample-chip b { color: var(--text); font-family: 'DM Mono', monospace; font-weight: 500; }
+.sample-chip.warn { border-color: color-mix(in srgb, #e3b341 45%, var(--border)); color: color-mix(in srgb, #e3b341 80%, var(--text)); cursor: help; }
+.metrics-notice { padding: 9px 12px; border: 1px solid color-mix(in srgb, #e3b341 45%, var(--border)); background: color-mix(in srgb, #e3b341 8%, var(--surface)); border-radius: 8px; color: var(--text); font-size: 10.5px; line-height: 1.45; }
+.metric-label { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+.metric-scope { flex-shrink: 0; padding: 1px 5px; border-radius: 4px; font: 800 8.5px 'Manrope', sans-serif; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); border: 1px solid var(--border); }
+.metric-scope.annual { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.metric-card.unavailable { background: repeating-linear-gradient(135deg, var(--surface) 0 6px, color-mix(in srgb, var(--surface-raised) 70%, var(--surface)) 6px 7px); }
+.metric-value.unavailable { color: var(--faint); font-size: 13px; }
+.metric-reason { color: var(--faint); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: help; }
+.primary-metrics .metric-card { min-height: 84px; }
+.primary-metrics .metric-value:not(.unavailable) { font-size: 20px; }
+.metric-group-cards .metrics-chart { grid-column: 1 / -1; }
+.metrics-chart { margin: 0; padding: 10px 12px 12px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; }
+.metrics-chart figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-bottom: 8px; }
+.metrics-chart figcaption span { color: var(--text); font-size: 10px; font-weight: 800; }
+.metrics-chart figcaption em { color: var(--muted); font: 400 9.5px 'DM Mono', monospace; font-style: normal; }
+.metrics-chart svg { display: block; width: 100%; height: 110px; }
+.metrics-chart svg .axis { stroke: var(--border-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.metrics-chart svg path.win { fill: var(--positive); opacity: .85; }
+.metrics-chart svg path.loss { fill: var(--negative); opacity: .85; }
+.cost-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--surface); border: 1px solid var(--border); }
+.cost-seg.commission_cost, .cost-dot.commission_cost { background: #8b9df7; }
+.cost-seg.spread_cost, .cost-dot.spread_cost { background: var(--accent); }
+.cost-seg.slippage_cost, .cost-dot.slippage_cost { background: #e3b341; }
+.cost-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; color: var(--muted); font: 400 9.5px 'DM Mono', monospace; }
+.cost-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+@media (max-width: 760px) {
+  .primary-metrics .metric-value:not(.unavailable) { font-size: 16px; }
+  .sample-chip { font-size: 10px; padding: 3px 7px; }
+}
+
+/* Metrics layout: overview + sample strip span the row; Trades is wide. */
+.metrics-sample, .metrics-notice, .metric-group.wide { grid-column: 1 / -1; }
+.metric-group.wide .metric-group-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) {
+  #metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .primary-metrics .metric-group-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  #metrics-grid { grid-template-columns: minmax(0, 1fr); }
+  .primary-metrics .metric-group-cards, .metric-group.wide .metric-group-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* A lone last card in a two-column group takes the full row (no blank cell). */
+.metric-group:not(.primary-metrics):not(.wide) .metric-group-cards > .metric-card:last-of-type:nth-of-type(odd) { grid-column: 1 / -1; }
+.metrics-notice strong { display: block; margin-bottom: 4px; font-size: 10.5px; }
+.metrics-notice ul { margin: 0; padding-left: 16px; display: grid; gap: 2px; color: var(--muted); }

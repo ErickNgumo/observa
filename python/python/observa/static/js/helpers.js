@@ -37,3 +37,10 @@ function findEventIndexNearTime(unixTime) {
   }
   return 0;
 }
+// Escapes text for safe insertion into HTML (also used for attribute values).
+// Non-strings are converted first, so a malformed report cannot throw here.
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}

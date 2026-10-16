@@ -301,9 +301,10 @@ def _tier_b(module, class_name):
 class _RawObserver:
     """Validates the raw value returned from the user's on_bar.
 
-    The value is passed through unchanged, so the canonical Engine still behaves
-    exactly as it normally would — including silently ignoring malformed shapes.
-    That leniency is precisely why we inspect the raw value first.
+    The value is passed through unchanged, so the canonical Engine behaves
+    exactly as it normally would (it rejects malformed shapes and unknown keys,
+    OBS-TRUST-01). Inspecting the raw value first lets the validator report
+    every problem on the bar with its precise path, not just the first.
     """
 
     def __init__(self, class_name):
@@ -334,8 +335,9 @@ class _RawObserver:
         if unknown:
             self._err(
                 "SIGNAL_FIELD_UNKNOWN", path=path,
-                message="unknown signal field(s) %s — the engine silently ignores them, "
-                        "so the intent is lost" % (", ".join(repr(k) for k in unknown)),
+                message="unknown signal field(s) %s — the engine rejects them "
+                        "(SIGNAL_FIELD_UNKNOWN); use only the canonical keys"
+                        % (", ".join(repr(k) for k in unknown)),
                 received=unknown, allowed=sorted(SIGNAL_FIELDS),
             )
         missing = [k for k in REQUIRED_SIGNAL_FIELDS if k not in obj]
@@ -447,8 +449,8 @@ class _RawObserver:
         if raw is None:
             self._err(
                 "STRATEGY_RETURN_INVALID", path=path,
-                message="on_bar returned None; return [] for 'no action' — None is "
-                        "ambiguous and is silently ignored by the engine",
+                message="on_bar returned None (is a return statement missing?); "
+                        "return [] for 'no action' — the engine rejects None",
                 received="None", expected="list or dict",
             )
             return
@@ -457,16 +459,13 @@ class _RawObserver:
                 shape = "a bare signal dict" if "direction" in raw else "a dict without a 'signals' key"
                 self._err(
                     "STRATEGY_RETURN_INVALID", path=path,
-                    message="on_bar returned %s; the engine only reads the 'signals' key, "
-                            "so nothing was executed. Return a list, or "
-                            "{'signals': [...], 'drawings': [...]}" % shape,
+                    message="on_bar returned %s; the engine rejects it. Return a "
+                            "list, or {'signals': [...], 'drawings': [...]}" % shape,
                     received=sorted(raw), expected=["signals", "drawings"],
                 )
             else:
                 signals = raw["signals"]
-                if signals is None:
-                    pass
-                elif not isinstance(signals, list):
+                if not isinstance(signals, list):
                     self._err(
                         "STRATEGY_RETURN_INVALID", path=path + ".signals",
                         message="'signals' must be a list", received=type(signals).__name__,
@@ -484,9 +483,12 @@ class _RawObserver:
                     )
                 extra = [k for k in raw if k not in ("signals", "drawings")]
                 if extra:
-                    self._warn(
-                        "SIGNAL_FIELD_UNKNOWN", path=path,
-                        message="unknown envelope key(s) %s are ignored"
+                    # OBS-TRUST-01: the Engine now rejects these, so they are
+                    # errors here too (they used to be silently ignored).
+                    self._err(
+                        "STRATEGY_RETURN_INVALID", path=path,
+                        message="unknown envelope key(s) %s; only 'signals' and "
+                                "'drawings' are allowed"
                                 % (", ".join(repr(k) for k in extra)),
                         received=extra, allowed=["signals", "drawings"],
                     )

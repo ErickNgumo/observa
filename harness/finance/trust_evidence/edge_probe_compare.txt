@@ -1,0 +1,184 @@
+SAME C00_csv_baseline
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+DIFF C01_csv_nan_close
+   released: accepted fills=7 final=[10360.0, 10140.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: Bar validation failed at row 9: Price field 'close' must be a finite number, got NaN
+SAME C02_csv_empty_volume
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+DIFF C03_csv_nan_volume
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: Bar validation failed at row 9: Volume must be a finite number when present, got NaN
+SAME C04_csv_zero_volume
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME D00_baseline
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME D01_zero_volume_all
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME D02_flat_bars_OHLC_equal
+   released: accepted fills=10 final=[10200.0, 9980.0]
+   fixed:    accepted fills=10 final=[10200.0, 9980.0]
+DIFF D03_volume_nan_one_bar
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Volume must be a finite number when presen
+DIFF D04_close_nan_one_bar
+   released: accepted fills=7 final=[10360.0, 10140.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Price field 'close' must be a finite numbe
+DIFF D05_high_inf
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Price field 'high' must be a finite number
+DIFF D06_high_below_low
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): High (1.1005) is below another price (1.10
+DIFF D07_close_above_high_by_1e-12
+   released: accepted fills=8 final=[10170.0, 9950.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): High (1.1035) is below another price (1.10
+DIFF D08_negative_prices
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Price field 'low' must be positive, got -0
+DIFF D09_zero_low
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Price field 'low' must be positive, got 0
+DIFF D10_naive_space_string
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error DATA_INVALID ValueError: timestamp '2024-01-01 00:00:00' has no timezone; append 'Z' for UTC or an explicit offset such as 
+SAME D11_naive_T_string
+   released: error DATA_INVALID ValueError: cannot parse timestamp '2024-01-01T00:00:00'
+   fixed:    error DATA_INVALID ValueError: timestamp '2024-01-01T00:00:00' has no timezone; append 'Z' for UTC or an explicit offset such as 
+SAME D12_plus03_offset_string
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+DIFF D13_epoch_ms_int
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error DATA_INVALID ValueError: epoch timestamp 1704067200000 is too large for seconds — it looks like milliseconds or microsecond
+SAME D14_epoch_float_half_second
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+DIFF D15_epoch_float_floor_collision
+   released: error ENGINE_ERROR RuntimeError: engine error: invalid runtime state: bars must be in strictly increasing chronological order
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+DIFF D16_aware_datetime
+   released: error DATA_INVALID ValueError: timestamp must be an RFC 3339 string or epoch seconds
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME D17_naive_datetime
+   released: error DATA_INVALID ValueError: timestamp must be an RFC 3339 string or epoch seconds
+   fixed:    error DATA_INVALID ValueError: timestamp 2024-01-01 00:00:00 is a timezone-naive datetime; attach a timezone (e.g. dt.replace(tzi
+SAME D18_subsecond_string
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME D19_duplicate_timestamp
+   released: error ENGINE_ERROR RuntimeError: engine error: invalid runtime state: bars must be in strictly increasing chronological order
+   fixed:    error ENGINE_ERROR RuntimeError: engine error: invalid runtime state: bars must be in strictly increasing chronological order
+SAME D20_volume_int
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME H_history_compat
+   released: accepted fills=0 final=[10000.0, 10000.0]
+   fixed:    accepted fills=0 final=[10000.0, 10000.0]
+   != append                     rel=None  fix=EXC AttributeError
+   != bar_keys                   rel=['close', 'high', 'low', 'open', 'timestamp', 'volume']  fix=['close', 'high', 'low', 'open', 'timestamp', 'timestamp_ms', 'volume']
+      bool_bar0                  rel=False  fix=False
+      copy_type                  rel='list'  fix='list'
+   != deepcopy_len               rel=6  fix=EXC TypeError
+      eq_empty_list_bar0         rel=True  fix=True
+      eq_list_copy               rel=True  fix=True
+   != hist_keys                  rel=['close', 'high', 'low', 'open', 'timestamp', 'volume']  fix=['close', 'high', 'low', 'open', 'timestamp', 'timestamp_ms', 'volume']
+   != isinstance_list            rel=True  fix=False
+   != json_dumps_len             rel=736  fix=EXC TypeError
+      kept_view_len              rel=3  fix=3
+   != len_bar                    rel=6  fix=7
+      list_plus                  rel=7  fix=7
+      max_by                     rel=1.1055  fix=1.1055
+   != mutate_then_reread         rel=-1.0  fix=1.104
+      neg_index                  rel='2024-01-01T00:00:00+00:00'  fix='2024-01-01T00:00:00+00:00'
+      next_bar_hist5_close       rel=1.104  fix=1.104
+      next_bar_len_after_append  rel=7  fix=7
+   != np_array_len               rel=6  fix=EXC TypeError
+   != np_array_shape             rel=(6,)  fix=()
+      np_closes_mean             rel=1.1031666666666669  fix=1.1031666666666669
+   != pd_df_columns              rel=['open', 'high', 'low', 'close', 'timestamp', 'volume']  fix=['open', 'high', 'low', 'close', 'timestamp', 'timestamp_ms', 'volume']
+   != pd_df_numeric_mean_cols    rel=['open', 'high', 'low', 'close', 'volume']  fix=['open', 'high', 'low', 'close', 'timestamp_ms', 'volume']
+   != pd_df_shape                rel=(6, 6)  fix=(6, 7)
+   != pickle_len                 rel=6  fix=EXC TypeError
+      plus_list                  rel=7  fix=7
+      reverse_slice_first        rel='2024-01-01T05:00:00+00:00'  fix='2024-01-01T05:00:00+00:00'
+   != sort                       rel=None  fix=EXC AttributeError
+      sorted_first_close         rel=1.101  fix=1.101
+   != sum_values_last            rel=104.418  fix=1704085200104.418
+   != type_name                  rel='list'  fix='History'
+SAME K00_no_strategy_name
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME K01_strategy_name_set
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME K02_other_class_same_label
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+DIFF K03_dict_typo_spred
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error CONFIG_INVALID invalid configuration: unknown config field 'spred' — did you mean 'spread'? (an unknown field would otherwise
+SAME K04_dict_tick_pip
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+DIFF K05_Config_tick_pip
+   released: error None TypeError: Config.__init__() got an unexpected keyword argument 'tick_size'
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME P00_df_string_ts
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+DIFF P01_df_tz_aware
+   released: error DATA_INVALID ValueError: timestamp must be an RFC 3339 string or epoch seconds
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+SAME P02_df_naive_datetime64
+   released: error DATA_INVALID ValueError: timestamp must be an RFC 3339 string or epoch seconds
+   fixed:    error DATA_INVALID ValueError: timestamp 2024-01-01 00:00:00 is a timezone-naive datetime; attach a timezone (e.g. dt.replace(tzi
+DIFF P03_df_missing_volume_nan
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    error DATA_INVALID ValueError: invalid data: bar at row 7 (2024-01-01T07:00:00+00:00): Volume must be a finite number when presen
+SAME P04_df_int64_volume
+   released: accepted fills=9 final=[10220.0, 10000.0]
+   fixed:    accepted fills=9 final=[10220.0, 10000.0]
+DIFF R_bare_dict
+   released: accepted fills=0 final=[10000.0, 10000.0]
+   fixed:    error STRATEGY_RETURN_INVALID RuntimeError: engine error: strategy failure: strategy 'Ret_bare_dict' on_bar() returned a bare signal dict — 
+DIFF R_drawings_only
+   released: accepted fills=0 final=[10000.0, 10000.0]
+   fixed:    error STRATEGY_RETURN_INVALID RuntimeError: engine error: strategy failure: strategy 'Ret_drawings_only' on_bar() returned a dict without a 
+DIFF R_empty_dict
+   released: accepted fills=0 final=[10000.0, 10000.0]
+   fixed:    error STRATEGY_RETURN_INVALID RuntimeError: engine error: strategy failure: strategy 'Ret_empty_dict' on_bar() returned a dict without a 'si
+DIFF R_env_extra_key
+   released: accepted fills=1 final=[10000.0, 9780.0]
+   fixed:    error STRATEGY_RETURN_INVALID RuntimeError: engine error: strategy failure: strategy 'Ret_env_extra_key' on_bar() returned a dict with unkno
+SAME R_env_ok
+   released: accepted fills=1 final=[10000.0, 9780.0]
+   fixed:    accepted fills=1 final=[10000.0, 9780.0]
+SAME R_invalid_first_signal
+   released: error STRATEGY_ERROR RuntimeError: engine error: strategy failure: strategy 'Ret_invalid_first_signal' returned an invalid signal: 
+   fixed:    error STRATEGY_ERROR RuntimeError: engine error: strategy failure: strategy 'Ret_invalid_first_signal' returned an invalid signal: 
+SAME R_invalid_second_signal
+   released: error STRATEGY_ERROR RuntimeError: engine error: strategy failure: strategy 'Ret_invalid_second_signal' returned an invalid signal:
+   fixed:    error STRATEGY_ERROR RuntimeError: engine error: strategy failure: strategy 'Ret_invalid_second_signal' returned an invalid signal:
+DIFF R_none
+   released: accepted fills=0 final=[10000.0, 10000.0]
+   fixed:    error STRATEGY_RETURN_INVALID RuntimeError: engine error: strategy failure: strategy 'Ret_none' on_bar() returned None — return [] for no ac
+DIFF R_quantity_key
+   released: error STRATEGY_ERROR RuntimeError: engine error: strategy failure: strategy 'Ret_quantity_key' returned an invalid signal: ValueErr
+   fixed:    error SIGNAL_FIELD_UNKNOWN RuntimeError: engine error: strategy failure: strategy 'Ret_quantity_key' returned a signal with unknown field
+DIFF R_signals_none
+   released: accepted fills=0 final=[10000.0, 10000.0]
+   fixed:    error STRATEGY_RETURN_INVALID RuntimeError: engine error: strategy failure: strategy 'Ret_signals_none' on_bar() returned 'signals' of type 
+DIFF R_stop_loss_key
+   released: accepted fills=1 final=[10000.0, 9780.0]
+   fixed:    error SIGNAL_FIELD_UNKNOWN RuntimeError: engine error: strategy failure: strategy 'Ret_stop_loss_key' returned a signal with unknown fiel
+DIFF R_tuple
+   released: error STRATEGY_ERROR RuntimeError: engine error: strategy failure: strategy 'Ret_tuple' on_bar() must return a list or a dict with 
+   fixed:    error STRATEGY_RETURN_INVALID RuntimeError: engine error: strategy failure: strategy 'Ret_tuple' on_bar() returned a tuple; it must return a
+DIFF R_upper_SL_key
+   released: accepted fills=1 final=[10000.0, 9780.0]
+   fixed:    error SIGNAL_FIELD_UNKNOWN RuntimeError: engine error: strategy failure: strategy 'Ret_upper_SL_key' returned a signal with unknown field

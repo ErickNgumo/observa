@@ -89,4 +89,8 @@ remains in final equity and is reported in the result/replay.
 `commission_rate_per_unit`, `interval`, `order_model`, `params`,
 `strategy_name`, `strategy_source`, `dataset_source`.
 
+`strategy_name` is accepted but **not recorded** yet — runs are named after
+the strategy class (pending a run-schema change). An unknown key in a config
+dict fails with `CONFIG_INVALID`.
+
 See `docs/known-limitations.md` for what is explicitly not modeled.

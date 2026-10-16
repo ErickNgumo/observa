@@ -116,8 +116,10 @@ impl CsvReader {
 
             // Parse optional volume
             let volume = match &raw.volume {
+                // A NaN volume ("nan", as pandas writes missing values) is
+                // treated as missing, like an empty cell; ∞ stays invalid.
                 Some(v) if !v.trim().is_empty() => {
-                    Some(parse_price(v, "volume", row_number)?)
+                    Some(parse_price(v, "volume", row_number)?).filter(|x| !x.is_nan())
                 }
                 _ => None,
             };

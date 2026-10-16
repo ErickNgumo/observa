@@ -72,9 +72,10 @@ Lifecycle order: initialize(params) once before the first bar; on_bar(bar, portf
 
 Never return:
 
-* TRAP: a bare signal dict {'direction': 'buy', 'size': 1.0} - the engine reads only the 'signals' key, so it is ignored. Wrap it in a list.
-* TRAP: None - return [] for 'no action'; None is ambiguous.
-* {'signal': [...]} - misspelled envelope key.
+* a bare signal dict {'direction': 'buy', 'size': 1.0} - wrap it in a list.
+* None (e.g. a missing return statement) - return [] for 'no action'.
+* {'signal': [...]} or any envelope key other than 'signals'/'drawings'.
+* {'signals': None} or 'signals' that is not a list.
 * str, tuple, number - anything not a list or dict.
 
 ### Fields (exact)
@@ -87,10 +88,11 @@ Never return:
 | `high` | float |
 | `low` | float |
 | `open` | float |
-| `timestamp` | str, RFC 3339 |
+| `timestamp` | str, canonical UTC 'YYYY-MM-DDTHH:MM:SS[.f...]+00:00' (fraction only when non-zero) whatever the input form ('...Z' input is presented as '...+00:00') |
+| `timestamp_ms` | int, epoch milliseconds (UTC) - the unambiguous key for joining external data |
 | `volume` | float or None |
 
-No bar_index and no symbol. Use bar['close'], not bar.close.
+No bar_index and no symbol. Use bar['close'], not bar.close. Join external data on bar['timestamp_ms'] or a parsed datetime, never on the raw input string.
 
 `portfolio` — dict (read-only):
 
@@ -122,7 +124,7 @@ each `position` — dict (read-only), from portfolio['open_positions'][i]:
 
 TRAP: signal INPUT uses lowercase 'buy' and keys size/sl/tp; position OUTPUT uses 'Buy' and stop_loss/take_profit. quantity is an output alias only - the input key is size.
 
-`history` — strictly PRIOR bars only. No lookahead is possible. Guard warm-up yourself: if len(history) < period: return []. It is all prior bars, not a fixed window, so slice history[-period:].
+`history` — strictly PRIOR bars only. No lookahead is possible. Guard warm-up yourself: if len(history) < period: return []. It is all prior bars, not a fixed window, so slice history[-period:]. It cannot be mutated (no append/pop/item assignment), and a reference kept from an earlier bar never grows.
 
 ### Signal fields
 
@@ -139,7 +141,7 @@ Required: `direction`, `size`.
 | `ticket` | str, REQUIRED for close - use position['position_id'] |
 | `tp` | float, protective take profit (entries) |
 
-TRAP: only those eight keys are read. Any other key (stop_loss, take_profit, quantity, qty, sl_price) is silently ignored, so a typo silently drops your stop loss. validate-strategy reports SIGNAL_FIELD_UNKNOWN.
+Only those eight keys are allowed. Any other key (stop_loss, take_profit, quantity, qty, sl_price, ...) fails the run with SIGNAL_FIELD_UNKNOWN; exc.details has 'field', 'suggestion' (e.g. stop_loss -> sl), 'allowed', 'bar_index' and 'signal_index'.
 
 Order types: `market`, `limit`, `stop` (default `market`); limit/stop trigger price goes in `price`.
 

@@ -1,0 +1,621 @@
+observa 0.1.6  runs under /tmp/claude-1000/-home-erick-Documents-observa/8e8c655e-9ac3-4519-a485-898ac80f66b3/scratchpad/trust/observa_golden_g2ew2fru
+tolerances: price 1e-09  money 1e-06
+
+PASS  G1_long_next_bar_open            order_rejected count                     expected=0                      actual=0
+PASS  G1_long_next_bar_open            fill count                               expected=2                      actual=2
+PASS  G1_long_next_bar_open            fill[0].raw_reference                    expected=1.101                  actual=1.101
+PASS  G1_long_next_bar_open            fill[0].executed_price                   expected=1.1012                 actual=1.1012
+PASS  G1_long_next_bar_open            fill[0].commission_amount                expected=0.0                    actual=0.0
+PASS  G1_long_next_bar_open            fill[0].spread_applied                   expected=0.0001                 actual=0.0001
+PASS  G1_long_next_bar_open            fill[0].slippage_applied                 expected=0.0001                 actual=0.0001
+PASS  G1_long_next_bar_open            fill[1].raw_reference                    expected=1.105                  actual=1.105
+PASS  G1_long_next_bar_open            fill[1].executed_price                   expected=1.1048                 actual=1.1048
+PASS  G1_long_next_bar_open            fill[1].commission_amount                expected=0.0                    actual=0.0
+PASS  G1_long_next_bar_open            fill[1].spread_applied                   expected=0.0001                 actual=0.0001
+PASS  G1_long_next_bar_open            fill[1].slippage_applied                 expected=0.0001                 actual=0.0001
+PASS  G1_long_next_bar_open            position_closed count                    expected=1                      actual=1
+PASS  G1_long_next_bar_open            closed[0].gross_realized_pnl             expected=360.0                  actual=360.0000000000048
+PASS  G1_long_next_bar_open            closed[0].total_commission               expected=0.0                    actual=0.0
+PASS  G1_long_next_bar_open            closed[0].net_realized_pnl               expected=360.0                  actual=360.0000000000048
+PASS  G1_long_next_bar_open            closed[0].entry_price                    expected=1.1012                 actual=1.1012
+PASS  G1_long_next_bar_open            closed[0].exit_price                     expected=1.1048                 actual=1.1048
+PASS  G1_long_next_bar_open            closed[0].exit_reason is explicit (not SL/TP) expected=True                   actual=True
+PASS  G1_long_next_bar_open            closed[0] net == gross - commission      expected=360.0000000000048      actual=360.0000000000048
+PASS  G1_long_next_bar_open            snap[0].balance                          expected=10000.0                actual=10000.0
+PASS  G1_long_next_bar_open            snap[0].equity                           expected=10000.0                actual=10000.0
+PASS  G1_long_next_bar_open            snap[0].used_margin                      expected=0.0                    actual=-0.0
+PASS  G1_long_next_bar_open            snap[0].free_margin                      expected=10000.0                actual=10000.0
+PASS  G1_long_next_bar_open            snap[1].balance                          expected=10000.0                actual=10000.0
+PASS  G1_long_next_bar_open            snap[1].equity                           expected=10080.0                actual=10080.000000000013
+PASS  G1_long_next_bar_open            snap[1].used_margin                      expected=1102.0                 actual=1102.0000000000002
+PASS  G1_long_next_bar_open            snap[1].free_margin                      expected=8978.0                 actual=8978.000000000013
+PASS  G1_long_next_bar_open            snap[2].balance                          expected=10000.0                actual=10000.0
+PASS  G1_long_next_bar_open            snap[2].equity                           expected=10280.0                actual=10280.000000000013
+PASS  G1_long_next_bar_open            snap[2].used_margin                      expected=1104.0                 actual=1104.0000000000002
+PASS  G1_long_next_bar_open            snap[2].free_margin                      expected=9176.0                 actual=9176.000000000013
+PASS  G1_long_next_bar_open            snap[3].balance                          expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            snap[3].equity                           expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            snap[3].used_margin                      expected=0.0                    actual=-0.0
+PASS  G1_long_next_bar_open            snap[3].free_margin                      expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            snap[4].balance                          expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            snap[4].equity                           expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            snap[4].used_margin                      expected=0.0                    actual=-0.0
+PASS  G1_long_next_bar_open            snap[4].free_margin                      expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G1_long_next_bar_open            snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G1_long_next_bar_open            snap[1] equity == balance + unrealised   expected=10080.000000000013     actual=10080.000000000013
+PASS  G1_long_next_bar_open            snap[1] free == equity - used_margin     expected=8978.000000000013      actual=8978.000000000013
+PASS  G1_long_next_bar_open            snap[2] equity == balance + unrealised   expected=10280.000000000013     actual=10280.000000000013
+PASS  G1_long_next_bar_open            snap[2] free == equity - used_margin     expected=9176.000000000013      actual=9176.000000000013
+PASS  G1_long_next_bar_open            snap[3] equity == balance + unrealised   expected=10360.000000000005     actual=10360.000000000005
+PASS  G1_long_next_bar_open            snap[3] free == equity - used_margin     expected=10360.000000000005     actual=10360.000000000005
+PASS  G1_long_next_bar_open            snap[4] equity == balance + unrealised   expected=10360.000000000005     actual=10360.000000000005
+PASS  G1_long_next_bar_open            snap[4] free == equity - used_margin     expected=10360.000000000005     actual=10360.000000000005
+PASS  G1_long_next_bar_open            one snapshot per bar                     expected=5                      actual=5
+PASS  G1_long_next_bar_open            run_completed.final_balance              expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            run_completed.final_equity               expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            result.final_balance                     expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            result.final_equity                      expected=10360.0                actual=10360.000000000005
+PASS  G1_long_next_bar_open            open_positions_remaining                 expected=0                      actual=0
+PASS  G2_long_bar_close                order_rejected count                     expected=0                      actual=0
+PASS  G2_long_bar_close                fill count                               expected=2                      actual=2
+PASS  G2_long_bar_close                fill[0].raw_reference                    expected=1.1005                 actual=1.1005
+PASS  G2_long_bar_close                fill[0].executed_price                   expected=1.1007                 actual=1.1007
+PASS  G2_long_bar_close                fill[0].commission_amount                expected=0.0                    actual=0.0
+PASS  G2_long_bar_close                fill[1].raw_reference                    expected=1.104                  actual=1.104
+PASS  G2_long_bar_close                fill[1].executed_price                   expected=1.1038                 actual=1.1038000000000001
+PASS  G2_long_bar_close                fill[1].commission_amount                expected=0.0                    actual=0.0
+PASS  G2_long_bar_close                position_closed count                    expected=1                      actual=1
+PASS  G2_long_bar_close                closed[0].gross_realized_pnl             expected=310.0                  actual=310.0000000000103
+PASS  G2_long_bar_close                closed[0].total_commission               expected=0.0                    actual=0.0
+PASS  G2_long_bar_close                closed[0].net_realized_pnl               expected=310.0                  actual=310.0000000000103
+PASS  G2_long_bar_close                closed[0].entry_price                    expected=1.1007                 actual=1.1007
+PASS  G2_long_bar_close                closed[0].exit_price                     expected=1.1038                 actual=1.1038000000000001
+PASS  G2_long_bar_close                closed[0].exit_reason is explicit (not SL/TP) expected=True                   actual=True
+PASS  G2_long_bar_close                closed[0] net == gross - commission      expected=310.0000000000103      actual=310.0000000000103
+PASS  G2_long_bar_close                snap[0].balance                          expected=10000.0                actual=10000.0
+PASS  G2_long_bar_close                snap[0].equity                           expected=9980.0                 actual=9980.000000000002
+PASS  G2_long_bar_close                snap[0].used_margin                      expected=1100.5                 actual=1100.5
+PASS  G2_long_bar_close                snap[0].free_margin                      expected=8879.5                 actual=8879.500000000002
+PASS  G2_long_bar_close                snap[1].balance                          expected=10000.0                actual=10000.0
+PASS  G2_long_bar_close                snap[1].equity                           expected=10130.0                actual=10130.000000000007
+PASS  G2_long_bar_close                snap[1].used_margin                      expected=1102.0                 actual=1102.0000000000002
+PASS  G2_long_bar_close                snap[1].free_margin                      expected=9028.0                 actual=9028.000000000007
+PASS  G2_long_bar_close                snap[2].balance                          expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                snap[2].equity                           expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                snap[2].used_margin                      expected=0.0                    actual=-0.0
+PASS  G2_long_bar_close                snap[2].free_margin                      expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                snap[3].balance                          expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                snap[3].equity                           expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                snap[3].used_margin                      expected=0.0                    actual=-0.0
+PASS  G2_long_bar_close                snap[3].free_margin                      expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                snap[4].balance                          expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                snap[4].equity                           expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                snap[4].used_margin                      expected=0.0                    actual=-0.0
+PASS  G2_long_bar_close                snap[4].free_margin                      expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                snap[0] equity == balance + unrealised   expected=9980.000000000002      actual=9980.000000000002
+PASS  G2_long_bar_close                snap[0] free == equity - used_margin     expected=8879.500000000002      actual=8879.500000000002
+PASS  G2_long_bar_close                snap[1] equity == balance + unrealised   expected=10130.000000000007     actual=10130.000000000007
+PASS  G2_long_bar_close                snap[1] free == equity - used_margin     expected=9028.000000000007      actual=9028.000000000007
+PASS  G2_long_bar_close                snap[2] equity == balance + unrealised   expected=10310.000000000011     actual=10310.000000000011
+PASS  G2_long_bar_close                snap[2] free == equity - used_margin     expected=10310.000000000011     actual=10310.000000000011
+PASS  G2_long_bar_close                snap[3] equity == balance + unrealised   expected=10310.000000000011     actual=10310.000000000011
+PASS  G2_long_bar_close                snap[3] free == equity - used_margin     expected=10310.000000000011     actual=10310.000000000011
+PASS  G2_long_bar_close                snap[4] equity == balance + unrealised   expected=10310.000000000011     actual=10310.000000000011
+PASS  G2_long_bar_close                snap[4] free == equity - used_margin     expected=10310.000000000011     actual=10310.000000000011
+PASS  G2_long_bar_close                one snapshot per bar                     expected=5                      actual=5
+PASS  G2_long_bar_close                run_completed.final_balance              expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                run_completed.final_equity               expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                result.final_balance                     expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                result.final_equity                      expected=10310.0                actual=10310.000000000011
+PASS  G2_long_bar_close                open_positions_remaining                 expected=0                      actual=0
+PASS  G3a_short_comm7_per_side         order_rejected count                     expected=0                      actual=0
+PASS  G3a_short_comm7_per_side         fill count                               expected=2                      actual=2
+PASS  G3a_short_comm7_per_side         fill[0].raw_reference                    expected=1.2                    actual=1.2
+PASS  G3a_short_comm7_per_side         fill[0].executed_price                   expected=1.1998                 actual=1.1998
+PASS  G3a_short_comm7_per_side         fill[0].commission_amount                expected=7.0                    actual=7.0
+PASS  G3a_short_comm7_per_side         fill[1].raw_reference                    expected=1.195                  actual=1.195
+PASS  G3a_short_comm7_per_side         fill[1].executed_price                   expected=1.1952                 actual=1.1952
+PASS  G3a_short_comm7_per_side         fill[1].commission_amount                expected=7.0                    actual=7.0
+PASS  G3a_short_comm7_per_side         position_closed count                    expected=1                      actual=1
+PASS  G3a_short_comm7_per_side         closed[0].gross_realized_pnl             expected=460.0                  actual=459.99999999999375
+PASS  G3a_short_comm7_per_side         closed[0].total_commission               expected=14.0                   actual=14.0
+PASS  G3a_short_comm7_per_side         closed[0].net_realized_pnl               expected=446.0                  actual=445.99999999999375
+PASS  G3a_short_comm7_per_side         closed[0].entry_price                    expected=1.1998                 actual=1.1998
+PASS  G3a_short_comm7_per_side         closed[0].exit_price                     expected=1.1952                 actual=1.1952
+PASS  G3a_short_comm7_per_side         closed[0].exit_reason is explicit (not SL/TP) expected=True                   actual=True
+PASS  G3a_short_comm7_per_side         closed[0] net == gross - commission      expected=445.99999999999375     actual=445.99999999999375
+PASS  G3a_short_comm7_per_side         snap[0].balance                          expected=10000.0                actual=10000.0
+PASS  G3a_short_comm7_per_side         snap[0].equity                           expected=10000.0                actual=10000.0
+PASS  G3a_short_comm7_per_side         snap[0].used_margin                      expected=0.0                    actual=-0.0
+PASS  G3a_short_comm7_per_side         snap[0].free_margin                      expected=10000.0                actual=10000.0
+PASS  G3a_short_comm7_per_side         snap[1].balance                          expected=9993.0                 actual=9993.0
+PASS  G3a_short_comm7_per_side         snap[1].equity                           expected=10273.0                actual=10272.99999999999
+PASS  G3a_short_comm7_per_side         snap[1].used_margin                      expected=1197.0                 actual=1197.0
+PASS  G3a_short_comm7_per_side         snap[1].free_margin                      expected=9076.0                 actual=9075.99999999999
+PASS  G3a_short_comm7_per_side         snap[2].balance                          expected=9993.0                 actual=9993.0
+PASS  G3a_short_comm7_per_side         snap[2].equity                           expected=10473.0                actual=10472.99999999999
+PASS  G3a_short_comm7_per_side         snap[2].used_margin                      expected=1195.0                 actual=1195.0
+PASS  G3a_short_comm7_per_side         snap[2].free_margin                      expected=9278.0                 actual=9277.99999999999
+PASS  G3a_short_comm7_per_side         snap[3].balance                          expected=10446.0                actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         snap[3].equity                           expected=10446.0                actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         snap[3].used_margin                      expected=0.0                    actual=-0.0
+PASS  G3a_short_comm7_per_side         snap[3].free_margin                      expected=10446.0                actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G3a_short_comm7_per_side         snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G3a_short_comm7_per_side         snap[1] equity == balance + unrealised   expected=10272.99999999999      actual=10272.99999999999
+PASS  G3a_short_comm7_per_side         snap[1] free == equity - used_margin     expected=9075.99999999999       actual=9075.99999999999
+PASS  G3a_short_comm7_per_side         snap[2] equity == balance + unrealised   expected=10472.99999999999      actual=10472.99999999999
+PASS  G3a_short_comm7_per_side         snap[2] free == equity - used_margin     expected=9277.99999999999       actual=9277.99999999999
+PASS  G3a_short_comm7_per_side         snap[3] equity == balance + unrealised   expected=10445.999999999995     actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         snap[3] free == equity - used_margin     expected=10445.999999999995     actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         snap[4] equity == balance + unrealised   expected=10445.999999999995     actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         snap[4] free == equity - used_margin     expected=10445.999999999995     actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         one snapshot per bar                     expected=5                      actual=5
+PASS  G3a_short_comm7_per_side         run_completed.final_balance              expected=10446.0                actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         run_completed.final_equity               expected=10446.0                actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         result.final_balance                     expected=10446.0                actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         result.final_equity                      expected=10446.0                actual=10445.999999999995
+PASS  G3a_short_comm7_per_side         open_positions_remaining                 expected=0                      actual=0
+PASS  G3b_short_comm7_round_trip       order_rejected count                     expected=0                      actual=0
+PASS  G3b_short_comm7_round_trip       fill count                               expected=2                      actual=2
+PASS  G3b_short_comm7_round_trip       fill[0].raw_reference                    expected=1.2                    actual=1.2
+PASS  G3b_short_comm7_round_trip       fill[0].executed_price                   expected=1.1998                 actual=1.1998
+PASS  G3b_short_comm7_round_trip       fill[0].commission_amount                expected=7.0                    actual=7.0
+PASS  G3b_short_comm7_round_trip       fill[1].raw_reference                    expected=1.195                  actual=1.195
+PASS  G3b_short_comm7_round_trip       fill[1].executed_price                   expected=1.1952                 actual=1.1952
+PASS  G3b_short_comm7_round_trip       fill[1].commission_amount                expected=7.0                    actual=7.0
+PASS  G3b_short_comm7_round_trip       position_closed count                    expected=1                      actual=1
+PASS  G3b_short_comm7_round_trip       closed[0].gross_realized_pnl             expected=460.0                  actual=459.99999999999375
+PASS  G3b_short_comm7_round_trip       closed[0].total_commission               expected=7.0                    actual=7.0
+PASS  G3b_short_comm7_round_trip       closed[0].net_realized_pnl               expected=453.0                  actual=452.99999999999375
+PASS  G3b_short_comm7_round_trip       closed[0].entry_price                    expected=1.1998                 actual=1.1998
+PASS  G3b_short_comm7_round_trip       closed[0].exit_price                     expected=1.1952                 actual=1.1952
+PASS  G3b_short_comm7_round_trip       closed[0].exit_reason is explicit (not SL/TP) expected=True                   actual=True
+PASS  G3b_short_comm7_round_trip       closed[0] net == gross - commission      expected=452.99999999999375     actual=452.99999999999375
+PASS  G3b_short_comm7_round_trip       snap[1].balance                          expected=10000.0                actual=10000.0
+PASS  G3b_short_comm7_round_trip       snap[1].equity                           expected=10280.0                actual=10279.99999999999
+PASS  G3b_short_comm7_round_trip       snap[1].used_margin                      expected=1197.0                 actual=1197.0
+PASS  G3b_short_comm7_round_trip       snap[1].free_margin                      expected=9083.0                 actual=9082.99999999999
+PASS  G3b_short_comm7_round_trip       snap[3].balance                          expected=10453.0                actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       snap[3].equity                           expected=10453.0                actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       snap[3].used_margin                      expected=0.0                    actual=-0.0
+PASS  G3b_short_comm7_round_trip       snap[3].free_margin                      expected=10453.0                actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G3b_short_comm7_round_trip       snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G3b_short_comm7_round_trip       snap[1] equity == balance + unrealised   expected=10279.99999999999      actual=10279.99999999999
+PASS  G3b_short_comm7_round_trip       snap[1] free == equity - used_margin     expected=9082.99999999999       actual=9082.99999999999
+PASS  G3b_short_comm7_round_trip       snap[2] equity == balance + unrealised   expected=10479.99999999999      actual=10479.99999999999
+PASS  G3b_short_comm7_round_trip       snap[2] free == equity - used_margin     expected=9284.99999999999       actual=9284.99999999999
+PASS  G3b_short_comm7_round_trip       snap[3] equity == balance + unrealised   expected=10452.999999999995     actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       snap[3] free == equity - used_margin     expected=10452.999999999995     actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       snap[4] equity == balance + unrealised   expected=10452.999999999995     actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       snap[4] free == equity - used_margin     expected=10452.999999999995     actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       one snapshot per bar                     expected=5                      actual=5
+PASS  G3b_short_comm7_round_trip       run_completed.final_balance              expected=10453.0                actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       run_completed.final_equity               expected=10453.0                actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       result.final_balance                     expected=10453.0                actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       result.final_equity                      expected=10453.0                actual=10452.999999999995
+PASS  G3b_short_comm7_round_trip       open_positions_remaining                 expected=0                      actual=0
+PASS  G4a_rate_per_unit                order_rejected count                     expected=0                      actual=0
+PASS  G4a_rate_per_unit                fill count                               expected=2                      actual=2
+PASS  G4a_rate_per_unit                fill[0].raw_reference                    expected=1.3                    actual=1.3
+PASS  G4a_rate_per_unit                fill[0].executed_price                   expected=1.3                    actual=1.3
+PASS  G4a_rate_per_unit                fill[0].commission_amount                expected=2.5                    actual=2.5
+PASS  G4a_rate_per_unit                fill[1].raw_reference                    expected=1.304                  actual=1.304
+PASS  G4a_rate_per_unit                fill[1].executed_price                   expected=1.304                  actual=1.304
+PASS  G4a_rate_per_unit                fill[1].commission_amount                expected=2.5                    actual=2.5
+PASS  G4a_rate_per_unit                position_closed count                    expected=1                      actual=1
+PASS  G4a_rate_per_unit                closed[0].gross_realized_pnl             expected=200.0                  actual=200.00000000000017
+PASS  G4a_rate_per_unit                closed[0].total_commission               expected=5.0                    actual=5.0
+PASS  G4a_rate_per_unit                closed[0].net_realized_pnl               expected=195.0                  actual=195.00000000000017
+PASS  G4a_rate_per_unit                closed[0].entry_price                    expected=1.3                    actual=1.3
+PASS  G4a_rate_per_unit                closed[0].exit_price                     expected=1.304                  actual=1.304
+PASS  G4a_rate_per_unit                closed[0].exit_reason is explicit (not SL/TP) expected=True                   actual=True
+PASS  G4a_rate_per_unit                closed[0] net == gross - commission      expected=195.00000000000017     actual=195.00000000000017
+PASS  G4a_rate_per_unit                snap[1].balance                          expected=9997.5                 actual=9997.5
+PASS  G4a_rate_per_unit                snap[1].equity                           expected=10097.5                actual=10097.5
+PASS  G4a_rate_per_unit                snap[1].used_margin                      expected=651.0                  actual=651.0
+PASS  G4a_rate_per_unit                snap[1].free_margin                      expected=9446.5                 actual=9446.5
+PASS  G4a_rate_per_unit                snap[3].balance                          expected=10195.0                actual=10195.0
+PASS  G4a_rate_per_unit                snap[3].equity                           expected=10195.0                actual=10195.0
+PASS  G4a_rate_per_unit                snap[3].used_margin                      expected=0.0                    actual=-0.0
+PASS  G4a_rate_per_unit                snap[3].free_margin                      expected=10195.0                actual=10195.0
+PASS  G4a_rate_per_unit                snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G4a_rate_per_unit                snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G4a_rate_per_unit                snap[1] equity == balance + unrealised   expected=10097.5                actual=10097.5
+PASS  G4a_rate_per_unit                snap[1] free == equity - used_margin     expected=9446.5                 actual=9446.5
+PASS  G4a_rate_per_unit                snap[2] equity == balance + unrealised   expected=10197.5                actual=10197.5
+PASS  G4a_rate_per_unit                snap[2] free == equity - used_margin     expected=9545.5                 actual=9545.5
+PASS  G4a_rate_per_unit                snap[3] equity == balance + unrealised   expected=10195.0                actual=10195.0
+PASS  G4a_rate_per_unit                snap[3] free == equity - used_margin     expected=10195.0                actual=10195.0
+PASS  G4a_rate_per_unit                one snapshot per bar                     expected=4                      actual=4
+PASS  G4a_rate_per_unit                run_completed.final_balance              expected=10195.0                actual=10195.0
+PASS  G4a_rate_per_unit                run_completed.final_equity               expected=10195.0                actual=10195.0
+PASS  G4a_rate_per_unit                result.final_balance                     expected=10195.0                actual=10195.0
+PASS  G4a_rate_per_unit                result.final_equity                      expected=10195.0                actual=10195.0
+PASS  G4a_rate_per_unit                open_positions_remaining                 expected=0                      actual=0
+PASS  G4b_flat_plus_rate               order_rejected count                     expected=0                      actual=0
+PASS  G4b_flat_plus_rate               fill count                               expected=2                      actual=2
+PASS  G4b_flat_plus_rate               fill[0].executed_price                   expected=1.3                    actual=1.3
+PASS  G4b_flat_plus_rate               fill[0].commission_amount                expected=3.5                    actual=3.5
+PASS  G4b_flat_plus_rate               fill[1].executed_price                   expected=1.304                  actual=1.304
+PASS  G4b_flat_plus_rate               fill[1].commission_amount                expected=3.5                    actual=3.5
+PASS  G4b_flat_plus_rate               position_closed count                    expected=1                      actual=1
+PASS  G4b_flat_plus_rate               closed[0].gross_realized_pnl             expected=200.0                  actual=200.00000000000017
+PASS  G4b_flat_plus_rate               closed[0].total_commission               expected=7.0                    actual=7.0
+PASS  G4b_flat_plus_rate               closed[0].net_realized_pnl               expected=193.0                  actual=193.00000000000017
+PASS  G4b_flat_plus_rate               closed[0].exit_reason is explicit (not SL/TP) expected=True                   actual=True
+PASS  G4b_flat_plus_rate               closed[0] net == gross - commission      expected=193.00000000000017     actual=193.00000000000017
+PASS  G4b_flat_plus_rate               snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G4b_flat_plus_rate               snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G4b_flat_plus_rate               snap[1] equity == balance + unrealised   expected=10096.5                actual=10096.5
+PASS  G4b_flat_plus_rate               snap[1] free == equity - used_margin     expected=9445.5                 actual=9445.5
+PASS  G4b_flat_plus_rate               snap[2] equity == balance + unrealised   expected=10196.5                actual=10196.5
+PASS  G4b_flat_plus_rate               snap[2] free == equity - used_margin     expected=9544.5                 actual=9544.5
+PASS  G4b_flat_plus_rate               snap[3] equity == balance + unrealised   expected=10193.0                actual=10193.0
+PASS  G4b_flat_plus_rate               snap[3] free == equity - used_margin     expected=10193.0                actual=10193.0
+PASS  G4b_flat_plus_rate               one snapshot per bar                     expected=4                      actual=4
+PASS  G4b_flat_plus_rate               run_completed.final_balance              expected=10193.0                actual=10193.0
+PASS  G4b_flat_plus_rate               run_completed.final_equity               expected=10193.0                actual=10193.0
+PASS  G4b_flat_plus_rate               result.final_balance                     expected=10193.0                actual=10193.0
+PASS  G4b_flat_plus_rate               result.final_equity                      expected=10193.0                actual=10193.0
+PASS  G4b_flat_plus_rate               open_positions_remaining                 expected=0                      actual=0
+PASS  G5_sl_intrabar                   order_rejected count                     expected=0                      actual=0
+PASS  G5_sl_intrabar                   fill count                               expected=1                      actual=1
+PASS  G5_sl_intrabar                   fill[0].raw_reference                    expected=1.1                    actual=1.1
+PASS  G5_sl_intrabar                   fill[0].executed_price                   expected=1.1002                 actual=1.1002
+PASS  G5_sl_intrabar                   position_closed count                    expected=1                      actual=1
+PASS  G5_sl_intrabar                   closed[0].gross_realized_pnl             expected=-540.0                 actual=-540.0000000000072
+PASS  G5_sl_intrabar                   closed[0].total_commission               expected=0.0                    actual=0.0
+PASS  G5_sl_intrabar                   closed[0].net_realized_pnl               expected=-540.0                 actual=-540.0000000000072
+PASS  G5_sl_intrabar                   closed[0].entry_price                    expected=1.1002                 actual=1.1002
+PASS  G5_sl_intrabar                   closed[0].exit_price                     expected=1.0948                 actual=1.0948
+PASS  G5_sl_intrabar                   closed[0].exit_reason                    expected='StopLoss'             actual='StopLoss'
+PASS  G5_sl_intrabar                   closed[0].bar_index                      expected=2                      actual=2
+PASS  G5_sl_intrabar                   closed[0] net == gross - commission      expected=-540.0000000000072     actual=-540.0000000000072
+PASS  G5_sl_intrabar                   snap[1].balance                          expected=10000.0                actual=10000.0
+PASS  G5_sl_intrabar                   snap[1].equity                           expected=10080.0                actual=10079.99999999999
+PASS  G5_sl_intrabar                   snap[1].used_margin                      expected=1101.0                 actual=1101.0
+PASS  G5_sl_intrabar                   snap[1].free_margin                      expected=8979.0                 actual=8978.99999999999
+PASS  G5_sl_intrabar                   snap[2].balance                          expected=9460.0                 actual=9459.999999999993
+PASS  G5_sl_intrabar                   snap[2].equity                           expected=9460.0                 actual=9459.999999999993
+PASS  G5_sl_intrabar                   snap[2].used_margin                      expected=0.0                    actual=-0.0
+PASS  G5_sl_intrabar                   snap[2].free_margin                      expected=9460.0                 actual=9459.999999999993
+PASS  G5_sl_intrabar                   snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G5_sl_intrabar                   snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G5_sl_intrabar                   snap[1] equity == balance + unrealised   expected=10079.99999999999      actual=10079.99999999999
+PASS  G5_sl_intrabar                   snap[1] free == equity - used_margin     expected=8978.99999999999       actual=8978.99999999999
+PASS  G5_sl_intrabar                   snap[2] equity == balance + unrealised   expected=9459.999999999993      actual=9459.999999999993
+PASS  G5_sl_intrabar                   snap[2] free == equity - used_margin     expected=9459.999999999993      actual=9459.999999999993
+PASS  G5_sl_intrabar                   snap[3] equity == balance + unrealised   expected=9459.999999999993      actual=9459.999999999993
+PASS  G5_sl_intrabar                   snap[3] free == equity - used_margin     expected=9459.999999999993      actual=9459.999999999993
+PASS  G5_sl_intrabar                   one snapshot per bar                     expected=4                      actual=4
+PASS  G5_sl_intrabar                   run_completed.final_balance              expected=9460.0                 actual=9459.999999999993
+PASS  G5_sl_intrabar                   run_completed.final_equity               expected=9460.0                 actual=9459.999999999993
+PASS  G5_sl_intrabar                   result.final_balance                     expected=9460.0                 actual=9459.999999999993
+PASS  G5_sl_intrabar                   result.final_equity                      expected=9460.0                 actual=9459.999999999993
+PASS  G5_sl_intrabar                   open_positions_remaining                 expected=0                      actual=0
+PASS  G5b_sl_same_bar_as_open_fill     order_rejected count                     expected=0                      actual=0
+PASS  G5b_sl_same_bar_as_open_fill     fill count                               expected=1                      actual=1
+PASS  G5b_sl_same_bar_as_open_fill     fill[0].executed_price                   expected=1.1002                 actual=1.1002
+PASS  G5b_sl_same_bar_as_open_fill     position_closed count                    expected=1                      actual=1
+PASS  G5b_sl_same_bar_as_open_fill     closed[0].gross_realized_pnl             expected=-540.0                 actual=-540.0000000000072
+PASS  G5b_sl_same_bar_as_open_fill     closed[0].net_realized_pnl               expected=-540.0                 actual=-540.0000000000072
+PASS  G5b_sl_same_bar_as_open_fill     closed[0].exit_price                     expected=1.0948                 actual=1.0948
+PASS  G5b_sl_same_bar_as_open_fill     closed[0].exit_reason                    expected='StopLoss'             actual='StopLoss'
+PASS  G5b_sl_same_bar_as_open_fill     closed[0].bar_index                      expected=1                      actual=1
+PASS  G5b_sl_same_bar_as_open_fill     closed[0] net == gross - commission      expected=-540.0000000000072     actual=-540.0000000000072
+PASS  G5b_sl_same_bar_as_open_fill     snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G5b_sl_same_bar_as_open_fill     snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G5b_sl_same_bar_as_open_fill     snap[1] equity == balance + unrealised   expected=9459.999999999993      actual=9459.999999999993
+PASS  G5b_sl_same_bar_as_open_fill     snap[1] free == equity - used_margin     expected=9459.999999999993      actual=9459.999999999993
+PASS  G5b_sl_same_bar_as_open_fill     snap[2] equity == balance + unrealised   expected=9459.999999999993      actual=9459.999999999993
+PASS  G5b_sl_same_bar_as_open_fill     snap[2] free == equity - used_margin     expected=9459.999999999993      actual=9459.999999999993
+PASS  G5b_sl_same_bar_as_open_fill     one snapshot per bar                     expected=3                      actual=3
+PASS  G5b_sl_same_bar_as_open_fill     run_completed.final_balance              expected=9460.0                 actual=9459.999999999993
+PASS  G5b_sl_same_bar_as_open_fill     run_completed.final_equity               expected=9460.0                 actual=9459.999999999993
+PASS  G5b_sl_same_bar_as_open_fill     result.final_balance                     expected=9460.0                 actual=9459.999999999993
+PASS  G5b_sl_same_bar_as_open_fill     result.final_equity                      expected=9460.0                 actual=9459.999999999993
+PASS  G5b_sl_same_bar_as_open_fill     open_positions_remaining                 expected=0                      actual=0
+PASS  G6_tp_intrabar                   order_rejected count                     expected=0                      actual=0
+PASS  G6_tp_intrabar                   fill count                               expected=1                      actual=1
+PASS  G6_tp_intrabar                   fill[0].executed_price                   expected=1.1002                 actual=1.1002
+PASS  G6_tp_intrabar                   position_closed count                    expected=1                      actual=1
+PASS  G6_tp_intrabar                   closed[0].gross_realized_pnl             expected=480.0                  actual=479.99999999999153
+PASS  G6_tp_intrabar                   closed[0].total_commission               expected=0.0                    actual=0.0
+PASS  G6_tp_intrabar                   closed[0].net_realized_pnl               expected=480.0                  actual=479.99999999999153
+PASS  G6_tp_intrabar                   closed[0].exit_price                     expected=1.105                  actual=1.105
+PASS  G6_tp_intrabar                   closed[0].exit_reason                    expected='TakeProfit'           actual='TakeProfit'
+PASS  G6_tp_intrabar                   closed[0].bar_index                      expected=2                      actual=2
+PASS  G6_tp_intrabar                   closed[0] net == gross - commission      expected=479.99999999999153     actual=479.99999999999153
+PASS  G6_tp_intrabar                   snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G6_tp_intrabar                   snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G6_tp_intrabar                   snap[1] equity == balance + unrealised   expected=10079.99999999999      actual=10079.99999999999
+PASS  G6_tp_intrabar                   snap[1] free == equity - used_margin     expected=8978.99999999999       actual=8978.99999999999
+PASS  G6_tp_intrabar                   snap[2] equity == balance + unrealised   expected=10479.99999999999      actual=10479.99999999999
+PASS  G6_tp_intrabar                   snap[2] free == equity - used_margin     expected=10479.99999999999      actual=10479.99999999999
+PASS  G6_tp_intrabar                   snap[3] equity == balance + unrealised   expected=10479.99999999999      actual=10479.99999999999
+PASS  G6_tp_intrabar                   snap[3] free == equity - used_margin     expected=10479.99999999999      actual=10479.99999999999
+PASS  G6_tp_intrabar                   one snapshot per bar                     expected=4                      actual=4
+PASS  G6_tp_intrabar                   run_completed.final_balance              expected=10480.0                actual=10479.99999999999
+PASS  G6_tp_intrabar                   run_completed.final_equity               expected=10480.0                actual=10479.99999999999
+PASS  G6_tp_intrabar                   result.final_balance                     expected=10480.0                actual=10479.99999999999
+PASS  G6_tp_intrabar                   result.final_equity                      expected=10480.0                actual=10479.99999999999
+PASS  G6_tp_intrabar                   open_positions_remaining                 expected=0                      actual=0
+PASS  G7_sl_gap                        order_rejected count                     expected=0                      actual=0
+PASS  G7_sl_gap                        fill count                               expected=1                      actual=1
+PASS  G7_sl_gap                        fill[0].executed_price                   expected=1.1002                 actual=1.1002
+PASS  G7_sl_gap                        position_closed count                    expected=1                      actual=1
+PASS  G7_sl_gap                        closed[0].gross_realized_pnl             expected=-1040.0                actual=-1039.9999999999966
+PASS  G7_sl_gap                        closed[0].net_realized_pnl               expected=-1040.0                actual=-1039.9999999999966
+PASS  G7_sl_gap                        closed[0].exit_price                     expected=1.0898                 actual=1.0898
+PASS  G7_sl_gap                        closed[0].exit_reason                    expected='StopLoss'             actual='StopLoss'
+PASS  G7_sl_gap                        closed[0].bar_index                      expected=2                      actual=2
+PASS  G7_sl_gap                        closed[0] net == gross - commission      expected=-1039.9999999999966    actual=-1039.9999999999966
+PASS  G7_sl_gap                        snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G7_sl_gap                        snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G7_sl_gap                        snap[1] equity == balance + unrealised   expected=9980.000000000002      actual=9980.000000000002
+PASS  G7_sl_gap                        snap[1] free == equity - used_margin     expected=8880.000000000002      actual=8880.000000000002
+PASS  G7_sl_gap                        snap[2] equity == balance + unrealised   expected=8960.000000000004      actual=8960.000000000004
+PASS  G7_sl_gap                        snap[2] free == equity - used_margin     expected=8960.000000000004      actual=8960.000000000004
+PASS  G7_sl_gap                        snap[3] equity == balance + unrealised   expected=8960.000000000004      actual=8960.000000000004
+PASS  G7_sl_gap                        snap[3] free == equity - used_margin     expected=8960.000000000004      actual=8960.000000000004
+PASS  G7_sl_gap                        one snapshot per bar                     expected=4                      actual=4
+PASS  G7_sl_gap                        run_completed.final_balance              expected=8960.0                 actual=8960.000000000004
+PASS  G7_sl_gap                        run_completed.final_equity               expected=8960.0                 actual=8960.000000000004
+PASS  G7_sl_gap                        result.final_balance                     expected=8960.0                 actual=8960.000000000004
+PASS  G7_sl_gap                        result.final_equity                      expected=8960.0                 actual=8960.000000000004
+PASS  G7_sl_gap                        open_positions_remaining                 expected=0                      actual=0
+PASS  G8_sl_and_tp_same_bar            order_rejected count                     expected=0                      actual=0
+PASS  G8_sl_and_tp_same_bar            position_closed count                    expected=1                      actual=1
+PASS  G8_sl_and_tp_same_bar            closed[0].gross_realized_pnl             expected=-540.0                 actual=-540.0000000000072
+PASS  G8_sl_and_tp_same_bar            closed[0].net_realized_pnl               expected=-540.0                 actual=-540.0000000000072
+PASS  G8_sl_and_tp_same_bar            closed[0].exit_price                     expected=1.0948                 actual=1.0948
+PASS  G8_sl_and_tp_same_bar            closed[0].exit_reason                    expected='StopLoss'             actual='StopLoss'
+PASS  G8_sl_and_tp_same_bar            closed[0].bar_index                      expected=2                      actual=2
+PASS  G8_sl_and_tp_same_bar            closed[0] net == gross - commission      expected=-540.0000000000072     actual=-540.0000000000072
+PASS  G8_sl_and_tp_same_bar            snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G8_sl_and_tp_same_bar            snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G8_sl_and_tp_same_bar            snap[1] equity == balance + unrealised   expected=9980.000000000002      actual=9980.000000000002
+PASS  G8_sl_and_tp_same_bar            snap[1] free == equity - used_margin     expected=8880.000000000002      actual=8880.000000000002
+PASS  G8_sl_and_tp_same_bar            snap[2] equity == balance + unrealised   expected=9459.999999999993      actual=9459.999999999993
+PASS  G8_sl_and_tp_same_bar            snap[2] free == equity - used_margin     expected=9459.999999999993      actual=9459.999999999993
+PASS  G8_sl_and_tp_same_bar            snap[3] equity == balance + unrealised   expected=9459.999999999993      actual=9459.999999999993
+PASS  G8_sl_and_tp_same_bar            snap[3] free == equity - used_margin     expected=9459.999999999993      actual=9459.999999999993
+PASS  G8_sl_and_tp_same_bar            one snapshot per bar                     expected=4                      actual=4
+PASS  G8_sl_and_tp_same_bar            run_completed.final_balance              expected=9460.0                 actual=9459.999999999993
+PASS  G8_sl_and_tp_same_bar            run_completed.final_equity               expected=9460.0                 actual=9459.999999999993
+PASS  G8_sl_and_tp_same_bar            result.final_balance                     expected=9460.0                 actual=9459.999999999993
+PASS  G8_sl_and_tp_same_bar            result.final_equity                      expected=9460.0                 actual=9459.999999999993
+PASS  G8_sl_and_tp_same_bar            open_positions_remaining                 expected=0                      actual=0
+PASS  G9a_buy_limit                    order_rejected count                     expected=0                      actual=0
+PASS  G9a_buy_limit                    fill count                               expected=2                      actual=2
+PASS  G9a_buy_limit                    fill[0].executed_price                   expected=1.095                  actual=1.095
+PASS  G9a_buy_limit                    fill[1].raw_reference                    expected=1.098                  actual=1.098
+PASS  G9a_buy_limit                    fill[1].executed_price                   expected=1.0978                 actual=1.0978
+PASS  G9a_buy_limit                    fill[0].bar_index                        expected=2                      actual=2
+PASS  G9a_buy_limit                    fill[1].bar_index                        expected=4                      actual=4
+PASS  G9a_buy_limit                    position_closed count                    expected=1                      actual=1
+PASS  G9a_buy_limit                    closed[0].gross_realized_pnl             expected=280.0                  actual=280.0000000000136
+PASS  G9a_buy_limit                    closed[0].net_realized_pnl               expected=280.0                  actual=280.0000000000136
+PASS  G9a_buy_limit                    closed[0].entry_price                    expected=1.095                  actual=1.095
+PASS  G9a_buy_limit                    closed[0].exit_price                     expected=1.0978                 actual=1.0978
+PASS  G9a_buy_limit                    closed[0].exit_reason is explicit (not SL/TP) expected=True                   actual=True
+PASS  G9a_buy_limit                    closed[0].bar_index                      expected=4                      actual=4
+PASS  G9a_buy_limit                    closed[0] net == gross - commission      expected=280.0000000000136      actual=280.0000000000136
+PASS  G9a_buy_limit                    snap[1].balance                          expected=10000.0                actual=10000.0
+PASS  G9a_buy_limit                    snap[1].equity                           expected=10000.0                actual=10000.0
+PASS  G9a_buy_limit                    snap[1].used_margin                      expected=0.0                    actual=-0.0
+PASS  G9a_buy_limit                    snap[1].free_margin                      expected=10000.0                actual=10000.0
+PASS  G9a_buy_limit                    snap[2].balance                          expected=10000.0                actual=10000.0
+PASS  G9a_buy_limit                    snap[2].equity                           expected=10100.0                actual=10100.000000000011
+PASS  G9a_buy_limit                    snap[2].used_margin                      expected=1096.0                 actual=1096.0000000000002
+PASS  G9a_buy_limit                    snap[2].free_margin                      expected=9004.0                 actual=9004.000000000011
+PASS  G9a_buy_limit                    snap[4].balance                          expected=10280.0                actual=10280.000000000013
+PASS  G9a_buy_limit                    snap[4].equity                           expected=10280.0                actual=10280.000000000013
+PASS  G9a_buy_limit                    snap[4].used_margin                      expected=0.0                    actual=-0.0
+PASS  G9a_buy_limit                    snap[4].free_margin                      expected=10280.0                actual=10280.000000000013
+PASS  G9a_buy_limit                    snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G9a_buy_limit                    snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G9a_buy_limit                    snap[1] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G9a_buy_limit                    snap[1] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G9a_buy_limit                    snap[2] equity == balance + unrealised   expected=10100.000000000011     actual=10100.000000000011
+PASS  G9a_buy_limit                    snap[2] free == equity - used_margin     expected=9004.000000000011      actual=9004.000000000011
+PASS  G9a_buy_limit                    snap[3] equity == balance + unrealised   expected=10200.0                actual=10200.0
+PASS  G9a_buy_limit                    snap[3] free == equity - used_margin     expected=9103.0                 actual=9103.0
+PASS  G9a_buy_limit                    snap[4] equity == balance + unrealised   expected=10280.000000000013     actual=10280.000000000013
+PASS  G9a_buy_limit                    snap[4] free == equity - used_margin     expected=10280.000000000013     actual=10280.000000000013
+PASS  G9a_buy_limit                    one snapshot per bar                     expected=5                      actual=5
+PASS  G9a_buy_limit                    run_completed.final_balance              expected=10280.0                actual=10280.000000000013
+PASS  G9a_buy_limit                    run_completed.final_equity               expected=10280.0                actual=10280.000000000013
+PASS  G9a_buy_limit                    result.final_balance                     expected=10280.0                actual=10280.000000000013
+PASS  G9a_buy_limit                    result.final_equity                      expected=10280.0                actual=10280.000000000013
+PASS  G9a_buy_limit                    open_positions_remaining                 expected=0                      actual=0
+PASS  G9b_buy_stop                     order_rejected count                     expected=0                      actual=0
+PASS  G9b_buy_stop                     fill count                               expected=2                      actual=2
+PASS  G9b_buy_stop                     fill[0].raw_reference                    expected=1.105                  actual=1.105
+PASS  G9b_buy_stop                     fill[0].executed_price                   expected=1.1052                 actual=1.1052
+PASS  G9b_buy_stop                     fill[0].spread_applied                   expected=0.0001                 actual=0.0001
+PASS  G9b_buy_stop                     fill[0].slippage_applied                 expected=0.0001                 actual=0.0001
+PASS  G9b_buy_stop                     fill[1].executed_price                   expected=1.1078                 actual=1.1078000000000001
+PASS  G9b_buy_stop                     fill[0].bar_index                        expected=2                      actual=2
+PASS  G9b_buy_stop                     fill[1].bar_index                        expected=4                      actual=4
+PASS  G9b_buy_stop                     position_closed count                    expected=1                      actual=1
+PASS  G9b_buy_stop                     closed[0].gross_realized_pnl             expected=260.0                  actual=260.0000000000158
+PASS  G9b_buy_stop                     closed[0].net_realized_pnl               expected=260.0                  actual=260.0000000000158
+PASS  G9b_buy_stop                     closed[0].entry_price                    expected=1.1052                 actual=1.1052
+PASS  G9b_buy_stop                     closed[0].exit_price                     expected=1.1078                 actual=1.1078000000000001
+PASS  G9b_buy_stop                     closed[0].exit_reason is explicit (not SL/TP) expected=True                   actual=True
+PASS  G9b_buy_stop                     closed[0].bar_index                      expected=4                      actual=4
+PASS  G9b_buy_stop                     closed[0] net == gross - commission      expected=260.0000000000158      actual=260.0000000000158
+PASS  G9b_buy_stop                     snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G9b_buy_stop                     snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G9b_buy_stop                     snap[1] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G9b_buy_stop                     snap[1] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G9b_buy_stop                     snap[2] equity == balance + unrealised   expected=10180.000000000002     actual=10180.000000000002
+PASS  G9b_buy_stop                     snap[2] free == equity - used_margin     expected=9073.000000000002      actual=9073.000000000002
+PASS  G9b_buy_stop                     snap[3] equity == balance + unrealised   expected=10280.000000000013     actual=10280.000000000013
+PASS  G9b_buy_stop                     snap[3] free == equity - used_margin     expected=9172.000000000013      actual=9172.000000000013
+PASS  G9b_buy_stop                     snap[4] equity == balance + unrealised   expected=10260.000000000016     actual=10260.000000000016
+PASS  G9b_buy_stop                     snap[4] free == equity - used_margin     expected=10260.000000000016     actual=10260.000000000016
+PASS  G9b_buy_stop                     one snapshot per bar                     expected=5                      actual=5
+PASS  G9b_buy_stop                     run_completed.final_balance              expected=10260.0                actual=10260.000000000016
+PASS  G9b_buy_stop                     run_completed.final_equity               expected=10260.0                actual=10260.000000000016
+PASS  G9b_buy_stop                     result.final_balance                     expected=10260.0                actual=10260.000000000016
+PASS  G9b_buy_stop                     result.final_equity                      expected=10260.0                actual=10260.000000000016
+PASS  G9b_buy_stop                     open_positions_remaining                 expected=0                      actual=0
+PASS  G9c_buy_stop_gap                 order_rejected count                     expected=0                      actual=0
+PASS  G9c_buy_stop_gap                 fill count                               expected=1                      actual=1
+PASS  G9c_buy_stop_gap                 fill[0].executed_price                   expected=1.1102                 actual=1.1102
+PASS  G9c_buy_stop_gap                 fill[0].bar_index                        expected=1                      actual=1
+PASS  G9c_buy_stop_gap                 snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G9c_buy_stop_gap                 snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G9c_buy_stop_gap                 snap[1] equity == balance + unrealised   expected=10079.99999999999      actual=10079.99999999999
+PASS  G9c_buy_stop_gap                 snap[1] free == equity - used_margin     expected=8968.99999999999       actual=8968.99999999999
+PASS  G9c_buy_stop_gap                 snap[2] equity == balance + unrealised   expected=10129.999999999985     actual=10129.999999999985
+PASS  G9c_buy_stop_gap                 snap[2] free == equity - used_margin     expected=9018.499999999985      actual=9018.499999999985
+PASS  G9c_buy_stop_gap                 one snapshot per bar                     expected=3                      actual=3
+PASS  G9c_buy_stop_gap                 run_completed.final_balance              expected=10000.0                actual=10000.0
+PASS  G9c_buy_stop_gap                 run_completed.final_equity               expected=10130.0                actual=10129.999999999985
+PASS  G9c_buy_stop_gap                 result.final_balance                     expected=10000.0                actual=10000.0
+PASS  G9c_buy_stop_gap                 result.final_equity                      expected=10130.0                actual=10129.999999999985
+PASS  G9c_buy_stop_gap                 open_positions_remaining                 expected=1                      actual=1
+PASS  G10_open_at_end                  order_rejected count                     expected=0                      actual=0
+PASS  G10_open_at_end                  fill count                               expected=1                      actual=1
+PASS  G10_open_at_end                  fill[0].raw_reference                    expected=1.25                   actual=1.25
+PASS  G10_open_at_end                  fill[0].executed_price                   expected=1.2502                 actual=1.2502
+PASS  G10_open_at_end                  position_closed count                    expected=0                      actual=0
+PASS  G10_open_at_end                  snap[1].balance                          expected=10000.0                actual=10000.0
+PASS  G10_open_at_end                  snap[1].equity                           expected=10160.0                actual=10159.999999999982
+PASS  G10_open_at_end                  snap[1].used_margin                      expected=2502.0                 actual=2501.9999999999995
+PASS  G10_open_at_end                  snap[1].free_margin                      expected=7658.0                 actual=7657.999999999982
+PASS  G10_open_at_end                  snap[2].balance                          expected=10000.0                actual=10000.0
+PASS  G10_open_at_end                  snap[2].equity                           expected=10560.0                actual=10559.999999999982
+PASS  G10_open_at_end                  snap[2].used_margin                      expected=2506.0                 actual=2505.9999999999995
+PASS  G10_open_at_end                  snap[2].free_margin                      expected=8054.0                 actual=8053.999999999982
+PASS  G10_open_at_end                  snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G10_open_at_end                  snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G10_open_at_end                  snap[1] equity == balance + unrealised   expected=10159.999999999982     actual=10159.999999999982
+PASS  G10_open_at_end                  snap[1] free == equity - used_margin     expected=7657.999999999982      actual=7657.999999999982
+PASS  G10_open_at_end                  snap[2] equity == balance + unrealised   expected=10559.999999999982     actual=10559.999999999982
+PASS  G10_open_at_end                  snap[2] free == equity - used_margin     expected=8053.999999999982      actual=8053.999999999982
+PASS  G10_open_at_end                  one snapshot per bar                     expected=3                      actual=3
+PASS  G10_open_at_end                  run_completed.final_balance              expected=10000.0                actual=10000.0
+PASS  G10_open_at_end                  run_completed.final_equity               expected=10560.0                actual=10559.999999999982
+PASS  G10_open_at_end                  result.final_balance                     expected=10000.0                actual=10000.0
+PASS  G10_open_at_end                  result.final_equity                      expected=10560.0                actual=10559.999999999982
+PASS  G10_open_at_end                  open_positions_remaining                 expected=1                      actual=1
+PASS  G5s_short_sl_intrabar            order_rejected count                     expected=0                      actual=0
+PASS  G5s_short_sl_intrabar            fill count                               expected=1                      actual=1
+PASS  G5s_short_sl_intrabar            fill[0].raw_reference                    expected=1.1                    actual=1.1
+PASS  G5s_short_sl_intrabar            fill[0].executed_price                   expected=1.0998                 actual=1.0998
+PASS  G5s_short_sl_intrabar            position_closed count                    expected=1                      actual=1
+PASS  G5s_short_sl_intrabar            closed[0].gross_realized_pnl             expected=-540.0                 actual=-539.999999999985
+PASS  G5s_short_sl_intrabar            closed[0].net_realized_pnl               expected=-540.0                 actual=-539.999999999985
+PASS  G5s_short_sl_intrabar            closed[0].entry_price                    expected=1.0998                 actual=1.0998
+PASS  G5s_short_sl_intrabar            closed[0].exit_price                     expected=1.1052                 actual=1.1052
+PASS  G5s_short_sl_intrabar            closed[0].exit_reason                    expected='StopLoss'             actual='StopLoss'
+PASS  G5s_short_sl_intrabar            closed[0].bar_index                      expected=2                      actual=2
+PASS  G5s_short_sl_intrabar            closed[0] net == gross - commission      expected=-539.999999999985      actual=-539.999999999985
+PASS  G5s_short_sl_intrabar            snap[1].balance                          expected=10000.0                actual=10000.0
+PASS  G5s_short_sl_intrabar            snap[1].equity                           expected=10080.0                actual=10080.000000000013
+PASS  G5s_short_sl_intrabar            snap[1].used_margin                      expected=1099.0                 actual=1099.0
+PASS  G5s_short_sl_intrabar            snap[1].free_margin                      expected=8981.0                 actual=8981.000000000013
+PASS  G5s_short_sl_intrabar            snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G5s_short_sl_intrabar            snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G5s_short_sl_intrabar            snap[1] equity == balance + unrealised   expected=10080.000000000013     actual=10080.000000000013
+PASS  G5s_short_sl_intrabar            snap[1] free == equity - used_margin     expected=8981.000000000013      actual=8981.000000000013
+PASS  G5s_short_sl_intrabar            snap[2] equity == balance + unrealised   expected=9460.000000000015      actual=9460.000000000015
+PASS  G5s_short_sl_intrabar            snap[2] free == equity - used_margin     expected=9460.000000000015      actual=9460.000000000015
+PASS  G5s_short_sl_intrabar            snap[3] equity == balance + unrealised   expected=9460.000000000015      actual=9460.000000000015
+PASS  G5s_short_sl_intrabar            snap[3] free == equity - used_margin     expected=9460.000000000015      actual=9460.000000000015
+PASS  G5s_short_sl_intrabar            one snapshot per bar                     expected=4                      actual=4
+PASS  G5s_short_sl_intrabar            run_completed.final_balance              expected=9460.0                 actual=9460.000000000015
+PASS  G5s_short_sl_intrabar            run_completed.final_equity               expected=9460.0                 actual=9460.000000000015
+PASS  G5s_short_sl_intrabar            result.final_balance                     expected=9460.0                 actual=9460.000000000015
+PASS  G5s_short_sl_intrabar            result.final_equity                      expected=9460.0                 actual=9460.000000000015
+PASS  G5s_short_sl_intrabar            open_positions_remaining                 expected=0                      actual=0
+PASS  G6s_short_tp_intrabar            order_rejected count                     expected=0                      actual=0
+PASS  G6s_short_tp_intrabar            position_closed count                    expected=1                      actual=1
+PASS  G6s_short_tp_intrabar            closed[0].gross_realized_pnl             expected=480.0                  actual=480.00000000001376
+PASS  G6s_short_tp_intrabar            closed[0].net_realized_pnl               expected=480.0                  actual=480.00000000001376
+PASS  G6s_short_tp_intrabar            closed[0].exit_price                     expected=1.095                  actual=1.095
+PASS  G6s_short_tp_intrabar            closed[0].exit_reason                    expected='TakeProfit'           actual='TakeProfit'
+PASS  G6s_short_tp_intrabar            closed[0].bar_index                      expected=2                      actual=2
+PASS  G6s_short_tp_intrabar            closed[0] net == gross - commission      expected=480.00000000001376     actual=480.00000000001376
+PASS  G6s_short_tp_intrabar            snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G6s_short_tp_intrabar            snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G6s_short_tp_intrabar            snap[1] equity == balance + unrealised   expected=10080.000000000013     actual=10080.000000000013
+PASS  G6s_short_tp_intrabar            snap[1] free == equity - used_margin     expected=8981.000000000013      actual=8981.000000000013
+PASS  G6s_short_tp_intrabar            snap[2] equity == balance + unrealised   expected=10480.000000000015     actual=10480.000000000015
+PASS  G6s_short_tp_intrabar            snap[2] free == equity - used_margin     expected=10480.000000000015     actual=10480.000000000015
+PASS  G6s_short_tp_intrabar            snap[3] equity == balance + unrealised   expected=10480.000000000015     actual=10480.000000000015
+PASS  G6s_short_tp_intrabar            snap[3] free == equity - used_margin     expected=10480.000000000015     actual=10480.000000000015
+PASS  G6s_short_tp_intrabar            one snapshot per bar                     expected=4                      actual=4
+PASS  G6s_short_tp_intrabar            run_completed.final_balance              expected=10480.0                actual=10480.000000000015
+PASS  G6s_short_tp_intrabar            run_completed.final_equity               expected=10480.0                actual=10480.000000000015
+PASS  G6s_short_tp_intrabar            result.final_balance                     expected=10480.0                actual=10480.000000000015
+PASS  G6s_short_tp_intrabar            result.final_equity                      expected=10480.0                actual=10480.000000000015
+PASS  G6s_short_tp_intrabar            open_positions_remaining                 expected=0                      actual=0
+PASS  G6g_tp_gap                       order_rejected count                     expected=0                      actual=0
+PASS  G6g_tp_gap                       position_closed count                    expected=1                      actual=1
+PASS  G6g_tp_gap                       closed[0].gross_realized_pnl             expected=780.0                  actual=780.000000000003
+PASS  G6g_tp_gap                       closed[0].net_realized_pnl               expected=780.0                  actual=780.000000000003
+PASS  G6g_tp_gap                       closed[0].exit_price                     expected=1.108                  actual=1.108
+PASS  G6g_tp_gap                       closed[0].exit_reason                    expected='TakeProfit'           actual='TakeProfit'
+PASS  G6g_tp_gap                       closed[0].bar_index                      expected=2                      actual=2
+PASS  G6g_tp_gap                       closed[0] net == gross - commission      expected=780.000000000003       actual=780.000000000003
+PASS  G6g_tp_gap                       snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G6g_tp_gap                       snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G6g_tp_gap                       snap[1] equity == balance + unrealised   expected=10079.99999999999      actual=10079.99999999999
+PASS  G6g_tp_gap                       snap[1] free == equity - used_margin     expected=8978.99999999999       actual=8978.99999999999
+PASS  G6g_tp_gap                       snap[2] equity == balance + unrealised   expected=10780.000000000004     actual=10780.000000000004
+PASS  G6g_tp_gap                       snap[2] free == equity - used_margin     expected=10780.000000000004     actual=10780.000000000004
+PASS  G6g_tp_gap                       snap[3] equity == balance + unrealised   expected=10780.000000000004     actual=10780.000000000004
+PASS  G6g_tp_gap                       snap[3] free == equity - used_margin     expected=10780.000000000004     actual=10780.000000000004
+PASS  G6g_tp_gap                       one snapshot per bar                     expected=4                      actual=4
+PASS  G6g_tp_gap                       run_completed.final_balance              expected=10780.0                actual=10780.000000000004
+PASS  G6g_tp_gap                       run_completed.final_equity               expected=10780.0                actual=10780.000000000004
+PASS  G6g_tp_gap                       result.final_balance                     expected=10780.0                actual=10780.000000000004
+PASS  G6g_tp_gap                       result.final_equity                      expected=10780.0                actual=10780.000000000004
+PASS  G6g_tp_gap                       open_positions_remaining                 expected=0                      actual=0
+PASS  G9d_buy_limit_gap                order_rejected count                     expected=0                      actual=0
+PASS  G9d_buy_limit_gap                fill count                               expected=1                      actual=1
+PASS  G9d_buy_limit_gap                fill[0].executed_price                   expected=1.09                   actual=1.09
+PASS  G9d_buy_limit_gap                fill[0].spread_applied                   expected=0.0                    actual=0.0
+PASS  G9d_buy_limit_gap                fill[0].slippage_applied                 expected=0.0                    actual=0.0
+PASS  G9d_buy_limit_gap                fill[0].bar_index                        expected=1                      actual=1
+PASS  G9d_buy_limit_gap                snap[0] equity == balance + unrealised   expected=10000.0                actual=10000.0
+PASS  G9d_buy_limit_gap                snap[0] free == equity - used_margin     expected=10000.0                actual=10000.0
+PASS  G9d_buy_limit_gap                snap[1] equity == balance + unrealised   expected=10099.999999999989     actual=10099.999999999989
+PASS  G9d_buy_limit_gap                snap[1] free == equity - used_margin     expected=9008.999999999989      actual=9008.999999999989
+PASS  G9d_buy_limit_gap                snap[2] equity == balance + unrealised   expected=10200.0                actual=10200.0
+PASS  G9d_buy_limit_gap                snap[2] free == equity - used_margin     expected=9108.0                 actual=9108.0
+PASS  G9d_buy_limit_gap                one snapshot per bar                     expected=3                      actual=3
+PASS  G9d_buy_limit_gap                run_completed.final_balance              expected=10000.0                actual=10000.0
+PASS  G9d_buy_limit_gap                run_completed.final_equity               expected=10200.0                actual=10200.0
+PASS  G9d_buy_limit_gap                result.final_balance                     expected=10000.0                actual=10000.0
+PASS  G9d_buy_limit_gap                result.final_equity                      expected=10200.0                actual=10200.0
+PASS  G9d_buy_limit_gap                open_positions_remaining                 expected=1                      actual=1
+PASS  G11_margin_rejection             order_rejected count                     expected=1                      actual=1
+PASS  G11_margin_rejection             fill count                               expected=0                      actual=0
+PASS  G11_margin_rejection             position_closed count                    expected=0                      actual=0
+PASS  G11_margin_rejection             snap[0] equity == balance + unrealised   expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             snap[0] free == equity - used_margin     expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             snap[1] equity == balance + unrealised   expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             snap[1] free == equity - used_margin     expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             snap[2] equity == balance + unrealised   expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             snap[2] free == equity - used_margin     expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             snap[3] equity == balance + unrealised   expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             snap[3] free == equity - used_margin     expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             snap[4] equity == balance + unrealised   expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             snap[4] free == equity - used_margin     expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             one snapshot per bar                     expected=5                      actual=5
+PASS  G11_margin_rejection             run_completed.final_balance              expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             run_completed.final_equity               expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             result.final_balance                     expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             result.final_equity                      expected=1000.0                 actual=1000.0
+PASS  G11_margin_rejection             open_positions_remaining                 expected=0                      actual=0
+
+TOTAL: 616 passed, 0 failed

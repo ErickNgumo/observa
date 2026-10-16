@@ -21,7 +21,9 @@ pub const EVENT_SCHEMA_VERSION: u32 = 1;
 pub const RUN_SCHEMA_VERSION: u32 = 1;
 
 /// Version of the persisted metrics schema (`metrics.json`).
-pub const METRICS_SCHEMA_VERSION: u32 = 1;
+/// Schema 2 (Observa 0.2): explicit annualisation assumptions, sample sizes,
+/// `unavailable` reasons and the expanded metric set (see docs/metrics.md).
+pub const METRICS_SCHEMA_VERSION: u32 = observa_metrics::evaluation::METRICS_SCHEMA_VERSION;
 
 /// Maximum size of one strategy-authored signal reason, in **UTF-8 bytes**
 /// (OBS-SCHEMA-01).

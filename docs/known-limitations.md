@@ -22,5 +22,17 @@ Honest scope of the MVP release candidate:
   part of the contract yet; a band is expressed as three series.
 * **Platform verification** — wheel verified on Linux x86_64 / CPython 3.13;
   other platforms are unverified (see README).
+* **Annualised metrics need `bars_per_year` for intraday bars** — it is not
+  guessed (see `docs/metrics.md`). Without it, annualised return, volatility,
+  Sharpe, Sortino and Calmar are reported as unavailable with the reason.
+  Returns over less than one year are never annualised. Ratios from short
+  samples are noisy; read them with the recorded `sample` sizes.
+* **No financing / swap / funding costs** — positions held overnight carry no
+  cost, so `total_costs` covers commission, spread and slippage only.
+* **Metrics mark equity at the bar close without exit costs**, and there are
+  no margin calls: drawdowns can exceed 100 % if equity goes negative, and
+  return-based ratios are then unavailable.
+* **Memory** — every bar's canonical events and snapshot are kept in memory;
+  expect roughly 1 KB per bar (about 1 GB for 1,000,000 bars).
 * **Offline replay** — the chart library is bundled in the wheel (Apache-2.0
   licensed), so replay works offline after installation.

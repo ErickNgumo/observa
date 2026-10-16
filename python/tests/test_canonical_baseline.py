@@ -70,11 +70,16 @@ EXPECTED_METRICS = {
     "open_positions_remaining": 1,
     "win_rate_pct": 14.893617021276595,
     "total_return_pct": -22.629999999997935,
-    "annualised_return_pct": -4.218817103379646,
+    # Metrics schema 2 (Observa 0.2): this is a 15-minute run with no
+    # bars_per_year, so annualised metrics are unavailable rather than
+    # silently computed as if the bars were daily (0.1.x reported -4.22 /
+    # -0.48 / -0.12 here). Values with an explicit factor are pinned by
+    # python/tests/test_metrics_fixtures.py against an independent calculation.
+    "annualised_return_pct": None,
     "max_drawdown_pct": 35.615097026881344,
     "current_drawdown_pct": 31.12871639665119,
-    "sharpe_ratio": -0.4797045550240251,
-    "calmar_ratio": -0.1184558643823262,
+    "sharpe_ratio": None,
+    "calmar_ratio": None,
     "avg_win": 756.0000000000025,
     "avg_loss": 189.34999999999562,
     "profit_factor": 0.6987060998151756,
@@ -82,7 +87,7 @@ EXPECTED_METRICS = {
     "largest_win": 2493.9999999999977,
     "largest_loss": 446.99999999999596,
 }
-EXPECTED_METRICS_DIGEST = "6c23dc6c0c0630e66bd21290c47f48bb00ac6612d66b2b7047df7a191ea77b44"
+EXPECTED_METRICS_DIGEST = "1211eff1d5d26d0b2980959dd4f0673ea28c0dd19aa0604f57d540bc72f04f83"  # metrics schema 2 (0.2.0)
 EXPECTED_METRIC_TIMESTAMPS = {
     "max_drawdown_start": "2024-01-01T11:45:00Z",
     "max_drawdown_end": "2024-01-11T21:30:00Z",
@@ -162,6 +167,12 @@ def test_canonical_baseline(tmp_dir):
     for key, expected in EXPECTED_METRICS.items():
         got = metrics.get(key)
         check("metric %s == %r" % (key, expected), _close(expected, got), got)
+    for key in ("annualised_return_pct", "sharpe_ratio", "calmar_ratio"):
+        reason = (metrics.get("unavailable") or {}).get(key, "")
+        check("metric %s is unavailable with an explanation" % key, "intraday" in reason, reason)
+    check("annualisation assumption recorded",
+          (metrics.get("assumptions") or {}).get("bars_per_year", "missing") is None
+          and (metrics.get("assumptions") or {}).get("interval") == "15m", metrics.get("assumptions"))
     for key, expected in EXPECTED_METRIC_TIMESTAMPS.items():
         check("metric %s == %r" % (key, expected), metrics.get(key) == expected, metrics.get(key))
 

@@ -17,6 +17,17 @@ This document is a migration of the **current-state claims in the source knowled
 - Historical-only strategy history.
 - Signal to order-intent flow.
 
+### Trust boundary (OBS-TRUST-01..03, 2026-10 trust audit)
+- Unknown signal keys fail with `SIGNAL_FIELD_UNKNOWN` (with a suggestion);
+  `None` / bare-dict / malformed envelope returns fail with
+  `STRATEGY_RETURN_INVALID`; unknown config-dict keys fail with `CONFIG_INVALID`.
+- Market data validated identically on CSV and Python paths: finite positive
+  prices, OHLC consistency, finite non-negative volume; timestamps must carry a
+  timezone; epoch inputs must be seconds.
+- Strategy-facing `bar["timestamp"]` is canonical UTC `...+00:00`; new
+  `bar["timestamp_ms"]` join key.
+- `history` is a read-only O(1)-per-bar sequence view (`observa.History`).
+
 ### Python bridge
 - PyO3 embedding.
 - Python strategy loading.
@@ -71,9 +82,11 @@ This document is a migration of the **current-state claims in the source knowled
 - Per-bar mark-to-market snapshots.
 
 ### Metrics
-- Equity curve.
-- Drawdown.
-- Core performance and trade statistics.
+- Metrics schema 2 (`docs/metrics.md`): returns, risk (volatility, Sharpe,
+  Sortino, Calmar, drawdown depth/amount/duration/recovery), trade outcomes,
+  exposure and execution costs, with `sample`, `assumptions` and
+  `unavailable` reasons recorded in `metrics.json`.
+- Annualisation never guessed for intraday bars (`bars_per_year`).
 
 ### Visualization
 - Candlestick chart.
@@ -82,7 +95,9 @@ This document is a migration of the **current-state claims in the source knowled
 - Trade connecting lines.
 - Equity curve.
 - Trade log.
-- Metrics panel.
+- Metrics panel (grouped, total vs annualised labelled, sample sizes and
+  assumptions shown, unavailable metrics explained, closed-trade outcome chart
+  and cost breakdown; schema-1 runs flagged as legacy).
 - Drawdown highlighting.
 - Strategy drawings.
 - Replay controls.
@@ -114,8 +129,13 @@ legacy/dev-only bridge in `crates/observa-python` (see `docs/STRATEGY_API.md`).
 ### InstrumentSpec
 The source KB says `InstrumentSpec` exists and is loaded from configuration, but its use is not fully wired into all PositionOpenedEvent / PositionClosedEvent construction. Deprecated `pct_equity` and `pct_balance` fields remain in events.
 
-### Metrics / Sharpe
-The source KB says the Sharpe implementation was improved, including per-bar equity sampling, sample variance, and compound risk-free conversion, but still regards the result as potentially inflated on small samples.
+### Metrics
+Metrics schema 2 (Observa 0.2, `docs/metrics.md`): one Rust implementation
+(`observa-metrics/src/evaluation.rs`) for `RunResult.metrics`, `metrics.json`,
+the CLI and replay. Annualisation is explicit or interval-defaulted (daily/
+weekly only, spacing-checked) and recorded; undefined metrics carry reasons;
+returns over < 1 year are not annualised. Ratios on small samples remain noisy
+by nature — the report states sample sizes.
 
 ### Python strategy bridge
 `on_fill()` is not wired. Python-side indicator registration is not implemented. Python strategy execution is single-threaded because of the GIL.

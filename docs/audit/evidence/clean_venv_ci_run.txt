@@ -1,0 +1,15 @@
+0 python/tests/test_agent_contract.py
+0 python/tests/test_ai_interface.py
+0 python/tests/test_annotations.py
+0 python/tests/test_canonical_baseline.py
+0 python/tests/test_causality.py
+0 python/tests/test_demo.py
+0 python/tests/test_deterministic_identity.py
+0 python/tests/test_history_contract.py
+0 python/tests/test_inspection.py
+0 python/tests/test_mcp.py
+0 python/tests/test_observa.py
+0 python/tests/test_onboarding_ai.py
+0 python/tests/test_strategy_reason.py
+0 python/tests/test_trust_boundary.py
+0 harness/finance/golden_ledgers.py

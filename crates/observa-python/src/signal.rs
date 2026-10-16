@@ -21,6 +21,23 @@ pub fn signal_from_py(py: Python, obj: &Bound<PyAny>) -> Result<StrategySignal, 
         .downcast::<PyDict>()
         .map_err(|_| BridgeError::InvalidSignal("signal must be a dict".to_string()))?;
 
+    // OBS-TRUST-01: an unknown key (e.g. `stop_loss` for `sl`) must fail
+    // loudly instead of being ignored — same contract as the Python wheel.
+    const ALLOWED: [&str; 8] = [
+        "direction", "size", "order_type", "price", "sl", "tp", "reason", "ticket",
+    ];
+    for (k, _) in dict.iter() {
+        let key: String = k
+            .extract()
+            .map_err(|_| BridgeError::InvalidSignal("signal keys must be strings".to_string()))?;
+        if !ALLOWED.contains(&key.as_str()) {
+            return Err(BridgeError::InvalidSignal(format!(
+                "unknown signal field '{key}' (SIGNAL_FIELD_UNKNOWN; allowed: {})",
+                ALLOWED.join(", ")
+            )));
+        }
+    }
+
     // direction is required
     let direction_str: String = dict
         .get_item("direction")

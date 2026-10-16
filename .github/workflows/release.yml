@@ -67,6 +67,17 @@ jobs:
         run: .release-venv/bin/python python/tests/test_inspection.py
       - name: Verify built wheel (strategy reasons)
         run: .release-venv/bin/python python/tests/test_strategy_reason.py
+      - name: Verify built wheel (trust boundary, history, causality, golden ledgers)
+        # OBS-TRUST-01..03: a release must not be publishable if silent intent
+        # loss, silent data acceptance, quadratic history, lookahead or a
+        # golden-ledger economic regression comes back.
+        run: |
+          .release-venv/bin/pip install "hypothesis>=6,<7"
+          .release-venv/bin/python python/tests/test_trust_boundary.py
+          .release-venv/bin/python python/tests/test_history_contract.py
+          .release-venv/bin/python python/tests/test_causality.py
+          .release-venv/bin/python harness/finance/golden_ledgers.py
+          .release-venv/bin/python python/tests/test_metrics_fixtures.py
       - name: Verify built wheel (agent authoring contract)
         # OBS-AI-04: a release must not be publishable if the bundled strategy
         # authoring assets (spec.json, guide, gold example, AGENTS template)

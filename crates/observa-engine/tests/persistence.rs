@@ -289,7 +289,7 @@ fn persist(dir: &Path, result: &RunResult, bars: &[Bar], config: &BacktestConfig
         bars,
         &result.events,
         result,
-        24.0 * 252.0,
+        None,
         "test.csv",
     )
     .unwrap();
@@ -339,7 +339,8 @@ fn known_answer_run_persists_canonical_artifacts() {
 
     // metrics.json — derived, never authoritative, present on success.
     let metrics = read_metrics(&dir);
-    assert_eq!(metrics["metrics_schema_version"], 1);
+    assert_eq!(metrics["metrics_schema_version"], 2);
+    assert!(metrics["assumptions"].is_object() && metrics["sample"].is_object());
     assert_eq!(metrics["total_trades"], 1);
     assert_eq!(metrics["winning_trades"], 1);
     assert!((metrics["final_balance"].as_f64().unwrap() - 60_000.0).abs() < EPS);
@@ -1067,7 +1068,7 @@ fn persistence_refuses_to_overwrite_existing_output() {
         &bars,
         &result.events,
         &result,
-        24.0 * 252.0,
+        None,
         "test.csv",
     )
     .unwrap_err();
@@ -1090,7 +1091,7 @@ fn persistence_refuses_to_overwrite_existing_output() {
         &bars,
         &result.events,
         &result,
-        24.0 * 252.0,
+        None,
         "test.csv",
     )
     .unwrap_err();

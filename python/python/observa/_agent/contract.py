@@ -140,25 +140,32 @@ CONTRACT: dict = {
             "{'signals': [...], 'drawings': [...]}",
         ],
         "invalid_returns": [
-            "TRAP: a bare signal dict {'direction': 'buy', 'size': 1.0} - the engine "
-            "reads only the 'signals' key, so it is ignored. Wrap it in a list.",
-            "TRAP: None - return [] for 'no action'; None is ambiguous.",
-            "{'signal': [...]} - misspelled envelope key.",
+            "a bare signal dict {'direction': 'buy', 'size': 1.0} - wrap it in a list.",
+            "None (e.g. a missing return statement) - return [] for 'no action'.",
+            "{'signal': [...]} or any envelope key other than 'signals'/'drawings'.",
+            "{'signals': None} or 'signals' that is not a list.",
             "str, tuple, number - anything not a list or dict.",
         ],
+        "invalid_return_error": "Each invalid return fails the run at that bar with "
+                                "code STRATEGY_RETURN_INVALID (exc.details['bar_index']).",
         "rule": "Always return a list, or a dict containing a 'signals' list.",
     },
     "bar": {
         "type": "dict (read-only)",
         "keys": {
-            "timestamp": "str, RFC 3339",
+            "timestamp": "str, canonical UTC 'YYYY-MM-DDTHH:MM:SS[.f...]+00:00' (fraction only when non-zero) whatever "
+                         "the input form ('...Z' input is presented as '...+00:00')",
+            "timestamp_ms": "int, epoch milliseconds (UTC) - the unambiguous key for "
+                            "joining external data",
             "open": "float",
             "high": "float",
             "low": "float",
             "close": "float",
             "volume": "float or None",
         },
-        "note": "No bar_index and no symbol. Use bar['close'], not bar.close.",
+        "note": "No bar_index and no symbol. Use bar['close'], not bar.close. "
+                "Join external data on bar['timestamp_ms'] or a parsed datetime, never "
+                "on the raw input string.",
     },
     "portfolio": {
         "type": "dict (read-only)",
@@ -192,14 +199,20 @@ CONTRACT: dict = {
                 "alias only - the input key is size.",
     },
     "history": {
-        "type": "list of bar dicts",
+        "type": "read-only sequence of bar dicts (list-like, not a list)",
+        "supports": "len(h), h[i], h[-1], h[-n:] (slices return lists), iteration, "
+                    "reversed(h), x in h, h.index(x), h.count(x), h == list, h + list, "
+                    "list(h) for a mutable copy",
+        "cost": "O(1) per bar to provide; each item access builds a fresh dict",
         "contains": "strictly PRIOR bars only",
         "current_bar_included": False,
         "unbounded": True,
         "empty_at_first_bar": True,
         "note": "No lookahead is possible. Guard warm-up yourself: "
                 "if len(history) < period: return []. It is all prior bars, not a "
-                "fixed window, so slice history[-period:].",
+                "fixed window, so slice history[-period:]. It cannot be mutated "
+                "(no append/pop/item assignment), and a reference kept from an "
+                "earlier bar never grows.",
     },
     "signals": {
         "type": "list of dicts returned from on_bar",
@@ -214,10 +227,11 @@ CONTRACT: dict = {
             "reason": "str, persisted, max 1024 UTF-8 bytes",
             "ticket": "str, REQUIRED for close - use position['position_id']",
         },
-        "unknown_fields": "TRAP: only those eight keys are read. Any other key "
-                          "(stop_loss, take_profit, quantity, qty, sl_price) is "
-                          "silently ignored, so a typo silently drops your stop loss. "
-                          "validate-strategy reports SIGNAL_FIELD_UNKNOWN.",
+        "unknown_fields": "Only those eight keys are allowed. Any other key "
+                          "(stop_loss, take_profit, quantity, qty, sl_price, ...) fails "
+                          "the run with SIGNAL_FIELD_UNKNOWN; exc.details has 'field', "
+                          "'suggestion' (e.g. stop_loss -> sl), 'allowed', 'bar_index' "
+                          "and 'signal_index'.",
     },
     "orders": {
         "order_types": ["market", "limit", "stop"],
@@ -277,11 +291,13 @@ CONTRACT: dict = {
                       "STRATEGY_SYNTAX_ERROR", "STRATEGY_NOT_IMPORTABLE",
                       "STRATEGY_SMOKE_RUN_FAILED"],
         "setup": ["STRATEGY_FILE_NOT_FOUND"],
-        "warning_only": ["STRATEGY_CLASS_AMBIGUOUS", "SIGNAL_TICKET_UNKNOWN",
-                         "SIGNAL_FIELD_UNKNOWN"],
+        "warning_only": ["STRATEGY_CLASS_AMBIGUOUS", "SIGNAL_TICKET_UNKNOWN"],
         "drawing": "see drawings.errors",
         "runtime": "engine/config/data/run codes are raised by observa.run itself; "
-                   "read them from exc.code (see docs/STRATEGY_API.md)",
+                   "read them from exc.code (see docs/STRATEGY_API.md). observa.run "
+                   "raises SIGNAL_FIELD_UNKNOWN and STRATEGY_RETURN_INVALID too, at "
+                   "the first offending bar, CONFIG_INVALID for an unknown config "
+                   "key, and DATA_INVALID (details['row']) for invalid bars",
     },
     "forbidden_patterns": [
         "Your own fill model, matching engine or backtest loop.",

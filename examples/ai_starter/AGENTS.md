@@ -22,16 +22,18 @@ canonical machine-readable contract; these docs are commentary on it.
    from `on_bar`.
 2. Return a **list** of signal dicts, or `{"signals": [...], "drawings": [...]}`.
    Return `[]` for no action. Never return a bare signal dict, and never return
-   `None`.
+   `None` — either fails the run with `STRATEGY_RETURN_INVALID`.
 3. Signal inputs are `direction`, `size`, `order_type`, `price`, `sl`, `tp`,
    `reason`, `ticket`. `size` is the quantity field; `sl`/`tp` are the
-   protective levels. An unknown key is silently ignored by the engine, so a
-   typo silently drops your stop loss.
+   protective levels. Any other key fails the run with `SIGNAL_FIELD_UNKNOWN`
+   (`exc.details["suggestion"]` names the key you probably meant).
 4. Close a position with its **exact ticket**:
    `{"direction": "close", "size": pos["size"], "ticket": pos["position_id"]}`.
    There is no FIFO and no implicit close.
 5. Guard warm-up: `history` holds strictly prior bars and is empty on bar 0.
-   `if len(history) < period: return []`.
+   `if len(history) < period: return []`. `history` is a read-only sequence;
+   use `list(history)` if you need a list. Join external data on
+   `bar["timestamp_ms"]` (epoch ms), never on the timestamp string.
 6. Give every entry and exit a meaningful `reason` (≤1024 UTF-8 bytes). Reasons
    are persisted canonical events and are how a human understands your logic.
 7. Use annotations where they add explanatory value — return a `drawings` list

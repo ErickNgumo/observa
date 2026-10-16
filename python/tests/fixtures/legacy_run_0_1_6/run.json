@@ -1,0 +1,72 @@
+{
+  "config": {
+    "account": {
+      "currency": "USD",
+      "leverage": 100.0,
+      "starting_balance": 10000.0
+    },
+    "dataset": {
+      "bar_count": 600,
+      "end": "2026-08-20T08:45:00Z",
+      "hash": null,
+      "interval": "15m",
+      "source": "eurusd_m15_demo.csv",
+      "start": "2026-08-12T01:30:00Z"
+    },
+    "execution": {
+      "commission": {
+        "flat_per_fill": 0.0,
+        "mode": "PER_SIDE",
+        "rate_per_unit": 0.0
+      },
+      "fill_mode": "NEXT_BAR_OPEN",
+      "order_model": {
+        "limit": true,
+        "market": true,
+        "stop": true
+      },
+      "slippage": 0.0001,
+      "spread": 0.0002
+    },
+    "instrument": {
+      "base_currency": "EUR",
+      "contract_size": 100000.0,
+      "max_quantity": 100.0,
+      "min_quantity": 0.01,
+      "pip_size": null,
+      "price_decimals": 5,
+      "quantity_step": 0.01,
+      "quote_currency": "USD",
+      "symbol": "EURUSD",
+      "tick_size": null
+    },
+    "strategy": {
+      "name": "SampleEma",
+      "parameters": {},
+      "source": null,
+      "source_hash": null
+    },
+    "version": 1
+  },
+  "config_version": 1,
+  "dataset": {
+    "bar_count": 600,
+    "first_timestamp": "2026-08-12T01:30:00Z",
+    "last_timestamp": "2026-08-20T08:45:00Z",
+    "sha256": "fee80f4793234bcbef4cf16b2225f27a205b6a9b3f28edf1b719be9b0298bfde",
+    "source": "eurusd_m15_demo.csv"
+  },
+  "event_count": 1935,
+  "final_balance": 10572.00000000008,
+  "final_equity": 10757.000000000071,
+  "free_margin": 9586.860000000072,
+  "open_positions_remaining": 1,
+  "run_schema_version": 1,
+  "status": "completed",
+  "strategy": {
+    "name": "SampleEma",
+    "params_sha256": "a8ba1e84cd5cdf8a6f694deed2f37f6478e9080db732aa7f15327d31f0ffb5cb",
+    "source": null
+  },
+  "used_margin": 1170.14
+}

@@ -1,0 +1,2811 @@
+{
+ "C00_csv_baseline": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "C01_csv_nan_close": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "f17f95b0af627dae8f9d609aa2fcf79e1db52affb00da287c0874f5b60ecf4b5",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ],
+    [
+     17,
+     "Sell",
+     1.1028
+    ],
+    [
+     20,
+     "Buy",
+     1.1002
+    ]
+   ],
+   "final": [
+    10360.0,
+    10140.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 7,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "C02_csv_empty_volume": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "0b52f0635f7eb3acc2396b3a37222ac37eac8181b5a3b85a8233a89455451074",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "C03_csv_nan_volume": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "53c64837340be4fd82abaf948ec624445fa25e58cbd3d8753d7be8e399f310ac",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "C04_csv_zero_volume": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "be70a2e9fa687a79de1de5797612eeaea95230e34d74ddcd822a270e3e7bfb4f",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D00_baseline": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D01_zero_volume_all": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "be70a2e9fa687a79de1de5797612eeaea95230e34d74ddcd822a270e3e7bfb4f",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D02_flat_bars_OHLC_equal": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -240.0
+    ],
+    [
+     17,
+     "Signal",
+     60.0
+    ],
+    [
+     23,
+     "Signal",
+     160.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "e4bc0923330b32cd564633d4d671ad0930fe0af0f0de96784cb7f9a595dbe80b",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.0998
+    ],
+    [
+     14,
+     "Buy",
+     1.1032
+    ]
+   ],
+   "final": [
+    10200.0,
+    9980.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 10,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D03_volume_nan_one_bar": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "53c64837340be4fd82abaf948ec624445fa25e58cbd3d8753d7be8e399f310ac",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D04_close_nan_one_bar": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "f17f95b0af627dae8f9d609aa2fcf79e1db52affb00da287c0874f5b60ecf4b5",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ],
+    [
+     17,
+     "Sell",
+     1.1028
+    ],
+    [
+     20,
+     "Buy",
+     1.1002
+    ]
+   ],
+   "final": [
+    10360.0,
+    10140.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 7,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D05_high_inf": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "0cda5e68d5964bd4054807794a8d4e47d9ac1e2c140a5741b73944914f3f44ce",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D06_high_below_low": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "66c24706fc82e90a0167b3d1df49518f58f464b4f1df13fd726d0f337d8ce293",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D07_close_above_high_by_1e-12": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     8,
+     "StopLoss",
+     -190.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "567bb56894d6cc3ce36572c701efc88fd0e4459dbb4ea1e2b7bbe48f8a8f2e41",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ],
+    [
+     17,
+     "Sell",
+     1.1028
+    ]
+   ],
+   "final": [
+    10170.0,
+    9950.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 8,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D08_negative_prices": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "8cf2d6fedaacf0b1475176662db9fd5d005ec7ae8826ae4ff1deaa3b0cbd7ac2",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D09_zero_low": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "580d18482c1bcbf7b21921923c81635d6ba7eab243272ba852d7fd002610b4f7",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D10_naive_space_string": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D11_naive_T_string": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: cannot parse timestamp '2024-01-01T00:00:00'",
+  "result": "error"
+ },
+ "D12_plus03_offset_string": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D13_epoch_ms_int": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "6be0df1e9cf07470ba663d728a9337293afc843a996179e28c08059b734c02f0",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "+55969-09-28T00:00:00Z",
+    "+55969-11-08T16:00:00Z",
+    "+55969-12-20T08:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D14_epoch_float_half_second": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D15_epoch_float_floor_collision": {
+  "code": "ENGINE_ERROR",
+  "msg": "RuntimeError: engine error: invalid runtime state: bars must be in strictly increasing chronological order",
+  "result": "error"
+ },
+ "D16_aware_datetime": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: timestamp must be an RFC 3339 string or epoch seconds",
+  "result": "error"
+ },
+ "D17_naive_datetime": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: timestamp must be an RFC 3339 string or epoch seconds",
+  "result": "error"
+ },
+ "D18_subsecond_string": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "5b0525b7b86a0a24c79f404046a619afe411e17af0d336c7043b12c68a982acb",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00.250Z",
+    "2024-01-01T01:00:00.250Z",
+    "2024-01-01T02:00:00.250Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "D19_duplicate_timestamp": {
+  "code": "ENGINE_ERROR",
+  "msg": "RuntimeError: engine error: invalid runtime state: bars must be in strictly increasing chronological order",
+  "result": "error"
+ },
+ "D20_volume_int": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "H_history_compat": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "c9a03bed57db8ec114bcc5277f0674d72fa9d78b526e65913bb54e4d4e1ea964",
+   "fills_head": [],
+   "final": [
+    10000.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "HistProbe",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "HistProbe",
+    "params_sha256": "b579d858d64f903464e6cbde798b50a307c219001dd92ebe840dafa739f45982",
+    "source": null
+   }
+  },
+  "observations": {
+   "append": "None",
+   "bar_keys": "['close', 'high', 'low', 'open', 'timestamp', 'volume']",
+   "bool_bar0": "False",
+   "copy_type": "'list'",
+   "deepcopy_len": "6",
+   "eq_empty_list_bar0": "True",
+   "eq_list_copy": "True",
+   "hist_keys": "['close', 'high', 'low', 'open', 'timestamp', 'volume']",
+   "isinstance_list": "True",
+   "json_dumps_len": "736",
+   "kept_view_len": "3",
+   "len_bar": "6",
+   "list_plus": "7",
+   "max_by": "1.1055",
+   "mutate_then_reread": "-1.0",
+   "neg_index": "'2024-01-01T00:00:00+00:00'",
+   "next_bar_hist5_close": "1.104",
+   "next_bar_len_after_append": "7",
+   "np_array_len": "6",
+   "np_array_shape": "(6,)",
+   "np_closes_mean": "1.1031666666666669",
+   "pd_df_columns": "['open', 'high', 'low', 'close', 'timestamp', 'volume']",
+   "pd_df_numeric_mean_cols": "['open', 'high', 'low', 'close', 'volume']",
+   "pd_df_shape": "(6, 6)",
+   "pickle_len": "6",
+   "plus_list": "7",
+   "reverse_slice_first": "'2024-01-01T05:00:00+00:00'",
+   "sort": "None",
+   "sorted_first_close": "1.101",
+   "sum_values_last": "104.418",
+   "type_name": "'list'"
+  },
+  "result": "accepted"
+ },
+ "History": false,
+ "K00_no_strategy_name": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "K01_strategy_name_set": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "K02_other_class_same_label": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Other",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Other",
+    "params_sha256": "28bdfb4f89f798f2d161440649810c4f5fe662589b7546afdda62476259e47cc",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "K03_dict_typo_spred": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "K04_dict_tick_pip": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "K05_Config_tick_pip": {
+  "msg": "TypeError: Config.__init__() got an unexpected keyword argument 'tick_size'",
+  "result": "error"
+ },
+ "P00_df_string_ts": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "P01_df_tz_aware": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: timestamp must be an RFC 3339 string or epoch seconds",
+  "result": "error"
+ },
+ "P02_df_naive_datetime64": {
+  "code": "DATA_INVALID",
+  "msg": "ValueError: timestamp must be an RFC 3339 string or epoch seconds",
+  "result": "error"
+ },
+ "P03_df_missing_volume_nan": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "53c64837340be4fd82abaf948ec624445fa25e58cbd3d8753d7be8e399f310ac",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "P04_df_int64_volume": {
+  "econ": {
+   "closes": [
+    [
+     4,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     11,
+     "Signal",
+     -140.0
+    ],
+    [
+     17,
+     "Signal",
+     -140.0
+    ],
+    [
+     22,
+     "TakeProfit",
+     280.0
+    ],
+    [
+     28,
+     "StopLoss",
+     -340.0
+    ],
+    [
+     34,
+     "TakeProfit",
+     280.0
+    ]
+   ],
+   "dataset_sha": "25032e870b35658bfe5c643400c697cd761d1601ac38aed031430bd9682acb16",
+   "fills_head": [
+    [
+     2,
+     "Buy",
+     1.1022
+    ],
+    [
+     8,
+     "Buy",
+     1.1022
+    ],
+    [
+     11,
+     "Sell",
+     1.1008
+    ],
+    [
+     14,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10220.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 9,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Trader",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Trader",
+    "params_sha256": "ae7a630f7c71b1d9f60807b26cf8f12ef584a7d93d5a87468e5758477e1e757c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_bare_dict": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    10000.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_bare_dict",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_bare_dict",
+    "params_sha256": "2d16ec670d81635d45e90d1944cb39ae9c6db767107357f092c8229a2c9281cd",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_drawings_only": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    10000.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_drawings_only",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_drawings_only",
+    "params_sha256": "6c7d01055cba8e2fd75107718e6bc57d40f51b310656f9f568a465af282e2af2",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_empty_dict": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    10000.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_empty_dict",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_empty_dict",
+    "params_sha256": "e4c380a9a344635b4e54e70f69f0aeba0181662e659723e90837a4e06b0e2d7a",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_env_extra_key": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [
+    [
+     4,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10000.0,
+    9780.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 1,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_env_extra_key",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_env_extra_key",
+    "params_sha256": "767a2151e4c81715f368c41092b59d1b6bd90bbcee732f6906d7a36eacb4dcec",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_env_ok": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [
+    [
+     4,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10000.0,
+    9780.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 1,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_env_ok",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_env_ok",
+    "params_sha256": "53802d42bc14f1878e8765b692bb7d40cef447cc9edd9fbcf92fbc7cac59440c",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_invalid_first_signal": {
+  "code": "STRATEGY_ERROR",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_invalid_first_signal",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_invalid_first_signal",
+    "params_sha256": "82f071762f44f9d028f1b0fa1094c4415f2a67797dd60b38eb8688831b9fdba2",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_invalid_first_signal' returned an invalid signal: ValueError: unknown direction 'hold' \u2014 use 'buy', 'sell', or 'close'",
+  "result": "error"
+ },
+ "R_invalid_second_signal": {
+  "code": "STRATEGY_ERROR",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_invalid_second_signal",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_invalid_second_signal",
+    "params_sha256": "850b941d89850e95462a06e25b114411157da9e9e26b8519d03a28e5b689e23f",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_invalid_second_signal' returned an invalid signal: ValueError: unknown direction 'hold' \u2014 use 'buy', 'sell', or 'close'",
+  "result": "error"
+ },
+ "R_none": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    10000.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_none",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_none",
+    "params_sha256": "dc9864fba7039fff32948c0fa1a532192e4596b11abede95a8999fbec8968ce8",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_quantity_key": {
+  "code": "STRATEGY_ERROR",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_quantity_key",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_quantity_key",
+    "params_sha256": "e80cfb9b2ece8fe9cf64c76bc2b68f3583344cb5e002e1d12027ee9fb3621f9e",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_quantity_key' returned an invalid signal: ValueError: signal missing 'size'",
+  "result": "error"
+ },
+ "R_signals_none": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    10000.0,
+    10000.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_signals_none",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_signals_none",
+    "params_sha256": "34e5fad688ced475178928475debc9c4803d5cb081b878927d89c1e481dde508",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_stop_loss_key": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [
+    [
+     4,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10000.0,
+    9780.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 1,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_stop_loss_key",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_stop_loss_key",
+    "params_sha256": "a09393e8a864b23d60a4e9314cf959a593c40b337501b587a04a91a012409411",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "R_tuple": {
+  "code": "STRATEGY_ERROR",
+  "econ_partial": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [],
+   "final": [
+    NaN,
+    NaN
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 0,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_tuple",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_tuple",
+    "params_sha256": "c98444717ec19a95d5b809424e1146ce917a1204dfe55216dc5788f19a67097a",
+    "source": null
+   }
+  },
+  "msg": "RuntimeError: engine error: strategy failure: strategy 'Ret_tuple' on_bar() must return a list or a dict with 'signals'",
+  "result": "error"
+ },
+ "R_upper_SL_key": {
+  "econ": {
+   "closes": [],
+   "dataset_sha": "8676a5da145be8fc0656033228939869f05df6307b42aacd981415871238d3d2",
+   "fills_head": [
+    [
+     4,
+     "Buy",
+     1.1042
+    ]
+   ],
+   "final": [
+    10000.0,
+    9780.0
+   ],
+   "first_ts": [
+    "2024-01-01T00:00:00Z",
+    "2024-01-01T01:00:00Z",
+    "2024-01-01T02:00:00Z"
+   ],
+   "n_fills": 1,
+   "run_started": {
+    "event_seq": 0,
+    "strategy_name": "Ret_upper_SL_key",
+    "type": "run_started"
+   },
+   "strategy_block": {
+    "name": "Ret_upper_SL_key",
+    "params_sha256": "75a2a49451f870a2d7044b5d5d32f543c6ff3bc1f8f197c7afab704a327e2e52",
+    "source": null
+   }
+  },
+  "result": "accepted"
+ },
+ "observa": "/tmp/claude-1000/-home-erick-Documents-observa/8e8c655e-9ac3-4519-a485-898ac80f66b3/scratchpad/venv-rel313/lib/python3.13/site-packages/observa/__init__.py",
+ "pandas": "3.0.6"
+}

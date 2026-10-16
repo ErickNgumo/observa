@@ -64,23 +64,33 @@ return [{"direction": "buy", "size": 1.0, "price": bar["close"],
          "sl": bar["close"] - 0.0040, "reason": "breakout"}]
 ```
 
-**Only those eight keys are read.** Anything else — `quantity`, `stop_loss`,
-`take_profit`, `qty`, `sl_price` — is silently ignored by the engine, so a typo
-becomes a silently missing stop loss. `validate-strategy` reports unknown keys
-as `SIGNAL_FIELD_UNKNOWN`.
+**Only those eight keys are allowed.** Anything else — `quantity`, `stop_loss`,
+`take_profit`, `qty`, `sl_price` — fails the run at that bar with
+`SIGNAL_FIELD_UNKNOWN`; `exc.details` names the `field`, a `suggestion`
+(`stop_loss` → `sl`) and the `allowed` keys.
 
 Never return a bare signal dict (`{"direction": ...}` without the `signals`
-envelope) and never return `None`: both are ignored by the engine and look like
-"the strategy did not trade". Return `[]` for no action.
+envelope), `None` (e.g. a path with no `return`), or a dict without a
+`signals` list: the run fails at that bar with `STRATEGY_RETURN_INVALID`.
+Return `[]` for no action.
 
 ## 5. `bar`, `portfolio`, `history`
 
-* `bar` — dict: `timestamp` (RFC 3339 str), `open`, `high`, `low`, `close`,
+* `bar` — dict: `timestamp`, `timestamp_ms`, `open`, `high`, `low`, `close`,
   `volume` (float or `None`). Use `bar["close"]`, not `bar.close`.
+  `timestamp` is always the canonical UTC string
+  `YYYY-MM-DDTHH:MM:SS[.f…]+00:00` (fractional seconds only when non-zero), whatever form the input used (an input
+  `2025-06-01T00:05:00Z` is presented as `2025-06-01T00:05:00+00:00`).
+  `timestamp_ms` is the integer epoch milliseconds — **join external data on
+  `timestamp_ms` (or a parsed datetime), never on the raw input string.**
 * `portfolio` — dict: `balance`, `equity`, `used_margin`, `free_margin`,
   `has_open_position`, `unrealised_pnl`, `open_positions`.
-* `history` — list of **strictly prior** bar dicts. No lookahead is possible.
-  It is empty on the first bar and unbounded (all prior bars), not a window.
+* `history` — a read-only, list-like sequence of the **strictly prior** bar
+  dicts. No lookahead is possible. It is empty on the first bar and holds all
+  prior bars (not a window). It supports `len`, `history[-1]`, slices such as
+  `history[-20:]` (which return lists), iteration and `list(history)`; it
+  cannot be mutated. Providing it costs O(1) per bar, so long intraday runs
+  are fine.
 
 ```python
 if len(history) < self.period:      # always guard warm-up
@@ -203,8 +213,11 @@ Exit codes: `0` valid, `1` invalid strategy, `2` usage/setup error. With
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Run completes, zero trades | returned a bare dict or `None` | return a list or the `signals` envelope |
-| Stop loss never applied | used `stop_loss` as an input key | signal inputs are `sl`/`tp` |
+| `STRATEGY_RETURN_INVALID` | returned a bare dict, `None` or a dict without `signals` | return a list or the `signals` envelope |
+| `SIGNAL_FIELD_UNKNOWN` | used `stop_loss`/`quantity`/… as an input key | signal inputs are `sl`/`tp`/`size` (see `exc.details["suggestion"]`) |
+| Run completes, zero trades | every order rejected (often margin) | read `order_rejected` events / `inspect_run(dir).rejections()` |
+| External signals never match | joined on the timestamp *string* | join on `bar["timestamp_ms"]` |
+| `DATA_INVALID` | NaN/inf, broken OHLC, timezone-less or millisecond timestamps | fix the row named in `exc.details["row"]` |
 | `KeyError: 'position_id'` | read the wrong output key | use `pos["position_id"]` or `pos["ticket"]` |
 | Close never happens | used `pos["direction"] == "buy"` | output casing is `"Buy"` |
 | `IndexError` on early bars | indexed `history` without a warm-up guard | `if len(history) < period: return []` |

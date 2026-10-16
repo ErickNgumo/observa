@@ -107,13 +107,12 @@ python python/tests/test_canonical_baseline.py
 | total_return_pct | -22.629999999997935 |
 | max_drawdown_pct | 35.615097026881344 |
 | max_drawdown_start / end | 2024-01-01T11:45:00Z / 2024-01-11T21:30:00Z |
-| sharpe_ratio | -0.4797045550240251 |
-| calmar_ratio | -0.1184558643823262 |
+| sharpe_ratio / calmar_ratio / annualised_return_pct | unavailable (`null` + reason): 15-minute bars without `bars_per_year` are not annualised (metrics schema 2; 0.1.x reported -0.4797 / -0.1185 / -4.22 by treating the bars as daily). Values with an explicit factor are pinned independently by `test_metrics_fixtures.py`. |
 | total / winning / losing trades | 47 / 7 / 40 |
 | win_rate_pct | 14.893617021276595 |
 | profit_factor | 0.6987060998151756 |
 | expectancy | -48.5531914893576 |
-| metrics digest (supplemental) | `6c23dc6c0c0630e66bd21290c47f48bb00ac6612d66b2b7047df7a191ea77b44` |
+| metrics digest (supplemental, schema 2) | `1211eff1d5d26d0b2980959dd4f0673ea28c0dd19aa0604f57d540bc72f04f83` |
 
 `orders` (88) counts strategy-submitted orders; protective `StopLoss` exits
 appear as additional `fills` (95) and as `position_closed` events with

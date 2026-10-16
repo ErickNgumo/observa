@@ -24,6 +24,8 @@ jobs:
         run: |
           node python/tests/replay.test.js
           node python/tests/drawings.test.js
+          node python/tests/metrics_panel.test.js
+          node python/tests/workspace.test.js
       - name: Build wheel
         run: |
           python -m pip install maturin
@@ -32,6 +34,8 @@ jobs:
         run: |
           python -m venv .ci-venv
           .ci-venv/bin/pip install python/target/wheels/*.whl
+          # Test-only dependency for the property-based trust checks.
+          .ci-venv/bin/pip install "hypothesis>=6,<7"
           .ci-venv/bin/python python/tests/test_observa.py
           .ci-venv/bin/python python/tests/test_canonical_baseline.py
           .ci-venv/bin/python python/tests/test_annotations.py
@@ -45,6 +49,24 @@ jobs:
         run: .ci-venv/bin/python python/tests/test_inspection.py
       - name: Strategy reason schema tests
         run: .ci-venv/bin/python python/tests/test_strategy_reason.py
+      # OBS-TRUST-01/02: silent intent loss at the Python boundary and
+      # silently accepted market data must fail loudly (property-based).
+      - name: Trust-boundary contract tests
+        run: .ci-venv/bin/python python/tests/test_trust_boundary.py
+      # OBS-TRUST-03 / issue #6: read-only O(1) history; byte-identical
+      # economics vs the 0.1.6 golden digest; linear scaling (ratio gate).
+      - name: History contract + scaling tests
+        run: .ci-venv/bin/python python/tests/test_history_contract.py
+      # No lookahead under future-bar perturbation; byte-identical reruns.
+      - name: Causality and determinism tests
+        run: .ci-venv/bin/python python/tests/test_causality.py
+      # Independent Finance/QA golden ledgers (hand-computed expectations).
+      - name: Golden ledgers (execution and accounting)
+        run: .ci-venv/bin/python harness/finance/golden_ledgers.py
+      # Metrics schema 2: hand-computed fixture + independent re-implementation
+      # of every definition in docs/metrics.md; schema-1 runs still load.
+      - name: Metrics fixtures (independent calculation)
+        run: .ci-venv/bin/python python/tests/test_metrics_fixtures.py
       # OBS-AI-04: the agent authoring contract (bundled spec/guide/gold example,
       # the three-tier validator, the CLI surfaces and the generated docs) must
       # hold against the installed wheel. No extra dependency is needed.
