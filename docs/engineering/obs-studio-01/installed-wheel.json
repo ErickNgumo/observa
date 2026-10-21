@@ -1,0 +1,12 @@
+{
+  "checks": [
+    "installed bundled frontend renders and removes bootstrap token",
+    "project and conversation creation preserve composer input",
+    "authenticated installed API persists project and conversation",
+    "no browser runtime errors",
+    "clean shutdown with live SSE connection"
+  ],
+  "browser_errors": [],
+  "shutdown_seconds": 0.315,
+  "model_calls": 0
+}

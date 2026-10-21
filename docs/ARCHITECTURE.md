@@ -32,6 +32,28 @@ Key ownership rules (verified by integration QA):
 * **Python specifies intent**; execution/portfolio/event semantics are Rust.
 * **Replay is a view.** It consumes canonical events through a pure reducer.
 
+### Studio application boundary (OBS-STUDIO-01)
+
+The approved Linux/Codex prototype adds an orchestration layer above this
+pipeline: a loopback Python application serves the conversation UI, stores
+application history in SQLite, and connects to the native Codex App Server.
+A separate conversation-scoped MCP service prepares research requests; the
+existing read-only `observa mcp` contract is unchanged.
+
+Backtest approval binds a hash of copied source, CSV, configuration and
+environment metadata. A network-isolated Linux worker validates and executes
+that snapshot through the existing Python API and Rust Engine. Studio stores
+references to the resulting canonical run; it does not introduce another
+backtest loop or metric implementation. Application identifiers and chat event
+cursors are separate from deterministic economic identifiers and EventSeq.
+
+The research canvas consumes the existing inspection/replay projections.
+Agent-generated plots and notes are explicitly labeled interpretations and
+never replace canonical financial data. Native provider threads remain owned
+by Codex; SQLite retains their references and presentation history. See
+[Studio setup and limits](STUDIO.md) and the
+[implementation report](engineering/OBS-STUDIO-01.md).
+
 # Observa Architecture
 
 ## 1. Architectural style

@@ -4,6 +4,19 @@ This document is a migration of the **current-state claims in the source knowled
 
 ## Implemented
 
+### Studio development prototype (OBS-STUDIO-01)
+
+- `observa studio`: authenticated loopback Python service and React/TypeScript
+  conversation UI, available with the local build's `[studio]` dependencies.
+- SQLite projects/history/search, native Codex App Server stdio threads,
+  streamed activity, explicit permissions and cancellation.
+- Approval-bound source/data/config snapshots; isolated Linux workers invoke
+  the existing validation and Rust/Python execution path.
+- Canonical metrics, equity, replay and individual trades in a fullscreen-capable
+  research canvas; typed, separately labeled agent artifacts.
+- Existing replay and read-only MCP remain intact. This is a development-branch
+  prototype, not a published release. See [setup and limitations](STUDIO.md).
+
 ### Data
 - CSV OHLCV loader.
 - Timestamp parsing.

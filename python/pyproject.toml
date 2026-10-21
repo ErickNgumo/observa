@@ -27,10 +27,12 @@ classifiers = [
 # installs. Documented installs always use the plain form.
 [project.optional-dependencies]
 mcp = []
+studio = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
 
 [tool.maturin]
 module-name = "observa._observa"
 python-source = "python"
+exclude = ["**/__pycache__/**", "**/*.pyc"]
 
 [project.scripts]
 observa = "observa.cli:main"

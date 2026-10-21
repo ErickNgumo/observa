@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-21",
+  "branch": "obs-studio-mvp",
+  "rust_tests_passed": 292,
+  "python_and_finance_suites": [
+    {
+      "suite": "python/tests/test_agent_contract.py",
+      "exit": 0,
+      "seconds": 2.87
+    },
+    {
+      "suite": "python/tests/test_ai_interface.py",
+      "exit": 0,
+      "seconds": 4.13
+    },
+    {
+      "suite": "python/tests/test_annotations.py",
+      "exit": 0,
+      "seconds": 2.32
+    },
+    {
+      "suite": "python/tests/test_canonical_baseline.py",
+      "exit": 0,
+      "seconds": 0.31
+    },
+    {
+      "suite": "python/tests/test_causality.py",
+      "exit": 0,
+      "seconds": 1.87
+    },
+    {
+      "suite": "python/tests/test_demo.py",
+      "exit": 0,
+      "seconds": 0.41
+    },
+    {
+      "suite": "python/tests/test_deterministic_identity.py",
+      "exit": 0,
+      "seconds": 1.12
+    },
+    {
+      "suite": "python/tests/test_history_contract.py",
+      "exit": 0,
+      "seconds": 1.42
+    },
+    {
+      "suite": "python/tests/test_inspection.py",
+      "exit": 0,
+      "seconds": 4.48
+    },
+    {
+      "suite": "python/tests/test_mcp.py",
+      "exit": 0,
+      "seconds": 66.88
+    },
+    {
+      "suite": "python/tests/test_metrics_fixtures.py",
+      "exit": 0,
+      "seconds": 0.52
+    },
+    {
+      "suite": "python/tests/test_observa.py",
+      "exit": 0,
+      "seconds": 0.27
+    },
+    {
+      "suite": "python/tests/test_onboarding_ai.py",
+      "exit": 0,
+      "seconds": 0.26
+    },
+    {
+      "suite": "python/tests/test_strategy_reason.py",
+      "exit": 0,
+      "seconds": 0.47
+    },
+    {
+      "suite": "python/tests/test_studio.py",
+      "exit": 0,
+      "seconds": 2.37,
+      "note": "Earlier suite; final installed-wheel run has 20 tests. See report."
+    },
+    {
+      "suite": "python/tests/test_trust_boundary.py",
+      "exit": 0,
+      "seconds": 1.07
+    },
+    {
+      "suite": "harness/finance/golden_ledgers.py",
+      "exit": 0,
+      "seconds": 0.22
+    },
+    {
+      "suite": "python/tests/external_smoke.py",
+      "exit": 0,
+      "seconds": 0.16
+    }
+  ],
+  "finance_checks_passed": 616,
+  "studio_tests_passed": 20,
+  "frontend_tests_passed": 3,
+  "legacy_js_suites": [
+    "replay.test.js",
+    "drawings.test.js",
+    "metrics_panel.test.js",
+    "workspace.test.js"
+  ],
+  "npm_production_audit_vulnerabilities": 0,
+  "wheel": {
+    "name": "observa-0.2.0-cp310-abi3-manylinux_2_34_x86_64.whl",
+    "sha256": "ad58b73ad61506d6070c6c591d0b06241164c310c5478f32e29474271c738cde",
+    "studio_static_files": 5,
+    "python_caches_included": false
+  },
+  "additional_live_rerun": {
+    "status": "blocked",
+    "reason": "Codex account usage limit before first backtest",
+    "live_agent_cancellation_check": "not reached"
+  },
+  "provider": "codex-cli 0.154.0"
+}

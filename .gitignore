@@ -38,3 +38,8 @@ python/target/
 
 # Generated run artifacts (examples, demos, replay) are never committed.
 runs/
+
+# Studio build output is packaged into local wheels, generated from studio/.
+studio/node_modules/
+python/python/observa/static/studio/
+/.venv-studio/

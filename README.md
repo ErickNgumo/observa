@@ -1,5 +1,10 @@
 # Observa
 
+**Observa Studio prototype:** a local conversation-first workspace for Codex
+research, approved backtests and interactive results. See
+[Linux setup and usage](docs/STUDIO.md). This development prototype is not yet
+released; the Python, CLI, MCP and replay workflows below remain supported.
+
 **Backtest a trading strategy — then see what actually happened.**
 
 Most backtesting tools give you the final result.

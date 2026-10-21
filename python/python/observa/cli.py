@@ -36,6 +36,7 @@ import sys
 USAGE = (
     "usage: observa <command> [options]\n"
     "commands:\n"
+    "  studio [--port N] [--no-browser]   local conversation-driven research\n"
     "  replay <run-dir> [--port <port>]   replay a persisted canonical run\n"
     "  mcp --runs-dir <path>              read-only MCP inspection server (stdio)\n"
     "  agent-spec [--json] [--out FILE]   print the strategy authoring contract\n"
@@ -85,6 +86,9 @@ def main(argv=None) -> int:
         return 0
 
     command = args.pop(0)
+    if command == "studio":
+        from .studio.cli import main as studio_main
+        return studio_main(args)
     if command == "mcp":
         return _mcp(args)
     if command == "agent-spec":

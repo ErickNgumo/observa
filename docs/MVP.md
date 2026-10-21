@@ -1,5 +1,17 @@
 # Observa MVP
 
+## Approved Studio prototype increment (OBS-STUDIO-01)
+
+The user-approved `obs-studio-mvp` development increment adds a Linux/Codex,
+conversation-first local application: projects, persistent/searchable chat,
+native agent streaming and permissions, approved canonical backtests, linked
+results, interactive replay/trade inspection, research artifacts and restart/
+resume. Trade-row navigation and fullscreen inspection are explicitly in scope
+for this increment, superseding the historical UI exclusion below. Existing
+engine semantics remain unchanged. Other agents, cloud services, environment
+provisioning and the long-term roadmap are deferred. No release is authorized.
+See [Studio](STUDIO.md) and [the task](../agent_system/tickets/OBS-STUDIO-01.md).
+
 ## 1. Purpose
 
 The MVP should prove one complete product loop:

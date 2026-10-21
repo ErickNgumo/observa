@@ -1,0 +1,25 @@
+test_artifact_rejects_active_content_and_bad_data (test_studio.HttpTests.test_artifact_rejects_active_content_and_bad_data) ... ok
+test_host_origin_auth_and_csrf (test_studio.HttpTests.test_host_origin_auth_and_csrf) ... ok
+test_research_credential_cannot_cross_conversations_or_approve (test_studio.HttpTests.test_research_credential_cannot_cross_conversations_or_approve) ... ok
+test_restart_marks_unfinished_work_interrupted (test_studio.HttpTests.test_restart_marks_unfinished_work_interrupted) ... ok
+test_snapshot_download_is_exact_and_cannot_escape_manifest (test_studio.HttpTests.test_snapshot_download_is_exact_and_cannot_escape_manifest) ... ok
+test_disconnect_fails_pending_requests_and_never_retries (test_studio.ProtocolTests.test_disconnect_fails_pending_requests_and_never_retries) ... ok
+test_interrupt_waits_for_completion_and_declines_pending_permissions (test_studio.ProtocolTests.test_interrupt_waits_for_completion_and_declines_pending_permissions) ... ok
+test_mcp_permission_is_explicit_once_and_uses_native_response (test_studio.ProtocolTests.test_mcp_permission_is_explicit_once_and_uses_native_response) ... ok
+test_resolved_provider_request_cannot_be_approved_later (test_studio.ProtocolTests.test_resolved_provider_request_cannot_be_approved_later) ... ok
+test_unknown_server_request_is_not_silently_approved (test_studio.ProtocolTests.test_unknown_server_request_is_not_silently_approved) ... ok
+test_codex_projection_preserves_stream_and_completion (test_studio.StoreTests.test_codex_projection_preserves_stream_and_completion) ... ok
+test_reopen_search_and_cursor (test_studio.StoreTests.test_reopen_search_and_cursor) ... ok
+test_scope_rejects_traversal_and_symlinks (test_studio.StoreTests.test_scope_rejects_traversal_and_symlinks) ... ok
+test_approval_snapshot_actual_engine_and_determinism (test_studio.WorkerTests.test_approval_snapshot_actual_engine_and_determinism) ... ok
+test_cancel_running_worker (test_studio.WorkerTests.test_cancel_running_worker) ... ok
+test_decline_and_cancel_never_start_a_queued_worker (test_studio.WorkerTests.test_decline_and_cancel_never_start_a_queued_worker) ... ok
+test_nested_strategy_imports_only_snapshotted_support_files (test_studio.WorkerTests.test_nested_strategy_imports_only_snapshotted_support_files) ... ok
+test_tampered_snapshot_rejected (test_studio.WorkerTests.test_tampered_snapshot_rejected) ... ok
+test_validation_error_has_no_success_metrics (test_studio.WorkerTests.test_validation_error_has_no_success_metrics) ... ok
+test_worker_cannot_read_ungranted_files_or_use_network (test_studio.WorkerTests.test_worker_cannot_read_ungranted_files_or_use_network) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 1.464s
+
+OK
