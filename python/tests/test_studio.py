@@ -95,6 +95,20 @@ class StoreTests(TemporaryStore, unittest.TestCase):
         self.assertEqual(self.store.require("conversation", "c")["status"], "idle")
         self.assertIsNone(self.store.require("conversation", "c")["turn_id"])
 
+    def test_command_output_stream_starts_from_null_empty_or_missing_output(self):
+        adapter = Codex(self.store, "c", "http://127.0.0.1:1234")
+        for index, initial in enumerate(({}, {"aggregatedOutput": None}, {"aggregatedOutput": ""})):
+            with self.subTest(initial=initial):
+                identifier = f"command-{index}"
+                adapter._notification("item/started", {"item": {
+                    "id": identifier, "type": "commandExecution", **initial}})
+                expected = ""
+                for chunk in ("project\n", "", "x" * 60000, "\nfinished"):
+                    adapter._notification("item/commandExecution/outputDelta", {
+                        "itemId": identifier, "delta": chunk})
+                    expected = (expected + chunk)[-60000:]
+                    self.assertEqual(self.store.require("item", "c:" + identifier)["aggregatedOutput"], expected)
+
 
 class WorkerTests(TemporaryStore, unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -266,6 +280,43 @@ class ProtocolTests(TemporaryStore, unittest.IsolatedAsyncioTestCase):
             await future
         self.assertEqual(self.store.require("conversation", "c")["status"], "interrupted")
         self.assertEqual(self.sent, [])
+
+    async def test_null_command_output_does_not_disconnect_the_jsonrpc_reader(self):
+        from types import SimpleNamespace
+        reader = asyncio.StreamReader()
+        self.adapter.process = SimpleNamespace(stdout=reader)
+        consumed = asyncio.get_running_loop().create_future()
+        self.adapter.pending[99] = consumed
+        command = {"type": "commandExecution", "id": "exec-1", "command": "pwd",
+                   "aggregatedOutput": None, "exitCode": None, "durationMs": None}
+        messages = [
+            {"method": "turn/started", "params": {"turn": {"id": "turn-1"}}},
+            {"method": "item/started", "params": {"item": command}},
+            {"method": "item/commandExecution/outputDelta", "params": {"itemId": "exec-1", "delta": "/project"}},
+            {"method": "item/commandExecution/outputDelta", "params": {"itemId": "exec-1", "delta": "\n"}},
+            {"method": "item/completed", "params": {"item": {
+                **command, "aggregatedOutput": "/project\n", "exitCode": 0, "durationMs": 12}}},
+            {"method": "item/agentMessage/delta", "params": {"itemId": "reply", "delta": "Ready for approval."}},
+            {"method": "turn/completed", "params": {"turn": {"id": "turn-1", "status": "completed"}}},
+            {"id": 99, "result": {}},
+        ]
+        for message in messages:
+            reader.feed_data((json.dumps(message) + "\n").encode())
+        task = asyncio.create_task(self.adapter._read())
+        try:
+            await asyncio.wait_for(consumed, 1)
+            self.assertFalse(task.done(), "The reader must remain connected after processing output")
+            item = self.store.require("item", "c:exec-1")
+            self.assertEqual(item["aggregatedOutput"], "/project\n")
+            self.assertEqual(item["status"], "completed")
+            self.assertEqual(item["exitCode"], 0)
+            self.assertEqual(self.store.require("item", "c:reply")["text"], "Ready for approval.")
+            self.assertEqual(self.adapter.conv()["status"], "idle")
+            self.assertIsNone(self.adapter.conv().get("error"))
+        finally:
+            self.adapter.closing = True
+            reader.feed_eof()
+            await task
 
     async def test_unknown_server_request_is_not_silently_approved(self):
         await self.adapter._server_request({"id": 9, "method": "future/unrecognized", "params": {}})

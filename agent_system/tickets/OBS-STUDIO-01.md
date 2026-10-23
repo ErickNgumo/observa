@@ -37,3 +37,20 @@ was stopped by the Codex account usage limit before executing a backtest; the
 added live-agent cancellation check remains unverified. Worker cancellation and
 provider interruption protocol are covered by automated tests. See the report
 for exact evidence, verification coverage and deferred features.
+
+## Follow-up: nullable command output (2026-10-23)
+
+User-reported command streaming disconnected with `NoneType + str` when Codex
+sent `item/started` with `aggregatedOutput: null`, then an output delta. The
+adapter used `dict.get(field, "")`, which handles an absent key but returns
+`None` for an explicit JSON null. Treat the initial null as empty output when
+appending text; retain ordered chunks and the existing display-size limit.
+
+Two regression tests failed with the reported exception before the fix and
+passed afterward. They cover null/empty/missing initial output, multiple chunks,
+truncation, and a JSON-RPC reader sequence through command completion, the next
+agent message and turn completion without disconnecting. All 22 Studio tests
+passed with `.venv-dev/bin/python -m unittest discover -s python/tests -p
+test_studio.py -v`. No engine or frontend changes, no model calls needed for
+this deterministic reproduction. Restart the running Studio service to load the
+fix, then reopen the saved conversation and send a new message to resume.

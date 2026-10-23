@@ -281,7 +281,9 @@ class Codex:
                 "status": "running",
             }
             field = "text" if "agentMessage" in method else "aggregatedOutput"
-            item[field] = item.get(field, "") + params.get("delta", "")
+            # Command items can start with aggregatedOutput: null. dict.get's
+            # default only handles missing keys, not this valid pending state.
+            item[field] = (item.get(field) or "") + params.get("delta", "")
             # Bound displayed command output; never truncate assistant research text.
             if field == "aggregatedOutput":
                 item[field] = item[field][-60000:]

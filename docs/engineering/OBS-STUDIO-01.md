@@ -168,3 +168,23 @@ sync and live trading are deferred. Codex must be installed/authenticated with
 available account allowance for new turns. Saved history and results remain
 browsable without model execution. Detailed size/resource limits and local
 permission boundaries are in [STUDIO.md](../STUDIO.md).
+
+## Follow-up fix — command output streaming, 2026-10-23
+
+A user moving-average research request exposed a valid pending command item
+with `aggregatedOutput: null`. The adapter attempted `None + delta` on the first
+output chunk, exiting its JSON-RPC reader with the reported connection error.
+The fix in `studio/codex.py` treats absent/null initial output as empty text when
+appending deltas. It preserves the existing command-output display limit and
+uses the final completed item as authoritative. The
+[App Server event contract](https://learn.chatgpt.com/docs/app-server#events)
+describes optional aggregated output and ordered command-output deltas.
+
+Two new regression tests reproduce the original failure, then pass with the
+fix: nullable/empty/missing initial output with chunk ordering and truncation;
+and an actual adapter JSON-RPC reader consuming start, deltas, completion, a
+subsequent assistant message and turn completion without disconnecting. All
+**22 Studio tests passed** in the development environment. This follow-up did
+not rerun the live model/backtest acceptance workflow or change the engine.
+Existing saved history is retained; restart Studio and send a new message in
+the affected conversation to resume using the corrected adapter.
