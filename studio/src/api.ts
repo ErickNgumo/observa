@@ -44,6 +44,20 @@ export type Snapshot = {
   cursor: number;
 };
 
+export function canStop(snapshot: Snapshot | null): boolean {
+  if (!snapshot) return false;
+  const conversation = snapshot.conversation;
+  return (
+    ["connecting", "running", "stopping"].includes(conversation.status) ||
+    Boolean(conversation.turn_id) ||
+    snapshot.items.some((item) => item.status === "running") ||
+    snapshot.approvals.some((approval) => approval.status === "pending") ||
+    snapshot.experiments.some((job) =>
+      ["awaiting_approval", "queued", "running"].includes(job.status),
+    )
+  );
+}
+
 export function upsert(list: RecordData[], item: RecordData) {
   return list.some((i) => i.id === item.id)
     ? list.map((i) => (i.id === item.id ? item : i))

@@ -1,0 +1,13 @@
+{
+  "checks": [
+    "stop remains available after refresh with interrupted conversation and live process",
+    "stop remains visible without mobile overflow",
+    "browser stop terminates actual owned subprocess and settles tool activity",
+    "stopped state and native thread reference survive refresh",
+    "unreachable stop reports failure and does not claim the process stopped",
+    "stop succeeds after reconnecting",
+    "browser stops real Codex turn and reaps App Server while retaining native thread"
+  ],
+  "browser_errors": [],
+  "real_codex_turn_started": true
+}

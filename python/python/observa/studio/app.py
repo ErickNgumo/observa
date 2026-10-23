@@ -94,12 +94,14 @@ class Studio:
         self.experiments = Experiments(self.store)
         self.agents: dict[str, Codex] = {}
         self.turn_tasks: dict[str, asyncio.Task] = {}
+        self.stop_locks: dict[str, asyncio.Lock] = {}
         self.shutting_down = False
         # Unfinished work is never automatically rerun after a restart.
         for conv in self.store.list("conversation"):
-            if conv.get("status") in ("running", "connecting", "stopping"):
+            if conv.get("status") in ("running", "connecting", "stopping") or conv.get("turn_id"):
                 self.store.put("conversation", {**conv, "status": "interrupted", "turn_id": None,
                     "error": "Studio restarted. Send a message to resume your Codex thread."}, conv["project"])
+            self.store.interrupt_activity(conv["id"])
         for job in self.store.list("experiment"):
             if job["status"] not in TERMINAL:
                 self.experiments.update(job, status="interrupted",
@@ -122,7 +124,8 @@ class Studio:
     async def execute_turn(self, identifier: str, text: str):
         agent = self.agents.get(identifier)
         try:
-            if not agent or not agent.process or agent.process.returncode is not None:
+            if (not agent or agent.closing or not agent.process or agent.process.returncode is not None
+                    or (agent.reader and agent.reader.done())):
                 if agent:
                     await agent.close()
                 agent = Codex(self.store, identifier, self.url)
@@ -141,7 +144,9 @@ class Studio:
 
     def submit(self, identifier: str, text: str):
         conv = self.store.require("conversation", identifier)
-        if any(c["project"] == conv["project"] and c.get("status") in ("connecting", "running", "stopping")
+        if any(c["project"] == conv["project"] and (
+               c.get("status") in ("connecting", "running", "stopping") or
+               (c["id"] in self.stop_locks and self.stop_locks[c["id"]].locked()))
                for c in self.store.list("conversation")):
             raise ValueError("This project already has an active Codex turn. Stop it or wait for it to finish.")
         item = self.store.put("item", {"id": new_id(), "type": "user", "text": text}, identifier)
@@ -153,21 +158,32 @@ class Studio:
         self.turn_tasks[identifier] = asyncio.create_task(self.execute_turn(identifier, text))
 
     async def cancel(self, identifier):
+        self.store.require("conversation", identifier)
+        lock = self.stop_locks.setdefault(identifier, asyncio.Lock())
+        async with lock:
+            await self._cancel(identifier)
+
+    async def _cancel(self, identifier):
+        conv = self.store.require("conversation", identifier)
+        conv = self.store.put("conversation", {**conv, "status": "stopping"}, conv["project"])
+        self.store.emit(identifier, "conversation", conv)
+        task = self.turn_tasks.get(identifier)
+        if task:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
         for job in self.store.list("experiment", identifier):
             if job["status"] not in TERMINAL:
                 await self.experiments.cancel(job["id"])
         agent = self.agents.get(identifier)
-        task = self.turn_tasks.get(identifier)
-        if task and not (agent and agent.conv().get("turn_id")):
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-            if agent:
-                await agent.close()
-                self.agents.pop(identifier, None)
-        elif agent:
+        if agent:
             await agent.cancel()
+            # A stopped conversation reconnects through native thread/resume.
+            # Do not retain a process that may still own an unobserved command.
+            await agent.close()
+            self.agents.pop(identifier, None)
+        self.store.interrupt_activity(identifier)
         conv = self.store.require("conversation", identifier)
-        conv = self.store.put("conversation", {**conv, "status": "idle", "turn_id": None}, conv["project"])
+        conv = self.store.put("conversation", {**conv, "status": "idle", "turn_id": None, "error": None}, conv["project"])
         self.store.emit(identifier, "conversation", conv)
 
     async def close(self):

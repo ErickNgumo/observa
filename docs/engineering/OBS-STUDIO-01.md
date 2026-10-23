@@ -188,3 +188,51 @@ subsequent assistant message and turn completion without disconnecting. All
 not rerun the live model/backtest acceptance workflow or change the engine.
 Existing saved history is retained; restart Studio and send a new message in
 the affected conversation to resume using the corrected adapter.
+
+## Follow-up fix — stop controls and stale activity, 2026-10-23
+
+The conversation status alone controlled the original icon-only stop button.
+After a protocol error, the conversation could be interrupted while tool items
+still said running, hiding Stop and preserving stale spinners on refresh. The
+failed reader also left its App Server process alive. A disconnected browser
+could not distinguish that stale presentation state from continuing execution.
+
+The header now has a labeled **Stop agent** button, enabled for unfinished
+turns, items, approvals or experiments. The composer retains a stop control.
+Offline presentation identifies unknown status, stops animating stale tool
+activity and explains terminal recovery. A failed stop request explicitly says
+it could not confirm cancellation. The UI only returns from **Stopping…** after
+the API has completed cleanup.
+
+Native interruption has a bounded timeout and falls back to terminating the
+adapter's owned process group. Unexpected reader failure closes that process
+instead of leaving it unmanaged. Cleanup clears incomplete tool activity and
+pending permissions, while preserving completed history and native thread IDs.
+Startup also repairs stale items belonging to previously interrupted/error
+conversations. A per-conversation stop lock keeps competing turns out of the
+project until process cleanup finishes. No engine semantics changed.
+
+Final verification passed:
+
+- **28 Studio tests**, including actual subprocess termination on reader failure,
+  broken interrupt transport, dead readers, pending connection cancellation,
+  stale-state recovery and project exclusion during cleanup.
+- **4 frontend tests**, including stop availability after errors and refresh.
+- TypeScript check and Vite production build; the checkout's bundled UI was rebuilt.
+- Chromium browser regression for refresh, mobile visibility, actual subprocess
+  stopping, persisted stopped state and failed-stop/reconnect behavior.
+- **Real Codex browser cancellation**: started a native turn, clicked Stop,
+  confirmed the App Server process exited, the turn cleared, and the native
+  thread ID remained. No backtest or file edit was requested in this check.
+  This completes the live cancellation check deferred by the earlier quota limit.
+
+`harness/studio_stop_review.py` uses isolated temporary application data and a
+disposable subprocess for failure scenarios; `--real-codex` additionally checks
+one actual Codex turn. The original backtest acceptance harness now selects the
+labeled Stop button. Evidence: [browser checks](obs-studio-01/stop-verification.json),
+[mobile Stop control](obs-studio-01/stop-mobile.png),
+[state after Stop](obs-studio-01/stop-after.png).
+
+For an old disconnected tab, restarting Studio and opening its newly printed
+launch link is necessary; refreshing an obsolete port/session cannot load the
+new backend. Existing projects and conversations are retained.

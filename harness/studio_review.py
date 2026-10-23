@@ -243,7 +243,7 @@ def main():
                 page.wait_for_timeout(200)
             else:
                 raise AssertionError("Codex did not start the cancellation test turn.")
-            page.get_by_title("Stop Codex and active backtests", exact=True).click()
+            page.get_by_role("button", name="Stop agent", exact=True).click()
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:
                 cancelled = get("/conversations/" + conversation)

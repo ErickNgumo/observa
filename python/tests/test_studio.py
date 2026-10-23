@@ -10,6 +10,7 @@ import asyncio
 import json
 from pathlib import Path
 import shutil
+import sys
 import tempfile
 import unittest
 
@@ -271,7 +272,7 @@ class ProtocolTests(TemporaryStore, unittest.IsolatedAsyncioTestCase):
     async def test_disconnect_fails_pending_requests_and_never_retries(self):
         from types import SimpleNamespace
         reader = asyncio.StreamReader()
-        self.adapter.process = SimpleNamespace(stdout=reader)
+        self.adapter.process = SimpleNamespace(stdout=reader, returncode=0)
         future = asyncio.get_running_loop().create_future()
         self.adapter.pending[1] = future
         reader.feed_eof()
@@ -284,7 +285,7 @@ class ProtocolTests(TemporaryStore, unittest.IsolatedAsyncioTestCase):
     async def test_null_command_output_does_not_disconnect_the_jsonrpc_reader(self):
         from types import SimpleNamespace
         reader = asyncio.StreamReader()
-        self.adapter.process = SimpleNamespace(stdout=reader)
+        self.adapter.process = SimpleNamespace(stdout=reader, returncode=0)
         consumed = asyncio.get_running_loop().create_future()
         self.adapter.pending[99] = consumed
         command = {"type": "commandExecution", "id": "exec-1", "command": "pwd",
@@ -344,7 +345,99 @@ class ProtocolTests(TemporaryStore, unittest.IsolatedAsyncioTestCase):
         self.adapter._notification("turn/completed", {"turn": {"id": "native-turn", "status": "interrupted"}})
         await asyncio.wait_for(cancellation, 1)
         self.assertIsNone(self.adapter.conv()["turn_id"])
-        self.assertEqual(self.adapter.conv()["status"], "idle")
+        self.assertEqual(self.adapter.conv()["status"], "stopping")
+
+    async def test_reader_failure_terminates_process_and_settles_running_items(self):
+        self.adapter.save(thread_id="native", turn_id="turn", status="running")
+        self.store.put("item", {"id": "c:tool", "type": "commandExecution", "status": "running"}, "c")
+        self.store.put("item", {"id": "c:done", "type": "commandExecution", "status": "completed"}, "c")
+        await self.adapter._server_request({"id": 71, "method": "item/commandExecution/requestApproval", "params": {}})
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, "-u", "-c", "import time; print('invalid JSON'); time.sleep(120)",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, start_new_session=True)
+        self.adapter.process = process
+        self.adapter.owns_process_group = True
+        self.adapter.reader = asyncio.create_task(self.adapter._read())
+        try:
+            await asyncio.wait_for(self.adapter.reader, 10)
+            self.assertIsNotNone(process.returncode)
+            self.assertTrue(self.adapter.closing)
+            self.assertEqual(self.adapter.conv()["status"], "interrupted")
+            self.assertIsNone(self.adapter.conv()["turn_id"])
+            self.assertEqual(self.store.require("item", "c:tool")["status"], "interrupted")
+            self.assertEqual(self.store.require("item", "c:done")["status"], "completed")
+            self.assertEqual(self.store.list("approval", "c")[0]["status"], "expired")
+        finally:
+            await self.adapter.close()
+
+    async def test_stop_after_interrupt_rpc_failure_terminates_process(self):
+        self.adapter.save(thread_id="native", turn_id="turn", status="running")
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, "-c", "import time; time.sleep(120)", start_new_session=True)
+        self.adapter.process = process
+        self.adapter.owns_process_group = True
+        async def broken_request(method, params, timeout):
+            self.assertEqual(method, "turn/interrupt")
+            self.assertLessEqual(timeout, 5)
+            raise RuntimeError("transport unavailable")
+        self.adapter.request = broken_request
+        try:
+            await asyncio.wait_for(self.adapter.cancel(), 10)
+            self.assertIsNotNone(process.returncode)
+        finally:
+            await self.adapter.close()
+
+
+class LifecycleTests(TemporaryStore, unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.setup_store()
+        self.store.close()
+        self.studio = Studio(self.root / "data", "http://testserver")
+        self.store = self.studio.store
+
+    async def asyncTearDown(self):
+        await self.studio.close()
+        self.temp.cleanup()
+
+    async def test_stop_reaps_agent_with_dead_reader_and_keeps_resumable_thread(self):
+        adapter = Codex(self.store, "c", "http://testserver")
+        self.studio.agents["c"] = adapter
+        adapter.save(thread_id="native-thread", turn_id="stale-turn", status="interrupted")
+        self.store.put("item", {"id": "tool", "status": "running", "type": "commandExecution"}, "c")
+        adapter.process = await asyncio.create_subprocess_exec(
+            sys.executable, "-c", "import time; time.sleep(120)", start_new_session=True)
+        adapter.owns_process_group = True
+        adapter.reader = asyncio.create_task(asyncio.sleep(0))
+        await adapter.reader
+        process = adapter.process
+        await asyncio.wait_for(self.studio.cancel("c"), 10)
+        self.assertIsNotNone(process.returncode)
+        self.assertNotIn("c", self.studio.agents)
+        self.assertEqual(adapter.conv()["status"], "idle")
+        self.assertEqual(adapter.conv()["thread_id"], "native-thread")
+        self.assertIsNone(adapter.conv()["turn_id"])
+        self.assertEqual(self.store.require("item", "tool")["status"], "interrupted")
+
+    async def test_stop_cancels_pending_connection_before_it_can_start_a_turn(self):
+        adapter = Codex(self.store, "c", "http://testserver")
+        self.studio.agents["c"] = adapter
+        adapter.save(status="connecting")
+        task = asyncio.create_task(asyncio.sleep(120))
+        self.studio.turn_tasks["c"] = task
+        await self.studio.cancel("c")
+        self.assertTrue(task.cancelled())
+        self.assertNotIn("c", self.studio.agents)
+        self.assertEqual(adapter.conv()["status"], "idle")
+
+    async def test_project_cannot_start_a_turn_until_stop_cleanup_finishes(self):
+        self.store.put("conversation", {"id": "other", "project": "p", "status": "idle"}, "p")
+        self.studio.stop_locks["c"] = asyncio.Lock()
+        # Even if a provider's final event already reported idle, process cleanup
+        # may still be pending. A second tab cannot start a competing turn.
+        async with self.studio.stop_locks["c"]:
+            with self.assertRaisesRegex(ValueError, "active Codex turn"):
+                self.studio.submit("other", "Start another turn")
+        self.assertEqual(self.store.list("item", "other"), [])
 
 
 class HttpTests(unittest.TestCase):
@@ -380,14 +473,38 @@ class HttpTests(unittest.TestCase):
         store.put("conversation", {"id": "c", "project": "p", "status": "running", "thread_id": "native-thread"}, "p")
         store.put("experiment", {"id": "e", "conversation": "c", "status": "running"}, "c")
         store.put("approval", {"id": "a", "conversation": "c", "status": "pending"}, "c")
+        store.put("item", {"id": "tool", "type": "commandExecution", "status": "running"}, "c")
+        store.put("conversation", {"id": "old-error", "project": "p", "status": "interrupted"}, "p")
+        store.put("item", {"id": "stale", "type": "commandExecution", "status": "running"}, "old-error")
         restarted = Studio(Path(self.temp.name) / "data", "http://testserver")
         try:
             self.assertEqual(restarted.store.require("conversation", "c")["status"], "interrupted")
             self.assertEqual(restarted.store.require("conversation", "c")["thread_id"], "native-thread")
             self.assertEqual(restarted.store.require("experiment", "e")["status"], "interrupted")
             self.assertEqual(restarted.store.require("approval", "a")["status"], "expired")
+            self.assertEqual(restarted.store.require("item", "tool")["status"], "interrupted")
+            self.assertEqual(restarted.store.require("item", "stale")["status"], "interrupted")
         finally:
             restarted.store.close()
+
+    def test_stop_clears_stale_activity_even_without_a_live_adapter(self):
+        self.login()
+        store = self.app.state.studio.store
+        store.put("conversation", {"id": "c", "project": "p", "status": "interrupted",
+                  "thread_id": "native", "turn_id": "stale-turn", "error": "old error"}, "p")
+        store.put("item", {"id": "tool", "type": "commandExecution", "status": "running"}, "c")
+        store.put("approval", {"id": "a", "conversation": "c", "status": "pending"}, "c")
+        store.put("experiment", {"id": "e", "conversation": "c", "status": "awaiting_approval"}, "c")
+        response = self.client.post("/api/conversations/c/cancel", json={}, headers={"X-Observa-Request": "1"})
+        self.assertEqual(response.status_code, 200, response.text)
+        snapshot = self.client.get("/api/conversations/c").json()
+        self.assertEqual(snapshot["conversation"]["status"], "idle")
+        self.assertIsNone(snapshot["conversation"]["turn_id"])
+        self.assertIsNone(snapshot["conversation"]["error"])
+        self.assertEqual(snapshot["conversation"]["thread_id"], "native")
+        self.assertEqual(snapshot["items"][0]["status"], "interrupted")
+        self.assertEqual(snapshot["approvals"][0]["status"], "expired")
+        self.assertEqual(snapshot["experiments"][0]["status"], "cancelled")
 
     def test_research_credential_cannot_cross_conversations_or_approve(self):
         studio = self.app.state.studio

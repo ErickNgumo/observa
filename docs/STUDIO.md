@@ -74,9 +74,20 @@ resulting wheel with its `[studio]` extra. No release or upload is needed.
    the conversation and send another message. Studio resumes the native Codex
    thread. History is searchable across projects.
 
-The stop button interrupts Codex and cancels active experiments in that
-conversation. Backtests also have their own cancel button. Interrupted work is
-never automatically rerun after a restart; request a new experiment explicitly.
+**Stop agent** in the conversation header interrupts Codex and cancels active
+experiments in that conversation. A stop control also appears beside the
+composer. Stop remains available when unfinished tool activity survives an
+error or a browser refresh. If Codex cannot acknowledge interruption, Studio
+terminates its owned process instead. The button shows **Stopping…** until
+cleanup finishes. Backtests also have their own cancel button. Interrupted work
+is never automatically rerun after a restart; request a new experiment explicitly.
+
+If the browser says **Connection lost**, it cannot confirm whether the agent is
+running or stop an unreachable service. Press Ctrl+C in Studio's terminal if it
+is still running, launch `observa studio` again, and open the **new launch link**
+printed there. Refreshing an old address is insufficient if the port or session
+token changed. Saved conversations remain available. Restart recovery marks
+stale tool activity as interrupted rather than leaving a spinner running.
 
 `@sample` selects the bundled 200-bar sample. `@demo` selects the longer bundled
 dataset. Both are historical fixtures, not live market feeds. For your own data,
@@ -193,6 +204,11 @@ npm run build --prefix studio
 # Makes real model calls on your existing account and approves only the
 # controlled test strategy and its backtest. No mocked agent interactions.
 python harness/studio_review.py --real-codex --out /tmp/observa-studio-review
+
+# Stop/refresh/disconnect browser regression with disposable subprocesses.
+python harness/studio_stop_review.py --out /tmp/observa-studio-stop
+# Optionally also start and interrupt one real Codex turn:
+python harness/studio_stop_review.py --out /tmp/observa-studio-stop-live --real-codex
 ```
 
 The real-browser harness checks project creation, native permissions, snapshot

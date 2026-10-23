@@ -331,6 +331,23 @@ small {
   gap: 15px;
   flex-shrink: 0;
 }
+.stop-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dce2d5;
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.stop-agent:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.provider-dot.offline {
+  background: #a0a897;
+}
 .provider {
   display: flex;
   align-items: center;

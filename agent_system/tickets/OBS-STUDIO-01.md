@@ -54,3 +54,22 @@ passed with `.venv-dev/bin/python -m unittest discover -s python/tests -p
 test_studio.py -v`. No engine or frontend changes, no model calls needed for
 this deterministic reproduction. Restart the running Studio service to load the
 fix, then reopen the saved conversation and send a new message to resume.
+
+## Follow-up: visible stop and interrupted-session cleanup (2026-10-23)
+
+The reported interrupted command still showed a spinner after refresh, while
+the composer had switched back to Send. Stop availability now accounts for
+unfinished items, approvals, experiments and turn IDs, in addition to active
+conversation status. A labeled **Stop agent** control stays in the header.
+Disconnected UI states explain that stopping cannot be confirmed and provide
+terminal recovery instructions.
+
+Reader failure now closes the adapter's owned process group; bounded native
+interruption falls back to process termination. Stop cancels pending connection
+tasks and experiments, expires permissions, marks unfinished items interrupted,
+clears stale turn/error state and preserves the native thread reference. New
+turns cannot start in that project while stop cleanup holds its lock. Restart
+recovery also settles items from earlier already-interrupted conversations.
+
+Added subprocess lifecycle and browser regressions, plus a real Codex browser
+interruption check. See the engineering report for final verification results.

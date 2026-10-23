@@ -27,6 +27,7 @@ import ReactMarkdown from "react-markdown";
 import {
   api,
   authenticate,
+  canStop,
   type RecordData,
   type Snapshot,
   upsert,
@@ -40,9 +41,12 @@ function Markdown({ text }: { text: string }) {
     <div className="prose">
       <ReactMarkdown
         components={{
-          a: (props) => props.href?.startsWith("/")
-            ? <code title={`Local file: ${props.href}`}>{props.children}</code>
-            : <a {...props} target="_blank" rel="noreferrer" />,
+          a: (props) =>
+            props.href?.startsWith("/") ? (
+              <code title={`Local file: ${props.href}`}>{props.children}</code>
+            ) : (
+              <a {...props} target="_blank" rel="noreferrer" />
+            ),
         }}
       >
         {text}
@@ -51,7 +55,7 @@ function Markdown({ text }: { text: string }) {
   );
 }
 
-function Tool({ item }: { item: RecordData }) {
+function Tool({ item, connected }: { item: RecordData; connected: boolean }) {
   if (["reasoning", "plan"].includes(item.type)) {
     const text = item.text || (item.summary || []).join("\n");
     return text ? (
@@ -74,12 +78,16 @@ function Tool({ item }: { item: RecordData }) {
   return (
     <details className="tool">
       <summary>
-        {item.status === "running" ? (
+        {item.status === "running" && connected ? (
           <LoaderCircle className="spin" size={14} />
         ) : (
           <Code2 size={14} />
         )}
         <span>{title}</span>
+        {item.status === "interrupted" && <small>Interrupted</small>}
+        {item.status === "running" && !connected && (
+          <small>Status unknown</small>
+        )}
         <ChevronDown size={13} />
       </summary>
       <pre>{item.aggregatedOutput || JSON.stringify(item, null, 2)}</pre>
@@ -293,7 +301,12 @@ function Experiment({
           <details className="event-detail">
             <summary>Review strategy source</summary>
             <pre>{job.source_preview}</pre>
-            {job.source_truncated && <p className="note">Preview truncated. Download the complete snapshot file below to review it.</p>}
+            {job.source_truncated && (
+              <p className="note">
+                Preview truncated. Download the complete snapshot file below to
+                review it.
+              </p>
+            )}
           </details>
           <details className="event-detail">
             <summary>Review configuration & snapshot</summary>
@@ -301,7 +314,18 @@ function Experiment({
           </details>
           <details className="event-detail">
             <summary>Download exact source, support files & data</summary>
-            <ul>{Object.keys(job.manifest.hashes).map(file => <li key={file}><a href={`/api/experiments/${job.id}/snapshot?file=${encodeURIComponent(file)}`} download>{file}</a></li>)}</ul>
+            <ul>
+              {Object.keys(job.manifest.hashes).map((file) => (
+                <li key={file}>
+                  <a
+                    href={`/api/experiments/${job.id}/snapshot?file=${encodeURIComponent(file)}`}
+                    download
+                  >
+                    {file}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </details>
           <div className="card-actions">
             <button disabled={busy} onClick={() => decide(false)}>
@@ -377,6 +401,7 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [ready, setReady] = useState(false);
   const [connected, setConnected] = useState(true);
+  const [stopping, setStopping] = useState(false);
   const [sidebar, setSidebar] = useState(window.innerWidth > 700);
   const [projectModal, setProjectModal] = useState(false);
   const [name, setName] = useState("");
@@ -392,6 +417,7 @@ export default function App() {
   const pinned = useRef(true);
   const project = projects.find((p) => p.id === projectId);
   const running = active(snapshot?.conversation.status || "");
+  const stoppable = canStop(snapshot);
 
   const refresh = async (search = query) => {
     const state = await api("/state?q=" + encodeURIComponent(search));
@@ -471,7 +497,12 @@ export default function App() {
           });
         };
       })
-      .catch((e) => !disposed && setError(e.message));
+      .catch((e) => {
+        if (!disposed) {
+          setConnected(false);
+          setError(e.message);
+        }
+      });
     return () => {
       disposed = true;
       events?.close();
@@ -487,6 +518,24 @@ export default function App() {
       await api(route, body);
     } catch (e: any) {
       setError(e.message);
+    }
+  };
+  const stop = async () => {
+    if (!conversationId || stopping) return;
+    const id = conversationId;
+    setStopping(true);
+    setError("");
+    try {
+      await api(`/conversations/${id}/cancel`, {});
+      const data = await api(`/conversations/${id}`);
+      setSnapshot((old) => (old?.conversation.id === id ? data : old));
+      setConversations((list) => upsert(list, data.conversation));
+    } catch (e: any) {
+      setError(
+        `Stop could not be confirmed: ${e.message}. If Studio is unreachable, press Ctrl+C in its terminal, then reopen the launch link.`,
+      );
+    } finally {
+      setStopping(false);
     }
   };
   const newConversation = async (pid = projectId) => {
@@ -519,7 +568,8 @@ export default function App() {
   };
   const send = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (!input.trim() || submitting || running) return;
+    if (!input.trim() || submitting || stoppable || stopping || !connected)
+      return;
     if (!projectId) {
       setProjectModal(true);
       return;
@@ -708,9 +758,29 @@ export default function App() {
             <b>{snapshot?.conversation.title || "New research"}</b>
           </span>
           <div className="topbar-right">
+            {snapshot && (
+              <button
+                className="stop-agent"
+                type="button"
+                onClick={stop}
+                disabled={!stoppable || stopping}
+                aria-label="Stop agent"
+                title="Stop Codex and active backtests"
+              >
+                {stopping ? (
+                  <LoaderCircle className="spin" size={14} />
+                ) : (
+                  <Square size={13} />
+                )}
+                {stopping ? "Stopping…" : "Stop agent"}
+              </button>
+            )}
             <span className="provider">
-              <span className="provider-dot" />
-              Codex <span className="provider-mode">Local session</span>
+              <span className={`provider-dot ${!connected ? "offline" : ""}`} />
+              Codex{" "}
+              <span className="provider-mode">
+                {connected ? "Local session" : "Disconnected"}
+              </span>
             </span>
             {snapshot?.experiments.some((j) => j.status === "completed") && (
               <button
@@ -763,7 +833,9 @@ export default function App() {
         )}
         {!connected && (
           <div className="notice">
-            Connection lost. Reconnecting to your local workspace…
+            Connection lost. Agent status cannot be confirmed. Reconnecting… If
+            Studio has stopped, reopen its launch link. To stop it from the
+            terminal, press Ctrl+C.
           </div>
         )}
         <div className={`workspace-body ${selected ? "with-canvas" : ""}`}>
@@ -846,7 +918,7 @@ export default function App() {
                             <Markdown text={value.text || ""} />
                           </div>
                         ) : (
-                          <Tool item={value} />
+                          <Tool item={value} connected={connected} />
                         ))}
                       {type === "approval" && (
                         <Approval
@@ -883,12 +955,14 @@ export default function App() {
                       )}
                     </div>
                   ))}
-                  {running && (
+                  {running && connected && (
                     <div className="agent-working">
                       <span className="breathing-dot" />
-                      {snapshot?.conversation.status === "connecting"
-                        ? "Connecting to Codex…"
-                        : "Codex is working"}
+                      {stopping || snapshot?.conversation.status === "stopping"
+                        ? "Stopping Codex…"
+                        : snapshot?.conversation.status === "connecting"
+                          ? "Connecting to Codex…"
+                          : "Codex is working"}
                       {snapshot?.conversation.model && (
                         <small>{snapshot.conversation.model}</small>
                       )}
@@ -924,14 +998,14 @@ export default function App() {
                   </span>
                   <div>
                     <span className="composer-provider">Codex</span>
-                    {running ? (
+                    {stoppable ? (
                       <button
                         type="button"
                         className="send-button stop"
                         title="Stop Codex and active backtests"
-                        onClick={() =>
-                          act(`/conversations/${conversationId}/cancel`, {})
-                        }
+                        aria-label="Stop research"
+                        disabled={stopping}
+                        onClick={stop}
                       >
                         <Square size={15} fill="currentColor" />
                       </button>
@@ -939,7 +1013,13 @@ export default function App() {
                       <button
                         className="send-button"
                         title="Send message"
-                        disabled={!input.trim() || submitting || !ready}
+                        disabled={
+                          !input.trim() ||
+                          submitting ||
+                          !ready ||
+                          !connected ||
+                          stopping
+                        }
                       >
                         {submitting ? (
                           <LoaderCircle size={17} className="spin" />
@@ -971,7 +1051,15 @@ export default function App() {
                 onKeyDown={(event) => {
                   if (["ArrowLeft", "ArrowRight"].includes(event.key)) {
                     event.preventDefault();
-                    setCanvasWidth(width => Math.min(window.innerWidth - 430, Math.max(440, width + (event.key === "ArrowLeft" ? 30 : -30))));
+                    setCanvasWidth((width) =>
+                      Math.min(
+                        window.innerWidth - 430,
+                        Math.max(
+                          440,
+                          width + (event.key === "ArrowLeft" ? 30 : -30),
+                        ),
+                      ),
+                    );
                   }
                 }}
                 onPointerDown={drag}

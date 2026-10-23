@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { upsert, number } from '../src/api.ts';
+import { upsert, number, canStop } from '../src/api.ts';
 
 test('replayed SSE updates replace streamed items without duplicating history', () => {
   let items = [{ id: 'user', text: 'Research', created: 1 }, { id: 'reply', text: 'Part', created: 2 }];
@@ -25,4 +25,19 @@ test('unavailable canonical metrics never become invented zeroes', () => {
   assert.equal(number(-12.5), '-12.5');
   assert.notEqual(number(0.00199979), '0');
   assert.notEqual(number(0.00000001), '0');
+});
+
+test('stop remains available for stale activity after a conversation error or refresh', () => {
+  const idle = { conversation: { id: 'c', status: 'idle' }, items: [], experiments: [], approvals: [] };
+  assert.equal(canStop(null), false);
+  assert.equal(canStop(idle), false);
+  for (const status of ['connecting', 'running', 'stopping']) {
+    assert.equal(canStop({ ...idle, conversation: { id: 'c', status } }), true);
+  }
+  const stale = { ...idle, conversation: { id: 'c', status: 'interrupted' }, items: [{ status: 'running' }] };
+  assert.equal(canStop(JSON.parse(JSON.stringify(stale))), true);
+  assert.equal(canStop({ ...stale, items: [{ status: 'interrupted' }] }), false);
+  assert.equal(canStop({ ...idle, conversation: { id: 'c', status: 'error', turn_id: 'old-turn' } }), true);
+  assert.equal(canStop({ ...idle, approvals: [{ status: 'pending' }] }), true);
+  assert.equal(canStop({ ...idle, experiments: [{ status: 'awaiting_approval' }] }), true);
 });

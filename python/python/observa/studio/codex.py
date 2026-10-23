@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import secrets
 import shutil
+import signal
 import sys
 
 from .store import Store, encoded, new_id
@@ -50,6 +51,7 @@ class Codex:
         self.on_exit = on_exit
         self.turn_done = asyncio.Event()
         self.turn_done.set()
+        self.owns_process_group = False
 
     async def start(self):
         binary = shutil.which(os.environ.get("OBSERVA_CODEX_BIN", "codex"))
@@ -60,7 +62,9 @@ class Codex:
             binary, "app-server", "--listen", "stdio://",
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE, cwd=project["path"], limit=8 * 1024**2,
+            start_new_session=True,
         )
+        self.owns_process_group = True
         self.reader = asyncio.create_task(self._read())
         self.stderr_task = asyncio.create_task(self._stderr())
         await self.request("initialize", {
@@ -126,7 +130,7 @@ class Codex:
         return value
 
     async def send(self, value):
-        if not self.process or self.process.returncode is not None:
+        if self.closing or not self.process or self.process.returncode is not None:
             raise RuntimeError("Codex connection is closed.")
         self.process.stdin.write((encoded(value) + "\n").encode())
         await self.process.stdin.drain()
@@ -169,15 +173,18 @@ class Codex:
     async def cancel(self):
         conv = self.conv()
         self.save(status="stopping")
-        if conv.get("turn_id"):
-            await self.request("turn/interrupt", {
-                "threadId": conv["thread_id"], "turnId": conv["turn_id"]})
-        for identifier in list(self.approvals):
-            if identifier in self.approvals:
-                await self.decide(identifier, False)
+        if self.closing or (self.reader and self.reader.done()) or not conv.get("turn_id"):
+            await self.close()
+            return
         try:
+            await self.request("turn/interrupt", {
+                "threadId": conv["thread_id"], "turnId": conv["turn_id"]}, timeout=5)
+            for identifier in list(self.approvals):
+                if identifier in self.approvals:
+                    await self.decide(identifier, False)
             await asyncio.wait_for(self.turn_done.wait(), timeout=10)
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, RuntimeError, OSError):
+            # An unresponsive/broken transport must not disable the stop action.
             await self.close()
 
     async def decide(self, identifier, approved, answers=None):
@@ -227,8 +234,13 @@ class Codex:
         except Exception as exc:
             failure = f"Codex connection failed: {exc}"
         finally:
+            unexpected = not self.closing
+            if unexpected:
+                # No reader means no approvals or reliable turn control. Stop
+                # our owned process before reporting this session interrupted.
+                await self.close()
             self.turn_done.set()
-            for future in self.pending.values():
+            for future in list(self.pending.values()):
                 if not future.done():
                     future.set_exception(RuntimeError(failure))
             for identifier in self.approvals:
@@ -236,8 +248,8 @@ class Codex:
                 approval = self.store.put("approval", {**approval, "status": "expired"}, self.conversation)
                 self.store.emit(self.conversation, "approval", approval)
             self.approvals.clear()
-            if not self.closing:
-                self.save(status="interrupted", error=failure)
+            if unexpected:
+                self.save(status="interrupted", turn_id=None, error=failure)
                 if self.on_exit:
                     self.on_exit(self)
 
@@ -296,7 +308,10 @@ class Codex:
             self.turn_done.set()
             turn = params["turn"]
             error = turn.get("error")
-            self.save(status="error" if error else "idle", turn_id=None,
+            self.store.interrupt_activity(self.conversation)
+            self.approvals.clear()
+            self.save(status="stopping" if self.conv().get("status") == "stopping" else
+                      "error" if error else "idle", turn_id=None,
                       error=error.get("message", str(error)) if error else None)
         elif method == "error":
             error = params.get("error", {})
@@ -311,13 +326,36 @@ class Codex:
 
     async def close(self):
         self.closing = True
-        if self.process and self.process.returncode is None:
-            self.process.terminate()
+        process = self.process
+        if process and process.returncode is None:
             try:
-                await asyncio.wait_for(self.process.wait(), 5)
+                if self.owns_process_group:
+                    os.killpg(process.pid, signal.SIGTERM)
+                else:
+                    process.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(process.wait(), 5)
             except asyncio.TimeoutError:
-                self.process.kill()
-                await self.process.wait()
+                try:
+                    if self.owns_process_group:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    else:
+                        process.kill()
+                except ProcessLookupError:
+                    pass
+                await process.wait()
+        # Also reap same-group descendants if the parent exited first. Only
+        # groups created by this adapter are ever signalled.
+        if process and self.owns_process_group:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            self.owns_process_group = False
         for task in (self.reader, self.stderr_task):
-            if task:
+            if task and task is not asyncio.current_task():
                 await asyncio.gather(task, return_exceptions=True)
+        self.store.interrupt_activity(self.conversation)
+        self.approvals.clear()

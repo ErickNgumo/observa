@@ -95,6 +95,15 @@ class Store:
         )
         return [dict(seq=r[0], type=r[1], data=json.loads(r[2])) for r in rows]
 
+    def interrupt_activity(self, conversation: str):
+        """Settle presentation state when no provider can finish these items."""
+        for kind, pending, finished in (("item", "running", "interrupted"),
+                                        ("approval", "pending", "expired")):
+            for value in self.list(kind, conversation):
+                if value.get("status") == pending:
+                    value = self.put(kind, {**value, "status": finished}, conversation)
+                    self.emit(conversation, kind, value)
+
     def search(self, query: str) -> list[str]:
         # Treat input as literal words, never as FTS syntax.
         terms = ['"' + word.replace('"', '""') + '"' for word in query.split()[:20]]
