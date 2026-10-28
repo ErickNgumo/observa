@@ -251,4 +251,33 @@ function bar(t, instructions) { return instructions; }
   ok('renderer contract: every pane view renderer implements draw()');
 }
 
+
+
+// Shared renderer instances must not remove each other's indicators.
+{
+  function chartFixture() {
+    const series = new Set(), primitives = new Set();
+    const chart = {
+      addSeries() { const s = { setData(data) { this.data = data; }, applyOptions() {} }; series.add(s); return s; },
+      removeSeries(s) { assert(series.has(s), 'remove only owned series'); series.delete(s); },
+      panes() { return []; },
+    };
+    const candle = { attachPrimitive(p) { primitives.add(p); }, detachPrimitive(p) { assert(primitives.has(p)); primitives.delete(p); } };
+    const LC = { LineStyle: { Dashed: 2, Dotted: 1, Solid: 0 }, LineSeries: {}, HistogramSeries: {} };
+    return { layer: Renderer.create(chart, candle, LC), series, primitives };
+  }
+  const a = chartFixture(), b = chartFixture();
+  const state = Drawings.fold([[{ id: 'sma', type: 'series', value: 1.2 }, { id: 'level', type: 'hline', price: 1.1 }]], 0, times);
+  a.layer.apply(state); b.layer.apply(state);
+  assert.equal(a.series.size, 1); assert.equal(b.series.size, 1);
+  a.layer.apply(state, { visible: false });
+  assert.equal(a.series.size, 0); assert.equal(a.primitives.size, 0);
+  assert.equal(b.series.size, 1); assert.equal(b.primitives.size, 1);
+  a.layer.apply(state, { visible: true });
+  assert.equal(a.series.size, 1);
+  b.layer.clear();
+  assert.equal(a.series.size, 1); assert.equal(b.series.size, 0);
+  ok('renderer instances isolate indicators, visibility toggles and cleanup');
+}
+
 console.log('\n' + passed + ' drawing test groups passed');

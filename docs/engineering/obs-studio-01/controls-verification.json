@@ -1,0 +1,21 @@
+{
+  "checks": [
+    "real isolated engine produced the annotated trade fixture",
+    "clicking a trade opens replay at its canonical exit and focuses the trade",
+    "recorded price indicator and separate histogram pane render",
+    "trade entry jump preserves canonical bar identity",
+    "speed selection changes actual playback rate",
+    "backward replay does not display future indicator samples",
+    "trade explorer retains fullscreen",
+    "legacy replay still renders shared drawing primitives and indicators",
+    "slash model menu reads the real installed Codex model catalog",
+    "full access requires explicit confirmation",
+    "model, plan mode and automatic review persist across browser refresh",
+    "real Codex turn accepts selected model, effort, Plan and native automatic review",
+    "changing mode and permissions resumes the same real native thread",
+    "settings changes do not duplicate experiments",
+    "browser reports no JavaScript errors"
+  ],
+  "errors": [],
+  "real_codex": true
+}

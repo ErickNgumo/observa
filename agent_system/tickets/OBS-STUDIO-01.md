@@ -73,3 +73,25 @@ recovery also settles items from earlier already-interrupted conversations.
 
 Added subprocess lifecycle and browser regressions, plus a real Codex browser
 interruption check. See the engineering report for final verification results.
+
+## Follow-up: replay parity and Codex chat controls (2026-10-28)
+
+User review identified fixed-speed playback, missing indicator/drawing rendering,
+weak chart focus on trade selection, and inaccessible model/mode/permission
+controls. Restore these within the existing Studio and canonical replay boundary.
+
+Implemented: replay speeds and bar stepping, independent drawing/marker/position
+level toggles, follow/fit navigation, trade selection highlight and range focus.
+The original drawing renderer now supports isolated chart instances and retains
+its legacy global entry points. No financial calculation or engine change.
+
+Added native model/effort and collaboration mode discovery, per-conversation
+settings, slash-command UI, native automatic review and sandbox permission
+presets, plus session and proposed-rule approval decisions. Full access requires
+explicit user confirmation. Managed Codex restrictions are checked and the
+provider remains authoritative; immutable backtest approval stays separate.
+Settings changes preserve native thread IDs and are blocked during project work.
+No additional agent harness, paid dependency, release or publication.
+
+Verification and remaining boundaries are recorded in
+`docs/engineering/OBS-STUDIO-01.md` and `docs/STUDIO.md`.

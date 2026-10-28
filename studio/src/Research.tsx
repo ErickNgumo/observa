@@ -19,13 +19,19 @@ import {
   X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import * as LC from "lightweight-charts";
+import { executionMarkers, replayDelays, tradeRange } from "./replay";
 import { api, number, type RecordData } from "./api";
 // Reuse the existing, regression-tested canonical event projection.
 import "../../python/python/observa/static/js/replay-core.js";
+import "../../python/python/observa/static/js/drawing-state.js";
+import "../../python/python/observa/static/js/drawing-renderer.js";
 
 declare global {
   interface Window {
     ObservaReplay: any;
+    ObservaDrawings: any;
+    ObservaDrawingRenderer: any;
   }
 }
 const timestamp = (value: string) =>
@@ -38,6 +44,15 @@ function Chart({
   equity = false,
   selected,
   select,
+  drawings = [],
+  annotations = true,
+  markers = true,
+  levels = [],
+  position,
+  following = false,
+  unfollow,
+  focus = 0,
+  fit = 0,
 }: {
   bars: any[];
   events: any[];
@@ -45,14 +60,36 @@ function Chart({
   equity?: boolean;
   selected: string | null;
   select: (bar: number) => void;
+  drawings?: any[];
+  annotations?: boolean;
+  markers?: boolean;
+  levels?: any[];
+  position?: any;
+  following?: boolean;
+  unfollow?: () => void;
+  focus?: number;
+  fit?: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState("");
-  const chartRef = useRef<any>(null);
-  const seriesRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const selectRef = useRef(select);
+  const chartRef = useRef<any>(null),
+    seriesRef = useRef<any>(null),
+    markerRef = useRef<any>(null);
+  const layerRef = useRef<any>(null),
+    highlightRef = useRef<any>(null),
+    priceLines = useRef<any[]>([]);
+  const selectRef = useRef(select),
+    unfollowRef = useRef(unfollow);
+  const lastFocus = useRef<string>(""),
+    lastFit = useRef(-1);
   selectRef.current = select;
+  unfollowRef.current = unfollow;
+  const times = useMemo(() => bars.map((b) => timestamp(b.time)), [bars]);
+  const drawingState = useMemo(
+    () => window.ObservaDrawings.fold(drawings, cursor, times),
+    [drawings, cursor, times],
+  );
+  const legend = window.ObservaDrawings.summary(drawingState);
   useEffect(() => {
     const chart = createChart(container.current!, {
       autoSize: true,
@@ -87,33 +124,52 @@ function Chart({
         });
     chartRef.current = chart;
     seriesRef.current = series;
-    if (!equity) markerRef.current = createSeriesMarkers(series, []);
+    if (!equity) {
+      markerRef.current = createSeriesMarkers(series, []);
+      layerRef.current = window.ObservaDrawingRenderer.create(
+        chart,
+        series,
+        LC,
+      );
+    }
     chart.subscribeClick((param) => {
       if (typeof param.time === "number") {
-        const index = bars.findIndex((b) => timestamp(b.time) === param.time);
-        if (index >= 0) selectRef.current(index);
+        const i = times.indexOf(param.time as UTCTimestamp);
+        if (i >= 0) selectRef.current(i);
       }
     });
     chart.subscribeCrosshairMove((param) => {
-      const datum: any = param.seriesData.get(series);
+      const data: any = param.seriesData.get(series);
       setHover(
-        datum
+        data
           ? equity
-            ? `Equity ${number(datum.value)}`
-            : `O ${number(datum.open, 5)}   H ${number(datum.high, 5)}   L ${number(datum.low, 5)}   C ${number(datum.close, 5)}`
+            ? `Equity ${number(data.value)}`
+            : `O ${number(data.open, 5)}  H ${number(data.high, 5)}  L ${number(data.low, 5)}  C ${number(data.close, 5)}`
           : "",
       );
     });
+    const host = container.current!;
+    const manual = () => unfollowRef.current?.();
+    host.addEventListener("wheel", manual, { passive: true });
+    host.addEventListener("pointerdown", manual);
+    lastFocus.current = "";
+    lastFit.current = -1;
     return () => {
+      host.removeEventListener("wheel", manual);
+      host.removeEventListener("pointerdown", manual);
       chart.remove();
-      chartRef.current = null;
+      layerRef.current = null;
+      highlightRef.current = null;
+      priceLines.current = [];
     };
-  }, [equity, bars]);
+  }, [bars, equity]);
   useEffect(() => {
-    if (!seriesRef.current) return;
-    const range = chartRef.current.timeScale().getVisibleLogicalRange();
+    const chart = chartRef.current,
+      series = seriesRef.current;
+    if (!series) return;
+    const range = chart.timeScale().getVisibleLogicalRange();
     if (equity) {
-      seriesRef.current.setData(
+      series.setData(
         events
           .filter(
             (e) => e.type === "portfolio_snapshot" && e.bar_index <= cursor,
@@ -121,35 +177,94 @@ function Chart({
           .map((e) => ({ time: timestamp(e.timestamp), value: e.equity })),
       );
     } else {
-      seriesRef.current.setData(
-        bars
-          .slice(0, cursor + 1)
-          .map((b) => ({ ...b, time: timestamp(b.time) })),
-      );
+      const candles = bars.slice(0, cursor + 1).map((b, i) => {
+        const color = annotations
+          ? drawingState.barColors[times[i]]
+          : undefined;
+        return {
+          ...b,
+          time: times[i],
+          ...(color ? { color, wickColor: color, borderColor: color } : {}),
+        };
+      });
+      series.setData(candles);
+      const layer = layerRef.current;
+      layer.setCandles(candles);
+      layer.apply(drawingState, { visible: annotations });
+      const canonical = markers
+        ? executionMarkers(events, bars, cursor, selected)
+        : [];
+      const strategy = layer.drawingMarkersFor(drawingState, annotations);
       markerRef.current.setMarkers(
-        events
-          .filter(
-            (e) =>
-              (e.type === "position_opened" || e.type === "position_closed") &&
-              e.bar_index <= cursor,
-          )
-          .map((e) => ({
-            time: timestamp(bars[e.bar_index].time),
-            position: e.type === "position_opened" ? "belowBar" : "aboveBar",
-            color: e.position_id === selected ? "#9b5bcb" : "#178363",
-            shape: e.type === "position_opened" ? "arrowUp" : "arrowDown",
-            text:
-              e.position_id === selected
-                ? e.type === "position_opened"
-                  ? "Entry"
-                  : "Exit"
-                : "",
-          })),
+        [...canonical, ...strategy].sort((a, b) => a.time - b.time),
       );
+      for (const line of priceLines.current) series.removePriceLine(line);
+      priceLines.current = [];
+      for (const p of levels)
+        for (const [field, title, color] of [
+          ["entry_price", "Entry", "#448a72"],
+          ["stop_loss", "SL", "#c35449"],
+          ["take_profit", "TP", "#4386b4"],
+        ]) {
+          if (typeof p[field] === "number")
+            priceLines.current.push(
+              series.createPriceLine({
+                price: p[field],
+                title,
+                color,
+                lineWidth: 1,
+                lineStyle: LC.LineStyle.Dashed,
+                axisLabelVisible: true,
+              }),
+            );
+        }
+      if (highlightRef.current) layer.removePrimitive(highlightRef.current);
+      highlightRef.current =
+        position && position.opened_bar <= cursor
+          ? layer.createPrimitive({
+              type: "region",
+              time_start: bars[position.opened_bar].time,
+              time_end:
+                bars[Math.min(position.closed_bar ?? cursor, cursor)].time,
+              color: "#9953c4",
+              opacity: 0.12,
+              label: "Selected trade",
+            })
+          : null;
     }
-    if (range) chartRef.current.timeScale().setVisibleLogicalRange(range);
-    else chartRef.current.timeScale().fitContent();
-  }, [bars, events, cursor, equity, selected]);
+    const focusKey = `${selected}:${focus}`;
+    if (
+      position &&
+      position.opened_bar <= cursor &&
+      lastFocus.current !== focusKey
+    ) {
+      chart.timeScale().setVisibleLogicalRange(tradeRange(position, cursor));
+      chart.priceScale("right").applyOptions({ autoScale: true });
+    } else if (lastFit.current !== fit) chart.timeScale().fitContent();
+    else if (following)
+      chart.timeScale().setVisibleLogicalRange({
+        from: Math.max(-1, cursor - 70),
+        to: cursor + 5,
+      });
+    else if (range) chart.timeScale().setVisibleLogicalRange(range);
+    else chart.timeScale().fitContent();
+    lastFocus.current = focusKey;
+    lastFit.current = fit;
+  }, [
+    bars,
+    events,
+    cursor,
+    equity,
+    selected,
+    drawingState,
+    annotations,
+    markers,
+    levels,
+    position,
+    following,
+    focus,
+    fit,
+  ]);
   return (
     <div className="chart-wrap">
       <div className="chart-readout">
@@ -159,6 +274,21 @@ function Chart({
             : "Price · click a bar to inspect")}
       </div>
       <div ref={container} style={{ height: 300, width: "100%" }} />
+      {!equity && annotations && (
+        <div className="indicator-legend" aria-label="Strategy indicators">
+          {legend.series.map((s: any) => (
+            <span key={s.id} style={{ color: s.color }}>
+              {s.label} · {s.points} points
+            </span>
+          ))}
+          {!legend.series.length && (
+            <span>No indicator series recorded through this bar.</span>
+          )}
+          {legend.primitiveCount > 0 && (
+            <span>{legend.primitiveCount} drawings</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -223,6 +353,13 @@ export default function Research({
   const [tradesFull, setTradesFull] = useState(false);
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState("1×");
+  const [annotations, setAnnotations] = useState(true);
+  const [markers, setMarkers] = useState(true);
+  const [showLevels, setShowLevels] = useState(true);
+  const [following, setFollowing] = useState(true);
+  const [focus, setFocus] = useState(0);
+  const [fit, setFit] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   useEffect(() => {
@@ -254,10 +391,10 @@ export default function Research({
           }
           return c + 1;
         }),
-      180,
+      replayDelays[speed],
     );
     return () => clearInterval(timer);
-  }, [playing, payload]);
+  }, [playing, payload, speed]);
   useEffect(() => {
     const escape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -283,6 +420,19 @@ export default function Research({
     [payload, index, cursor],
   );
   const position = positions.find((p) => p.position_id === selected);
+  const selectTrade = (p: any) => {
+    setPlaying(false);
+    setSelected(p.position_id);
+    setCursor(p.closed_bar ?? p.opened_bar);
+    setTab("replay");
+    setTradesFull(false);
+    setFollowing(false);
+    setFocus((n) => n + 1);
+  };
+  const seek = (bar: number) => {
+    setPlaying(false);
+    setCursor(bar);
+  };
   const selectedEvents =
     payload?.events.filter(
       (e: any) =>
@@ -337,15 +487,11 @@ export default function Research({
               <tr
                 key={p.position_id}
                 className={selected === p.position_id ? "selected" : ""}
-                onClick={() => {
-                  setSelected(p.position_id);
-                  setCursor(p.closed_bar ?? p.opened_bar);
-                }}
+                onClick={() => selectTrade(p)}
                 tabIndex={0}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    setSelected(p.position_id);
-                    setCursor(p.closed_bar ?? p.opened_bar);
+                    selectTrade(p);
                   }
                 }}
               >
@@ -402,6 +548,9 @@ export default function Research({
           <div className="trade-jumps">
             <button
               onClick={() => {
+                setPlaying(false);
+                setFollowing(false);
+                setFocus((n) => n + 1);
                 setCursor(position.opened_bar);
                 setTab("replay");
                 setTradesFull(false);
@@ -412,6 +561,9 @@ export default function Research({
             <button
               disabled={position.closed_bar == null}
               onClick={() => {
+                setPlaying(false);
+                setFollowing(false);
+                setFocus((n) => n + 1);
                 setCursor(position.closed_bar);
                 setTab("replay");
                 setTradesFull(false);
@@ -541,9 +693,74 @@ export default function Research({
                       events={payload.events}
                       cursor={cursor}
                       selected={selected}
-                      select={setCursor}
+                      select={seek}
+                      drawings={payload.drawings || []}
+                      annotations={annotations}
+                      markers={markers}
+                      levels={
+                        showLevels
+                          ? [...view.positions.values()].filter(
+                              (p: any) => p.open,
+                            )
+                          : []
+                      }
+                      position={position}
+                      following={following}
+                      unfollow={() => setFollowing(false)}
+                      focus={focus}
+                      fit={fit}
                     />
+                    <div className="replay-options">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={annotations}
+                          onChange={(e) => setAnnotations(e.target.checked)}
+                        />{" "}
+                        Indicators & drawings
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={markers}
+                          onChange={(e) => setMarkers(e.target.checked)}
+                        />{" "}
+                        Trade markers
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={showLevels}
+                          onChange={(e) => setShowLevels(e.target.checked)}
+                        />{" "}
+                        Entry / SL / TP
+                      </label>
+                      <button
+                        aria-pressed={following}
+                        onClick={() => setFollowing(!following)}
+                      >
+                        Follow replay
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFollowing(false);
+                          setFit((n) => n + 1);
+                        }}
+                      >
+                        Fit chart
+                      </button>
+                    </div>
                     <div className="playback">
+                      <button aria-label="First bar" onClick={() => seek(0)}>
+                        ↤
+                      </button>
+                      <button
+                        aria-label="Previous bar"
+                        disabled={cursor === 0}
+                        onClick={() => seek(cursor - 1)}
+                      >
+                        ←
+                      </button>
                       <button
                         className="icon-button"
                         title={playing ? "Pause replay" : "Play replay"}
@@ -554,6 +771,28 @@ export default function Research({
                       >
                         {playing ? <Pause size={16} /> : <Play size={16} />}
                       </button>
+                      <button
+                        aria-label="Next bar"
+                        disabled={cursor === payload.bars.length - 1}
+                        onClick={() => seek(cursor + 1)}
+                      >
+                        →
+                      </button>
+                      <button
+                        aria-label="Last bar"
+                        onClick={() => seek(payload.bars.length - 1)}
+                      >
+                        ↦
+                      </button>
+                      <select
+                        aria-label="Replay speed"
+                        value={speed}
+                        onChange={(e) => setSpeed(e.target.value)}
+                      >
+                        {Object.keys(replayDelays).map((s) => (
+                          <option key={s}>{s}</option>
+                        ))}
+                      </select>
                       <input
                         aria-label="Replay bar"
                         type="range"

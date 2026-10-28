@@ -1,3 +1,7 @@
+// Instance-scoped renderer shared by the legacy replay and Studio.
+function createDrawingLayer(chart, candleSeries, LC) {
+var candleData = [];
+function toUnix(value) { return value == null ? null : Math.floor(Date.parse(value) / 1000); }
 // ══════════════════════════════════════════════
 // STRATEGY ANNOTATION RENDERER (OBS-AI-02)
 // Renders the annotation state produced by `ObservaDrawings`:
@@ -79,7 +83,7 @@ function drawingCreateSeries(LC, id, options) {
 }
 
 function applyDrawingSeries(state, incremental) {
-  var LC = window.LightweightCharts;
+
   if (!LC || !candleSeries) return;
 
   // Remove series that no longer exist in the folded state.
@@ -393,7 +397,7 @@ function applyDrawingPrimitives(state) {
 /** Applies a folded drawing state to the chart. */
 function applyDrawingState(state, options) {
   var opts = options || {};
-  if (!showAnnotations || !state) {
+  if (opts.visible === false || !state) {
     clearDrawingLayer();
     return;
   }
@@ -423,7 +427,7 @@ function clearDrawingLayer() {
 /** Strategy markers in the shape the canonical marker plugin expects.
  *  `visible` defaults to the UI toggle (`showAnnotations`). */
 function drawingMarkersFor(state, visible) {
-  var show = visible === undefined ? showAnnotations : visible;
+  var show = visible === undefined ? true : visible;
   if (!show || !state || !state.markers) return [];
   var shapeMap = { circle: 'circle', square: 'square', arrow_up: 'arrowUp', arrow_down: 'arrowDown' };
   return state.markers.map(function (m) {
@@ -452,13 +456,38 @@ function removeStrategyDrawing(primitive) {
   }
 }
 
-// Node-testable pure helpers (no DOM is touched by these functions).
+
+return {
+  setCandles: function (bars) { candleData = bars; },
+  apply: applyDrawingState, clear: clearDrawingLayer,
+  createPrimitive: createStrategyDrawing, removePrimitive: removeStrategyDrawing,
+  StrategyDrawingPrimitive: StrategyDrawingPrimitive,
+  drawingMarkersFor: drawingMarkersFor, drawingFillColor: drawingFillColor,
+  drawingStrokeColor: drawingStrokeColor, drawingSupportsPrimitive: drawingSupportsPrimitive
+};
+}
+
+// Preserve the original replay's global entry points. Each Studio chart instead
+// owns a separate instance, so simultaneous equity/price charts cannot interfere.
+var legacyDrawingInstance = null;
+var legacyDrawingChart = null;
+function legacyDrawingLayer() {
+  if (!legacyDrawingInstance || legacyDrawingChart !== chart) {
+    legacyDrawingInstance = createDrawingLayer(chart, candleSeries, window.LightweightCharts);
+    legacyDrawingChart = chart;
+  }
+  legacyDrawingInstance.setCandles(candleData);
+  return legacyDrawingInstance;
+}
+function applyDrawingState(state, options) {
+  legacyDrawingLayer().apply(state, Object.assign({}, options, { visible: showAnnotations }));
+}
+function clearDrawingLayer() { if (legacyDrawingInstance) legacyDrawingInstance.clear(); }
+function drawingMarkersFor(state, visible) {
+  return drawingHelpers.drawingMarkersFor(state, visible === undefined ? showAnnotations : visible);
+}
+var drawingHelpers = createDrawingLayer(null, null, null);
+if (typeof window !== 'undefined') window.ObservaDrawingRenderer = { create: createDrawingLayer };
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    StrategyDrawingPrimitive: StrategyDrawingPrimitive,
-    drawingMarkersFor: drawingMarkersFor,
-    drawingFillColor: drawingFillColor,
-    drawingStrokeColor: drawingStrokeColor,
-    drawingSupportsPrimitive: drawingSupportsPrimitive
-  };
+  module.exports = Object.assign({ create: createDrawingLayer }, drawingHelpers);
 }

@@ -15,6 +15,7 @@ import signal
 import sys
 
 from .store import Store, encoded, new_id
+from .controls import PERMISSIONS, approval_choices, permission_options
 
 INSTRUCTIONS = """You are the research assistant in Observa Studio.
 Use the observa_studio MCP tools to discover the canonical Observa contract.
@@ -28,6 +29,8 @@ list any required support files. Jobs use the Studio Python environment.
 Only report financial numbers returned by canonical Observa run inspection.
 Read rejections and include experiment identifiers. No fabricated progress,
 metrics or evidence. State research assumptions. A failed job is not a result.
+For strategies using indicators, emit their per-bar values through the documented
+drawings series contract so the replay can show the same values the strategy saw.
 You may publish typed research artifacts with publish_artifact; these are labeled
 as agent-generated interpretations, not verified financial metrics.
 When asked to inspect a previous result, use get_experiment.
@@ -35,7 +38,7 @@ When asked to inspect a previous result, use get_experiment.
 
 
 class Codex:
-    def __init__(self, store: Store, conversation: str, base_url: str, on_exit=None):
+    def __init__(self, store: Store, conversation: str, base_url: str, on_exit=None, *, metadata_only=False):
         self.store = store
         self.conversation = conversation
         self.base_url = base_url
@@ -52,8 +55,9 @@ class Codex:
         self.turn_done = asyncio.Event()
         self.turn_done.set()
         self.owns_process_group = False
+        self.metadata_only = metadata_only
 
-    async def start(self):
+    async def connect(self):
         binary = shutil.which(os.environ.get("OBSERVA_CODEX_BIN", "codex"))
         if not binary:
             raise RuntimeError("Codex CLI is not installed. Install Codex, then run `codex login`.")
@@ -69,9 +73,33 @@ class Codex:
         self.stderr_task = asyncio.create_task(self._stderr())
         await self.request("initialize", {
             "clientInfo": {"name": "observa_studio", "title": "Observa Studio", "version": "0.1.0"},
-            "capabilities": {"experimentalApi": False},
+            "capabilities": {"experimentalApi": True},
         })
         await self.send({"method": "initialized", "params": {}})
+
+    async def options(self):
+        await self.connect()
+        models, cursor = [], None
+        while True:
+            page = await self.request("model/list", {"cursor": cursor, "limit": 100})
+            models.extend(page["data"])
+            cursor = page.get("nextCursor")
+            if not cursor:
+                break
+        modes = await self.request("collaborationMode/list", {})
+        requirements = await self.request("configRequirements/read", {})
+        return {"models": models, "modes": modes["data"],
+                "permissions": permission_options(requirements.get("requirements") or {})}
+
+    def settings(self):
+        return self.conv().get("settings") or {}
+
+    def permissions(self):
+        return PERMISSIONS[self.settings().get("permissions", "cautious")]
+
+    async def start(self):
+        await self.connect()
+        project = self.store.require("project", self.conv()["project"])
         account = await self.request("account/read", {})
         if account.get("requiresOpenaiAuth") and not account.get("account"):
             raise RuntimeError("Codex is signed out. Run `codex login` in a terminal, then retry.")
@@ -99,13 +127,18 @@ class Codex:
             },
             "features.apps": False,
         })
+        permission = self.permissions()
+        if permission["reviewer"] == "auto_review":
+            config["features.guardian_approval"] = True
         params = {
-            "cwd": project["path"], "approvalPolicy": "untrusted",
-            "approvalsReviewer": "user", "sandbox": "workspace-write",
+            "cwd": project["path"], "approvalPolicy": permission["policy"],
+            "approvalsReviewer": permission["reviewer"], "sandbox": permission["sandbox"],
             "developerInstructions": INSTRUCTIONS, "config": config,
         }
         conv = self.conv()
-        if conv.get("model"):
+        if self.settings().get("model"):
+            params["model"] = self.settings()["model"]
+        elif conv.get("model"):
             params["model"] = conv["model"]
         if conv.get("thread_id"):
             params["threadId"] = conv["thread_id"]
@@ -150,19 +183,29 @@ class Codex:
 
     async def turn(self, text):
         conv = self.conv()
+        settings, permission = self.settings(), self.permissions()
         self.turn_done.clear()
         self.save(status="running", error=None)
         try:
-            response = await self.request("turn/start", {
+            params = {
                 "threadId": conv["thread_id"],
                 "input": [{"type": "text", "text": text}],
-                "approvalPolicy": "untrusted", "approvalsReviewer": "user",
+                "approvalPolicy": permission["policy"], "approvalsReviewer": permission["reviewer"],
                 "sandboxPolicy": {
                     "type": "workspaceWrite",
                     "writableRoots": [self.store.require("project", conv["project"])["path"]],
                     "networkAccess": False, "excludeSlashTmp": True, "excludeTmpdirEnvVar": True,
                 },
-            })
+            }
+            if permission["sandbox"] == "read-only":
+                params["sandboxPolicy"] = {"type": "readOnly"}
+            elif permission["sandbox"] == "danger-full-access":
+                params["sandboxPolicy"] = {"type": "dangerFullAccess"}
+            if settings:
+                params.update(model=settings["model"], effort=settings["effort"], collaborationMode={
+                    "mode": settings["mode"], "settings": {"model": settings["model"],
+                    "reasoning_effort": settings["effort"], "developer_instructions": None}})
+            response = await self.request("turn/start", params)
             # A very short turn may complete before its response reaches us.
             if self.conv()["status"] == "running":
                 self.save(turn_id=response["turn"]["id"])
@@ -183,21 +226,27 @@ class Codex:
                 if identifier in self.approvals:
                     await self.decide(identifier, False)
             await asyncio.wait_for(self.turn_done.wait(), timeout=10)
-        except (asyncio.TimeoutError, RuntimeError, OSError):
+        except (asyncio.TimeoutError, RuntimeError, OSError, ValueError):
             # An unresponsive/broken transport must not disable the stop action.
             await self.close()
 
-    async def decide(self, identifier, approved, answers=None):
+    async def decide(self, identifier, approved=None, answers=None, *, decision=None, scope="turn"):
         approval = self.store.require("approval", identifier)
         if identifier not in self.approvals or approval["status"] != "pending":
             raise ValueError("This request is no longer pending.")
         method = approval["method"]
         params = approval["params"]
+        choices = approval_choices(method, params)
+        decision = decision if decision is not None else "accept" if approved else "decline"
+        native_approval = method in ("item/commandExecution/requestApproval", "item/fileChange/requestApproval", "item/permissions/requestApproval")
+        if native_approval and not any(c["decision"] == decision and c.get("scope", "turn") == scope for c in choices):
+            raise ValueError("This decision was not offered by Codex.")
+        approved = decision in ("accept", "acceptForSession") if isinstance(decision, str) else True
         if method == "item/tool/requestUserInput":
             result = {"answers": {q["id"]: {"answers": [str((answers or {}).get(q["id"], ""))]}
                                   for q in params.get("questions", [])}}
         elif method == "item/permissions/requestApproval":
-            result = {"permissions": params.get("permissions", {}) if approved else {}, "scope": "turn"}
+            result = {"permissions": params.get("permissions", {}) if approved else {}, "scope": scope}
         elif method == "mcpServer/elicitation/request":
             if approved and (params.get("mode") != "form" or
                              params.get("requestedSchema", {}).get("properties")):
@@ -208,9 +257,9 @@ class Codex:
                     content[key] = content[key] == "true"
             result = {"action": "accept" if approved else "decline", "content": content if approved else None}
         else:
-            result = {"decision": "accept" if approved else "decline"}
+            result = {"decision": decision}
         await self.send({"id": self.approvals.pop(identifier), "result": result})
-        approval = self.store.put("approval", {**approval, "status": "accepted" if approved else "declined"},
+        approval = self.store.put("approval", {**approval, "status": "accepted" if approved else "declined", "decision": decision, "scope": scope},
                                   self.conversation)
         self.store.emit(self.conversation, "approval", approval)
 
@@ -248,7 +297,7 @@ class Codex:
                 approval = self.store.put("approval", {**approval, "status": "expired"}, self.conversation)
                 self.store.emit(self.conversation, "approval", approval)
             self.approvals.clear()
-            if unexpected:
+            if unexpected and not self.metadata_only:
                 self.save(status="interrupted", turn_id=None, error=failure)
                 if self.on_exit:
                     self.on_exit(self)
@@ -267,6 +316,7 @@ class Codex:
             approval = self.store.put("approval", {
                 "id": new_id(), "conversation": self.conversation, "method": method,
                 "params": message.get("params", {}), "status": "pending",
+                "choices": approval_choices(method, message.get("params", {})),
             }, self.conversation)
             self.approvals[approval["id"]] = message["id"]
             self.store.emit(self.conversation, "approval", approval)
@@ -357,5 +407,6 @@ class Codex:
         for task in (self.reader, self.stderr_task):
             if task and task is not asyncio.current_task():
                 await asyncio.gather(task, return_exceptions=True)
-        self.store.interrupt_activity(self.conversation)
+        if not self.metadata_only:
+            self.store.interrupt_activity(self.conversation)
         self.approvals.clear()

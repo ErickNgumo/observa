@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .codex import Codex
+from .controls import validate_settings
 from .experiments import Experiments, TERMINAL, scoped_file
 from .store import Store, encoded, new_id
 
@@ -37,6 +38,13 @@ class MessageInput(BaseModel):
 class DecisionInput(BaseModel):
     approved: bool
     snapshot_hash: str = ""
+    answers: dict[str, str] | None = None
+
+
+class AgentDecisionInput(BaseModel):
+    approved: bool | None = None
+    decision: str | dict | None = None
+    scope: str = "turn"
     answers: dict[str, str] | None = None
 
 
@@ -194,6 +202,39 @@ class Studio:
         await asyncio.gather(*(agent.close() for agent in self.agents.values()), return_exceptions=True)
         self.store.close()
 
+    async def options(self, identifier):
+        self.store.require("conversation", identifier)
+        catalog = Codex(self.store, identifier, self.url, metadata_only=True)
+        try:
+            return await catalog.options()
+        finally:
+            await catalog.close()
+
+    def require_idle(self, identifier):
+        conv = self.store.require("conversation", identifier)
+        if any(c["project"] == conv["project"] and (
+               c.get("status") in ("connecting", "running", "stopping") or
+               (c["id"] in self.stop_locks and self.stop_locks[c["id"]].locked()))
+               for c in self.store.list("conversation")):
+            raise ValueError("Stop the active project turn before changing Codex settings.")
+        return conv
+
+    async def configure(self, identifier, value):
+        self.require_idle(identifier)
+        settings = validate_settings(value, await self.options(identifier))
+        conv = self.require_idle(identifier)
+        agent = self.agents.get(identifier)
+        if agent:
+            # Native thread/resume applies the new permission configuration.
+            # Keep the project locked while closing its old idle connection.
+            lock = self.stop_locks.setdefault(identifier, asyncio.Lock())
+            async with lock:
+                await agent.close()
+                self.agents.pop(identifier, None)
+        conv = self.store.put("conversation", {**conv, "settings": settings}, conv["project"])
+        self.store.emit(identifier, "conversation", conv)
+        return conv
+
 
 def create_app(root: Path, url: str, token: str | None = None) -> FastAPI:
     studio = Studio(root, url, token)
@@ -313,6 +354,20 @@ def create_app(root: Path, url: str, token: str | None = None) -> FastAPI:
         await studio.cancel(identifier)
         return {"ok": True}
 
+    @app.get("/api/conversations/{identifier}/options")
+    async def options(identifier: str):
+        try:
+            return await studio.options(identifier)
+        except RuntimeError as exc:
+            raise HTTPException(502, str(exc)) from exc
+
+    @app.post("/api/conversations/{identifier}/settings")
+    async def settings(identifier: str, value: dict):
+        try:
+            return await studio.configure(identifier, value)
+        except RuntimeError as exc:
+            raise HTTPException(502, str(exc)) from exc
+
     @app.get("/api/conversations/{identifier}/events")
     async def events(identifier: str, request: Request, after: int = 0):
         studio.store.require("conversation", identifier)
@@ -333,12 +388,12 @@ def create_app(root: Path, url: str, token: str | None = None) -> FastAPI:
                                  headers={"X-Accel-Buffering": "no"})
 
     @app.post("/api/approvals/{identifier}")
-    async def approve(identifier: str, value: DecisionInput):
+    async def approve(identifier: str, value: AgentDecisionInput):
         approval = studio.store.require("approval", identifier)
         agent = studio.agents.get(approval["conversation"])
         if not agent:
             raise ValueError("Codex is disconnected; this request has expired.")
-        await agent.decide(identifier, value.approved, value.answers)
+        await agent.decide(identifier, value.approved, value.answers, decision=value.decision, scope=value.scope)
         return {"ok": True}
 
     @app.post("/api/experiments/{identifier}/decision")

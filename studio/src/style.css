@@ -1384,3 +1384,125 @@ td.negative {
     padding: 14px;
   }
 }
+
+/* Research playback and native Codex controls. */
+.replay-options,
+.indicator-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 12px;
+  padding: 10px 0;
+  color: var(--muted);
+}
+.replay-options label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.replay-options input {
+  accent-color: #2a634f;
+}
+.indicator-legend {
+  padding: 8px 12px;
+  border-top: 1px solid #edf0eb;
+}
+.playback {
+  flex-wrap: wrap;
+}
+.playback select {
+  width: auto;
+}
+.playback input[type="range"] {
+  min-width: 90px;
+}
+.composer {
+  position: relative;
+}
+.composer-toolbar {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.composer-toolbar > div {
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+.composer-setting {
+  border: 0;
+  padding: 5px;
+  background: transparent;
+  color: #687568;
+  font-size: 12px;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.composer-setting:hover:not(:disabled) {
+  background: #f0f3ed;
+}
+.slash-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #dce3d6;
+  border-radius: 14px;
+  box-shadow: 0 8px 30px #243b2520;
+  padding: 8px;
+  max-height: 290px;
+  overflow: auto;
+  z-index: 3;
+}
+.slash-menu:empty {
+  display: none;
+}
+.slash-menu button {
+  display: flex;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+.slash-menu button:hover,
+.slash-menu button:focus-visible {
+  background: #f0f3ed;
+}
+.slash-menu b {
+  width: 110px;
+  flex-shrink: 0;
+}
+.slash-menu span {
+  color: #73806e;
+  font-size: 12px;
+}
+.agent-settings {
+  max-height: 90vh;
+  overflow: auto;
+}
+.agent-settings label select {
+  width: 100%;
+  padding: 9px;
+  margin-top: 4px;
+}
+.agent-settings .access-confirm {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: row;
+  gap: 10px;
+  color: #a53e35;
+}
+.agent-settings .access-confirm input {
+  width: auto;
+  margin-top: 4px;
+}
+.approval-choice {
+  max-width: 100%;
+}
+.approval-choice pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}

@@ -17,6 +17,7 @@ import unittest
 import observa
 from observa.studio.app import Studio, create_app, validate_artifact
 from observa.studio.codex import Codex
+from observa.studio.controls import approval_choices, permission_options, validate_settings
 from observa.studio.experiments import Experiments, scoped_file
 from observa.studio.store import Store
 
@@ -109,6 +110,34 @@ class StoreTests(TemporaryStore, unittest.TestCase):
                         "itemId": identifier, "delta": chunk})
                     expected = (expected + chunk)[-60000:]
                     self.assertEqual(self.store.require("item", "c:" + identifier)["aggregatedOutput"], expected)
+
+
+class SettingsTests(unittest.TestCase):
+    def options(self, requirements=None):
+        return {"models": [{"model": "supported", "defaultReasoningEffort": "medium",
+                    "supportedReasoningEfforts": [{"reasoningEffort": "medium"}, {"reasoningEffort": "high"}]}],
+                "modes": [{"mode": "default"}, {"mode": "plan"}],
+                "permissions": permission_options(requirements or {})}
+
+    def test_validates_native_model_effort_mode_and_explicit_full_access(self):
+        options = self.options()
+        settings = validate_settings({"model": "supported"}, options)
+        self.assertEqual(settings, {"model": "supported", "effort": "medium", "mode": "default", "permissions": "cautious"})
+        for changes in [{"model": "invented"}, {"effort": "invented"}, {"mode": "invented"},
+                        {"permissions": "invented"}, {"permissions": "full-access"}, {"unknown": True}]:
+            with self.assertRaises(ValueError):
+                validate_settings({**settings, **changes}, options)
+        self.assertEqual(validate_settings({**settings, "permissions": "full-access", "confirm_full_access": True}, options)["permissions"], "full-access")
+
+    def test_managed_requirements_cannot_be_overridden(self):
+        for requirements in [{"allowedApprovalPolicies": ["untrusted"]},
+                             {"allowedApprovalsReviewers": ["user"]},
+                             {"featureRequirements": {"guardian_approval": False}}]:
+            with self.assertRaises(ValueError):
+                validate_settings({"model": "supported", "permissions": "automatic"}, self.options(requirements))
+        with self.assertRaises(ValueError):
+            validate_settings({"model": "supported", "permissions": "full-access", "confirm_full_access": True},
+                              self.options({"allowedSandboxModes": ["read-only", "workspace-write"]}))
 
 
 class WorkerTests(TemporaryStore, unittest.IsolatedAsyncioTestCase):
@@ -249,6 +278,52 @@ class ProtocolTests(TemporaryStore, unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         self.cleanup_store()
+
+    async def test_native_decisions_preserve_scope_and_offered_rules(self):
+        rule = {"acceptWithExecpolicyAmendment": {"execpolicy_amendment": ["python", "inspect.py"]}}
+        for method, params, decision, scope, expected in [
+            ("item/commandExecution/requestApproval", {}, "acceptForSession", "turn", {"decision": "acceptForSession"}),
+            ("item/fileChange/requestApproval", {}, "acceptForSession", "turn", {"decision": "acceptForSession"}),
+            ("item/permissions/requestApproval", {"permissions": {"network": {"enabled": True}}}, "accept", "session",
+             {"permissions": {"network": {"enabled": True}}, "scope": "session"}),
+            ("item/commandExecution/requestApproval", {"availableDecisions": [rule, "decline"]}, rule, "turn", {"decision": rule}),
+        ]:
+            await self.adapter._server_request({"id": 71, "method": method, "params": params})
+            approval = self.store.list("approval", "c")[-1]
+            await self.adapter.decide(approval["id"], decision=decision, scope=scope)
+            self.assertEqual(self.sent[-1], {"id": 71, "result": expected})
+        await self.adapter._server_request({"id": 72, "method": "item/commandExecution/requestApproval",
+            "params": {"availableDecisions": ["accept", "decline"]}})
+        approval = self.store.list("approval", "c")[-1]
+        with self.assertRaises(ValueError):
+            await self.adapter.decide(approval["id"], decision="acceptForSession")
+        self.assertEqual(self.store.require("approval", approval["id"])["status"], "pending")
+
+    async def test_turn_forwards_native_model_mode_and_permission_presets(self):
+        from observa.studio.controls import PERMISSIONS
+        calls = []
+        async def request(method, params, **kwargs):
+            calls.append((method, params))
+            return {"turn": {"id": "turn"}}
+        self.adapter.request = request
+        for preset, spec in PERMISSIONS.items():
+            self.adapter.save(thread_id="thread", settings={"model": "supported", "effort": "high", "mode": "plan", "permissions": preset})
+            await self.adapter.turn("Investigate")
+            method, params = calls[-1]
+            self.assertEqual(method, "turn/start")
+            self.assertEqual(params["approvalPolicy"], spec["policy"])
+            self.assertEqual(params["approvalsReviewer"], spec["reviewer"])
+            self.assertEqual(params["collaborationMode"], {"mode": "plan", "settings": {"model": "supported", "reasoning_effort": "high", "developer_instructions": None}})
+            expected = {"workspace-write": "workspaceWrite", "read-only": "readOnly", "danger-full-access": "dangerFullAccess"}[spec["sandbox"]]
+            self.assertEqual(params["sandboxPolicy"]["type"], expected)
+
+    async def test_metadata_connection_close_preserves_running_conversation(self):
+        self.adapter.save(status="running", turn_id="live")
+        self.store.put("item", {"id": "tool", "type": "commandExecution", "status": "running"}, "c")
+        metadata = Codex(self.store, "c", "http://localhost", metadata_only=True)
+        await metadata.close()
+        self.assertEqual(self.adapter.conv()["status"], "running")
+        self.assertEqual(self.store.require("item", "tool")["status"], "running")
 
     async def test_mcp_permission_is_explicit_once_and_uses_native_response(self):
         await self.adapter._server_request({"id": 71, "method": "mcpServer/elicitation/request",
@@ -398,6 +473,36 @@ class LifecycleTests(TemporaryStore, unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await self.studio.close()
         self.temp.cleanup()
+
+    async def test_settings_persist_and_reject_changes_during_active_project_work(self):
+        from unittest.mock import AsyncMock
+        self.studio.options = AsyncMock(return_value=SettingsTests().options())
+        self.store.put("conversation", {"id": "other", "project": "p", "status": "running"}, "p")
+        with self.assertRaisesRegex(ValueError, "active project"):
+            await self.studio.configure("c", {"model": "supported"})
+        self.studio.options.assert_not_awaited()
+        self.store.put("conversation", {"id": "other", "project": "p", "status": "idle"}, "p")
+        adapter = Codex(self.store, "c", self.studio.url)
+        adapter.save(thread_id="native")
+        self.studio.agents["c"] = adapter
+        result = await self.studio.configure("c", {"model": "supported", "mode": "plan", "permissions": "automatic"})
+        self.assertEqual(result["thread_id"], "native")
+        self.assertEqual(result["settings"]["mode"], "plan")
+        self.assertTrue(adapter.closing)
+        self.assertNotIn("c", self.studio.agents)
+        self.assertEqual(self.store.events("c", 0)[-1]["data"]["settings"], result["settings"])
+        self.store.close()
+        self.store = self.studio.store = Store(self.root / "data")
+        self.assertEqual(self.store.require("conversation", "c")["settings"], result["settings"])
+
+    async def test_settings_recheck_activity_after_catalog_read(self):
+        async def catalog(identifier):
+            self.store.put("conversation", {"id": "other", "project": "p", "status": "running"}, "p")
+            return SettingsTests().options()
+        self.studio.options = catalog
+        with self.assertRaisesRegex(ValueError, "active project"):
+            await self.studio.configure("c", {"model": "supported"})
+        self.assertNotIn("settings", self.store.require("conversation", "c"))
 
     async def test_stop_reaps_agent_with_dead_reader_and_keeps_resumable_thread(self):
         adapter = Codex(self.store, "c", "http://testserver")

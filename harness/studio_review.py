@@ -200,7 +200,7 @@ def main():
             legacy = page.context.new_page()
             legacy.on("pageerror", lambda error: errors.append(str(error)))
             legacy.goto(base + "/legacy/" + job["id"])
-            legacy.wait_for_function("typeof payload !== 'undefined' && payload !== null")
+            legacy.wait_for_function("() => typeof payload !== 'undefined' && payload !== null")
             check("original replay remains functional", legacy.evaluate("payload.events.length") == len(replay["events"]))
             legacy.close()
             page.get_by_title("Close research canvas", exact=True).click()

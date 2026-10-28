@@ -33,6 +33,7 @@ import {
   upsert,
 } from "./api";
 import Research, { Artifact, Metrics } from "./Research";
+import AgentSettings, { commands, permissionLabels } from "./AgentSettings";
 
 const active = (status: string) =>
   ["running", "connecting", "stopping"].includes(status);
@@ -114,10 +115,16 @@ function Approval({
   const unsupported =
     mcp &&
     (approval.params.mode !== "form" || Object.keys(formProperties).length > 0);
-  const decide = async (approved: boolean) => {
+  const decide = async (approved: boolean, choice?: any) => {
     setBusy(true);
     try {
-      await act(`/approvals/${approval.id}`, { approved, answers });
+      await act(`/approvals/${approval.id}`, {
+        approved,
+        answers,
+        ...(choice
+          ? { decision: choice.decision, scope: choice.scope || "turn" }
+          : {}),
+      });
     } finally {
       setBusy(false);
     }
@@ -218,31 +225,46 @@ function Approval({
             </pre>
           )}
           <p className="note">
-            Allow once. Review requested paths and any access beyond the project
-            before approving.
+            Review requested paths and the scope of each permission before
+            approving.
           </p>
         </>
       )}
       <div className="card-actions">
-        {!question && (
-          <button disabled={busy} onClick={() => decide(false)}>
-            Decline
-          </button>
+        {approval.choices?.length ? (
+          approval.choices.map((choice: any, i: number) => (
+            <div key={i} className="approval-choice">
+              {typeof choice.decision === "object" && (
+                <pre>{JSON.stringify(choice.decision, null, 2)}</pre>
+              )}
+              <button disabled={busy} onClick={() => decide(false, choice)}>
+                {choice.label}
+              </button>
+            </div>
+          ))
+        ) : (
+          <>
+            {!question && (
+              <button disabled={busy} onClick={() => decide(false)}>
+                Decline
+              </button>
+            )}
+            <button
+              className="primary"
+              disabled={
+                busy ||
+                unsupported ||
+                (question &&
+                  approval.params.questions?.some(
+                    (q: any) => !answers[q.id]?.trim(),
+                  ))
+              }
+              onClick={() => decide(true)}
+            >
+              {question ? "Send answers" : "Allow once"} <Check size={15} />
+            </button>
+          </>
         )}
-        <button
-          className="primary"
-          disabled={
-            busy ||
-            unsupported ||
-            (question &&
-              approval.params.questions?.some(
-                (q: any) => !answers[q.id]?.trim(),
-              ))
-          }
-          onClick={() => decide(true)}
-        >
-          {question ? "Send answers" : "Allow once"} <Check size={15} />
-        </button>
       </div>
     </div>
   );
@@ -404,6 +426,7 @@ export default function App() {
   const [stopping, setStopping] = useState(false);
   const [sidebar, setSidebar] = useState(window.innerWidth > 700);
   const [projectModal, setProjectModal] = useState(false);
+  const [settingsSection, setSettingsSection] = useState("");
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -539,6 +562,7 @@ export default function App() {
     }
   };
   const newConversation = async (pid = projectId) => {
+    setSettingsSection("");
     if (!pid) {
       setProjectModal(true);
       return null;
@@ -566,8 +590,51 @@ export default function App() {
       setSubmitting(false);
     }
   };
+  const openSettings = async (section: string) => {
+    if (stoppable) {
+      setNotice("Stop active research before changing Codex settings.");
+      return;
+    }
+    try {
+      if (!conversationId) {
+        const id = await newConversation();
+        if (!id) return;
+        setSettingsSection(section);
+        return;
+      }
+      setSettingsSection(section);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+  const runCommand = async (command: string) => {
+    setInput("");
+    if (["model", "mode", "permissions"].includes(command))
+      await openSettings(command);
+    else if (command === "stop") await stop();
+    else if (command === "new") await newConversation();
+    else if (command === "status") {
+      const c = snapshot?.conversation,
+        s = c?.settings || {};
+      setNotice(
+        `Codex · ${s.model || c?.model || "Configured default model"} · ${s.effort || "default"} reasoning · ${s.mode || "default"} mode · ${permissionLabels[s.permissions || "cautious"]} · ${c?.status || "New conversation"}${c?.thread_id ? " · Thread " + c.thread_id : ""}`,
+      );
+    } else
+      setNotice(
+        "Studio commands: " +
+          commands
+            .map(([name, description]) => `/${name} — ${description}`)
+            .join("; "),
+      );
+  };
   const send = async (event?: FormEvent) => {
     event?.preventDefault();
+    if (input.trim().startsWith("/")) {
+      await runCommand(input.trim().slice(1).toLowerCase()).catch((e) =>
+        setError(e.message),
+      );
+      return;
+    }
     if (!input.trim() || submitting || stoppable || stopping || !connected)
       return;
     if (!projectId) {
@@ -713,6 +780,7 @@ export default function App() {
                   key={c.id}
                   className={conversationId === c.id ? "selected" : ""}
                   onClick={() => {
+                    setSettingsSection("");
                     setConversationId(c.id);
                     setProjectId(c.project);
                   }}
@@ -973,9 +1041,31 @@ export default function App() {
             </div>
             <div className="composer-zone">
               <form className="composer" onSubmit={send}>
+                {input.startsWith("/") && (
+                  <div className="slash-menu" aria-label="Studio commands">
+                    {commands
+                      .filter(([command]) =>
+                        command.startsWith(input.slice(1).toLowerCase()),
+                      )
+                      .map(([command, description]) => (
+                        <button
+                          type="button"
+                          key={command}
+                          onClick={() =>
+                            runCommand(command).catch((e) =>
+                              setError(e.message),
+                            )
+                          }
+                        >
+                          <b>/{command}</b>
+                          <span>{description}</span>
+                        </button>
+                      ))}
+                  </div>
+                )}
                 <textarea
                   ref={composer}
-                  placeholder="Describe a strategy, ask a question, or explore a result…"
+                  placeholder="Ask Codex, or type / for model, mode and permissions…"
                   aria-label="Message Codex"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -993,11 +1083,44 @@ export default function App() {
                   disabled={!ready}
                 />
                 <div className="composer-toolbar">
-                  <span>
-                    <ShieldCheck size={14} /> Approvals enabled
-                  </span>
+                  <button
+                    type="button"
+                    className="composer-setting"
+                    onClick={() => openSettings("permissions")}
+                    disabled={stoppable || !connected}
+                    title="Permissions (/permissions)"
+                  >
+                    <ShieldCheck size={14} />{" "}
+                    {
+                      permissionLabels[
+                        snapshot?.conversation.settings?.permissions ||
+                          "cautious"
+                      ]
+                    }
+                  </button>
                   <div>
-                    <span className="composer-provider">Codex</span>
+                    <button
+                      type="button"
+                      className="composer-setting"
+                      title="Mode (/mode)"
+                      disabled={stoppable || !connected}
+                      onClick={() => openSettings("mode")}
+                    >
+                      {snapshot?.conversation.settings?.mode === "plan"
+                        ? "Plan"
+                        : "Default"}
+                    </button>
+                    <button
+                      type="button"
+                      className="composer-setting"
+                      title="Model and reasoning (/model)"
+                      disabled={stoppable || !connected}
+                      onClick={() => openSettings("model")}
+                    >
+                      {snapshot?.conversation.settings?.model ||
+                        snapshot?.conversation.model ||
+                        "Codex"}
+                    </button>
                     {stoppable ? (
                       <button
                         type="button"
@@ -1084,6 +1207,23 @@ export default function App() {
           )}
         </div>
       </div>
+      {settingsSection && snapshot && (
+        <AgentSettings
+          key={snapshot.conversation.id}
+          conversation={snapshot.conversation}
+          section={settingsSection}
+          close={() => setSettingsSection("")}
+          saved={(conversation) => {
+            setSnapshot((s) =>
+              s && s.conversation.id === conversation.id
+                ? { ...s, conversation }
+                : s,
+            );
+            setConversations((list) => upsert(list, conversation));
+            setSettingsSection("");
+          }}
+        />
+      )}
       {projectModal && (
         <div
           className="modal-backdrop"

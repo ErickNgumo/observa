@@ -236,3 +236,73 @@ labeled Stop button. Evidence: [browser checks](obs-studio-01/stop-verification.
 For an old disconnected tab, restarting Studio and opening its newly printed
 launch link is necessary; refreshing an obsolete port/session cannot load the
 new backend. Existing projects and conversations are retained.
+
+## Follow-up — replay parity and native chat controls, 2026-10-28
+
+Studio now renders recorded strategy series (price and separate pane), regions,
+lines, labels, bar colors and markers through the same renderer as the original
+replay. Refactoring the renderer into chart-owned instances preserves the legacy
+entry points and avoids cross-chart cleanup. Canonical execution markers and
+open-position entry/SL/TP levels have independent visibility controls. Replay
+speed, single-bar/first/last stepping, following and fit controls are restored.
+Selecting a trade opens replay at its canonical exit (entry for open positions),
+focuses its bar range and highlights its markers and duration. Backward seeking
+rebuilds recorded drawing state without exposing later indicator samples.
+
+The `/` menu and composer settings expose native model/effort choices,
+Default/Plan collaboration modes and permission presets. `model/list`,
+`collaborationMode/list` and `configRequirements/read` discover the installed
+provider's options. Models are not hardcoded. `thread/start` / `thread/resume`
+and `turn/start` carry selected settings; changes close only an idle adapter and
+resume the same thread on the next message. A separate metadata connection does
+not interrupt research. Settings persist in the existing conversation record.
+
+Native decisions include once/session scopes, cancellation and exact proposed
+command/network rule amendments. Decisions not offered by Codex are rejected.
+Automatic review uses `approvalsReviewer: auto_review` and Codex's guardian
+feature with on-request approval, rather than an application approval algorithm.
+The sandbox-only automatic policy uses `never`; full access is separately
+confirmed. Managed requirements can disable choices and Codex enforces them at
+runtime. Studio's snapshot approval gate remains mandatory for its backtest tool.
+See the [App Server contract](https://learn.chatgpt.com/docs/app-server) and
+[permission modes](https://learn.chatgpt.com/docs/permission-modes); protocol
+schemas from installed Codex 0.154.0 were checked as the integration baseline.
+
+Limits: this is not an embedded Codex terminal or complete CLI-command mirror.
+Login, compaction, skills/plugin management and generic interactive MCP forms
+remain outside this UI. Existing runs without recorded indicator series cannot
+acquire them retroactively. Research instructions now ask Codex to emit series
+when developing indicator strategies. Large-run rendering still uses in-memory
+payloads and full drawing folds; paging/downsampling remains deferred.
+
+Verification for this follow-up:
+
+- **35 Studio tests passed**, including native decision scopes/rules, managed
+  permission restrictions, explicit full-access confirmation, model/effort/mode
+  validation, persisted settings, concurrent project activity checks and metadata
+  connection isolation. Existing real-worker/determinism/cancellation checks pass.
+- **6 frontend tests passed**; TypeScript and production build passed.
+- Legacy replay **17 groups**, drawings **13 groups**, metrics **7 groups** and
+  workspace checks passed. The new drawing test verifies chart-instance isolation.
+- Chromium exercised an actual isolated engine run emitting a moving average,
+  separate histogram, region, line and signal marker. Speed, backward seeking,
+  trade focus, fullscreen, drawing toggles and the original replay passed.
+- Native Codex **0.154.0** supplied the real model/mode catalog. Two actual model
+  turns passed: Plan with automatic reviewer configured, then Default with the
+  sandbox-only automatic policy. The latter resumed the same native thread after
+  settings changed. Browser refresh retained settings; no experiment duplicated.
+  These small turns requested no privileged operation, so they verify native
+  configuration acceptance/resume, not an automatic review verdict. Full access
+  was tested for mandatory confirmation and protocol mapping, never enabled live.
+- The existing Stop browser harness passed all six refresh/disconnect/subprocess
+  checks after these changes. Browser runs reported no JavaScript errors.
+
+Evidence: [live controls verification](obs-studio-01/controls-verification.json),
+[trade highlight and indicators](obs-studio-01/trade-highlight.png),
+[native settings](obs-studio-01/codex-controls.png),
+[slash menu](obs-studio-01/slash-menu.png), and
+[mobile controls verification](obs-studio-01/controls-mobile-verification.json). Reproduce with
+`harness/studio_controls_review.py --real-codex --out <directory>`.
+No Rust/Python financial semantics changed; the full Rust workspace and financial
+ledger suites were not rerun for this presentation/provider-control follow-up.
+Restart Studio and open its new launch link to load the rebuilt local assets.

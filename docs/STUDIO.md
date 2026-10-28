@@ -66,8 +66,8 @@ resulting wheel with its `[studio]` extra. No release or upload is needed.
    approval binds the copied code, data and configuration, not mutable project
    files. Declining does not execute or import the strategy.
 5. Choose **Explore result** to inspect canonical metrics, equity, price replay,
-   trades, orders and evidence. Select a trade to inspect its events or jump to
-   entry/exit. Expand the canvas or trade explorer for more room.
+   trades, orders and evidence. Selecting a trade opens price replay, highlights
+   its duration and markers, and focuses its canonical entry/exit bars. Expand the canvas or trade explorer for more room.
 6. Continue discussing the result. Codex can publish labeled research plots,
    tables and notes alongside the engine result.
 7. Close the browser or stop Studio. Reopen with the same data directory, select
@@ -95,6 +95,52 @@ place a CSV in the project and name its relative path. Declare the interval and
 execution assumptions. Annualised metrics remain unavailable when the engine
 lacks sufficient information; Studio does not fill in missing metrics.
 
+## Replay and Codex controls
+
+Price replay includes **0.5×, 1×, 2×, 5×, 10× and Max** playback, first/last
+and single-bar stepping, follow/pan and fit controls. Toggle strategy drawings,
+execution markers and open-position entry/SL/TP levels independently. Indicators
+use the strategy's recorded `drawings` series, including a separate indicator
+pane. They are revealed only through the replay cursor. A historical run that
+did not record indicator values cannot display them retrospectively; ask Codex
+to emit the series and prepare a new backtest. The original replay stays linked.
+
+Type `/` in chat to see Studio commands, or click the settings beneath the
+composer. These are client controls backed by native Codex App Server APIs:
+
+| Command | Behavior |
+| --- | --- |
+| `/model` | Select an available model and supported reasoning effort from your installed Codex. |
+| `/mode` | Select native Default or Plan mode. Switch back to Default to implement a plan. |
+| `/permissions` | Choose the permission policy below. |
+| `/status` | Show saved settings, current status and native thread ID. |
+| `/stop` | Stop active research in this conversation. |
+| `/new` | Create a conversation in the current project. |
+| `/help` | List these commands. |
+
+Settings are saved per conversation and apply to the next message. Stop active
+research before changing them. Changing settings resumes the same native thread;
+it does not erase history. Managed Codex requirements remain enforced. Unknown
+slash commands display help instead of being submitted as agent prompts.
+
+Permission choices:
+
+- **Ask before commands** (default): Codex's untrusted-command approval policy.
+- **Ask when needed**: routine workspace work proceeds; broader access asks you.
+- **Approve for me**: native Codex automatic review handles eligible requests.
+- **Read only**: inspect files; writes and broader operations require approval.
+- **Automatic within sandbox**: no prompts; operations outside the sandbox fail.
+- **Full access**: unrestricted filesystem/network access without command
+  approvals, requiring an explicit confirmation in the settings dialog.
+
+Approval cards show the native choices offered for that request: allow once,
+allow for the session, decline, cancel the turn, or save a proposed command/network
+rule. Review the displayed rule before saving it. Automatic review is provided by
+Codex, not an Observa decision algorithm. It requires a compatible installed CLI.
+Studio's **Approve & run** gate for snapshotted backtests remains separate under
+all presets. These controls do not embed the CLI terminal or every CLI slash
+command (for example `/login`, `/compact`, skills and plugin management).
+
 ## Storage and permissions
 
 The default data directory is `$XDG_DATA_HOME/observa/studio`, or
@@ -113,9 +159,10 @@ Studio requires same-origin authenticated requests and rejects arbitrary Host
 headers. Its MCP credential grants only conversation-scoped research operations;
 it cannot approve requests, create projects or inspect other conversations.
 
-Codex uses its supported **workspace-write**, **untrusted-command approval**
-policy, with network disabled for sandboxed commands and no writable `/tmp`
-exception. This is Codex's normal local coding permission model: it can read
+By default Codex uses **workspace-write** and **untrusted-command approval**,
+with network disabled for sandboxed commands and no writable `/tmp` exception.
+The permission presets above explicitly change this policy for the conversation;
+Full access removes Codex sandbox restrictions. This is Codex's normal local coding permission model: it can read
 files allowed by its native sandbox, and asks before broader operations. Project
 selection is not a complete confidentiality boundary for Codex reads. Review
 any request for additional filesystem or network access. Inherited user MCP
@@ -176,8 +223,8 @@ artifacts are not accepted. Limits: 2 MiB per artifact, 10,000 points/rows.
 ## Compatibility and current limits
 
 - Existing Python, CLI, read-only MCP and `observa replay` workflows are intact.
-  The research canvas also links to the original replay, including its complete
-  annotation/drawing controls.
+  The research canvas reuses the original annotation renderer and also links
+  to the original replay.
 - Linux and Codex only. Other providers can implement the adapter boundary later;
   provider thread IDs are intentionally not portable between agents.
 - One active agent turn per project. No simultaneous editing agents in a project.
@@ -209,6 +256,10 @@ python harness/studio_review.py --real-codex --out /tmp/observa-studio-review
 python harness/studio_stop_review.py --out /tmp/observa-studio-stop
 # Optionally also start and interrupt one real Codex turn:
 python harness/studio_stop_review.py --out /tmp/observa-studio-stop-live --real-codex
+
+# Annotated real-engine replay, slash settings from the installed Codex, and
+# optional live turns exercising mode/permission changes and native resume.
+python harness/studio_controls_review.py --out /tmp/observa-controls --real-codex
 ```
 
 The real-browser harness checks project creation, native permissions, snapshot
