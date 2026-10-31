@@ -4,14 +4,12 @@ import {
   CandlestickSeries,
   LineSeries,
   ColorType,
-  createSeriesMarkers,
   type UTCTimestamp,
 } from "lightweight-charts";
 import {
   ArrowLeft,
   ChevronRight,
   Expand,
-  ExternalLink,
   Maximize2,
   Minimize2,
   Pause,
@@ -20,7 +18,13 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import * as LC from "lightweight-charts";
-import { executionMarkers, replayDelays, tradeRange } from "./replay";
+import {
+  executionMarkers,
+  replayDelays,
+  tradeRange,
+  indicatorSamples,
+} from "./replay";
+import { CompactMarkers } from "./CompactMarkers";
 import { api, number, type RecordData } from "./api";
 // Reuse the existing, regression-tested canonical event projection.
 import "../../python/python/observa/static/js/replay-core.js";
@@ -37,6 +41,8 @@ declare global {
 const timestamp = (value: string) =>
   Math.floor(Date.parse(value) / 1000) as UTCTimestamp;
 
+const EMPTY: any[] = [];
+
 function Chart({
   bars,
   events,
@@ -44,15 +50,18 @@ function Chart({
   equity = false,
   selected,
   select,
-  drawings = [],
+  drawings = EMPTY,
   annotations = true,
   markers = true,
-  levels = [],
+  levels = EMPTY,
   position,
   following = false,
   unfollow,
   focus = 0,
   fit = 0,
+  precision = 5,
+  instrument = "",
+  report,
 }: {
   bars: any[];
   events: any[];
@@ -69,9 +78,17 @@ function Chart({
   unfollow?: () => void;
   focus?: number;
   fit?: number;
+  precision?: number;
+  instrument?: string;
+  report?: any;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const [hover, setHover] = useState("");
+  const [hover, setHover] = useState<any>(null);
+  const [showBalance, setShowBalance] = useState(true);
+  const [showDrawdown, setShowDrawdown] = useState(true);
+  const balanceRef = useRef<any>(null),
+    connectorRef = useRef<any>(null);
+  const hoverContext = useRef<any>(null);
   const chartRef = useRef<any>(null),
     seriesRef = useRef<any>(null),
     markerRef = useRef<any>(null);
@@ -90,6 +107,58 @@ function Chart({
     [drawings, cursor, times],
   );
   const legend = window.ObservaDrawings.summary(drawingState);
+  const drawdownStart = report?.max_drawdown_start
+    ? timestamp(report.max_drawdown_start)
+    : null;
+  const drawdownEnd = report?.max_drawdown_end
+    ? timestamp(report.max_drawdown_end)
+    : null;
+  const drawdownVisible =
+    drawdownStart != null &&
+    drawdownEnd != null &&
+    drawdownEnd <= times[cursor];
+  hoverContext.current = {
+    cursor,
+    drawingState,
+    annotations,
+    events,
+    markers,
+    showBalance,
+  };
+  const clearHover = () => setHover(null);
+  const updateHover = (param: any) => {
+    const context = hoverContext.current;
+    const barIndex =
+      typeof param.time === "number" ? times.indexOf(param.time) : -1;
+    if (!param.point || barIndex < 0 || barIndex > context.cursor) {
+      clearHover();
+      return;
+    }
+    const snapshot = context.events.find(
+      (e: any) => e.type === "portfolio_snapshot" && e.bar_index === barIndex,
+    );
+    setHover({
+      barIndex,
+      bar: bars[barIndex],
+      x: param.point.x,
+      y: param.point.y,
+      width: container.current?.clientWidth || 300,
+      snapshot,
+      indicators: context.annotations
+        ? indicatorSamples(context.drawingState, param.time)
+        : [],
+      trades: context.markers
+        ? context.events.filter(
+            (e: any) =>
+              e.bar_index === barIndex &&
+              ["position_opened", "position_closed"].includes(e.type),
+          )
+        : [],
+      signals: context.annotations
+        ? context.drawingState.markers.filter((m: any) => m.time === param.time)
+        : [],
+    });
+  };
   useEffect(() => {
     const chart = createChart(container.current!, {
       autoSize: true,
@@ -120,17 +189,25 @@ function Chart({
           wickUpColor: "#288c71",
           wickDownColor: "#c36c60",
           borderVisible: false,
-          priceFormat: { type: "price", precision: 5, minMove: 0.00001 },
+          priceFormat: {
+            type: "price",
+            precision,
+            minMove: Math.pow(10, -precision),
+          },
         });
     chartRef.current = chart;
     seriesRef.current = series;
-    if (!equity) {
-      markerRef.current = createSeriesMarkers(series, []);
-      layerRef.current = window.ObservaDrawingRenderer.create(
-        chart,
-        series,
-        LC,
-      );
+    layerRef.current = window.ObservaDrawingRenderer.create(chart, series, LC);
+    if (equity) {
+      balanceRef.current = chart.addSeries(LineSeries, {
+        color: "#808aa4",
+        lineWidth: 1,
+        lineStyle: LC.LineStyle.Dashed,
+        priceLineVisible: false,
+      });
+    } else {
+      markerRef.current = new CompactMarkers();
+      series.attachPrimitive(markerRef.current);
     }
     chart.subscribeClick((param) => {
       if (typeof param.time === "number") {
@@ -138,16 +215,7 @@ function Chart({
         if (i >= 0) selectRef.current(i);
       }
     });
-    chart.subscribeCrosshairMove((param) => {
-      const data: any = param.seriesData.get(series);
-      setHover(
-        data
-          ? equity
-            ? `Equity ${number(data.value)}`
-            : `O ${number(data.open, 5)}  H ${number(data.high, 5)}  L ${number(data.low, 5)}  C ${number(data.close, 5)}`
-          : "",
-      );
-    });
+    chart.subscribeCrosshairMove(updateHover);
     const host = container.current!;
     const manual = () => unfollowRef.current?.();
     host.addEventListener("wheel", manual, { passive: true });
@@ -161,14 +229,38 @@ function Chart({
       layerRef.current = null;
       highlightRef.current = null;
       priceLines.current = [];
+      connectorRef.current = null;
+      balanceRef.current = null;
     };
-  }, [bars, equity]);
+  }, [bars, equity, precision]);
   useEffect(() => {
     const chart = chartRef.current,
       series = seriesRef.current;
     if (!series) return;
+    setHover(null);
     const range = chart.timeScale().getVisibleLogicalRange();
     if (equity) {
+      if (highlightRef.current)
+        layerRef.current.removePrimitive(highlightRef.current);
+      highlightRef.current =
+        showDrawdown && drawdownVisible
+          ? layerRef.current.createPrimitive({
+              type: "region",
+              time_start: report.max_drawdown_start,
+              time_end: report.max_drawdown_end,
+              color: "#c35449",
+              opacity: 0.08,
+              label: "Maximum drawdown",
+            })
+          : null;
+      balanceRef.current.applyOptions({ visible: showBalance });
+      balanceRef.current.setData(
+        events
+          .filter(
+            (e) => e.type === "portfolio_snapshot" && e.bar_index <= cursor,
+          )
+          .map((e) => ({ time: timestamp(e.timestamp), value: e.balance })),
+      );
       series.setData(
         events
           .filter(
@@ -195,9 +287,21 @@ function Chart({
         ? executionMarkers(events, bars, cursor, selected)
         : [];
       const strategy = layer.drawingMarkersFor(drawingState, annotations);
-      markerRef.current.setMarkers(
-        [...canonical, ...strategy].sort((a, b) => a.time - b.time),
-      );
+      markerRef.current.setData([...canonical, ...strategy], candles);
+      if (connectorRef.current) layer.removePrimitive(connectorRef.current);
+      connectorRef.current =
+        position && position.closed_bar != null && position.closed_bar <= cursor
+          ? layer.createPrimitive({
+              type: "line",
+              x1: bars[position.opened_bar].time,
+              y1: position.entry_price,
+              x2: bars[position.closed_bar].time,
+              y2: position.exit_price,
+              color: "#9953c4",
+              line_style: "dashed",
+              width: 1,
+            })
+          : null;
       for (const line of priceLines.current) series.removePriceLine(line);
       priceLines.current = [];
       for (const p of levels)
@@ -264,20 +368,164 @@ function Chart({
     following,
     focus,
     fit,
+    showBalance,
+    showDrawdown,
+    drawdownVisible,
+    report,
   ]);
   return (
     <div className="chart-wrap">
       <div className="chart-readout">
-        {hover ||
-          (equity
-            ? "Canonical end-of-bar equity"
-            : "Price · click a bar to inspect")}
+        {equity
+          ? "Canonical end-of-bar equity"
+          : `${instrument || "Price"} · hover to inspect · click to select a bar`}
+        {equity && (
+          <label className="balance-toggle">
+            <input
+              type="checkbox"
+              checked={showBalance}
+              onChange={(e) => setShowBalance(e.target.checked)}
+            />{" "}
+            Balance
+          </label>
+        )}
       </div>
-      <div ref={container} style={{ height: 300, width: "100%" }} />
+      <div className="chart-surface" onMouseLeave={clearHover}>
+        <div ref={container} style={{ height: 300, width: "100%" }} />
+        {hover && (
+          <div
+            className="chart-tooltip"
+            role="tooltip"
+            aria-label={equity ? "Account values" : "Chart values"}
+            style={{
+              left: Math.max(
+                4,
+                Math.min(
+                  hover.x + 16,
+                  hover.width - Math.min(270, hover.width - 8),
+                ),
+              ),
+              top: hover.y > 150 ? 12 : undefined,
+              bottom: hover.y <= 150 ? 12 : undefined,
+            }}
+          >
+            <strong>
+              {new Date(hover.bar.time)
+                .toISOString()
+                .replace("T", " ")
+                .replace(".000Z", " UTC")}
+            </strong>
+            <small>Bar {hover.barIndex + 1}</small>
+            <dl>
+              {(equity
+                ? [
+                    ["Equity", hover.snapshot?.equity],
+                    ...(showBalance
+                      ? [["Balance", hover.snapshot?.balance]]
+                      : []),
+                  ]
+                : [
+                    ["Open", hover.bar.open],
+                    ["High", hover.bar.high],
+                    ["Low", hover.bar.low],
+                    ["Close", hover.bar.close],
+                    ["Volume", hover.bar.volume],
+                  ]
+              ).map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>
+                    {number(
+                      value,
+                      equity ? 2 : label === "Volume" ? 2 : precision,
+                    )}
+                  </dd>
+                </div>
+              ))}
+              {!equity &&
+                hover.indicators.map((s: any) => (
+                  <div key={s.id}>
+                    <dt style={{ color: s.color }}>{s.label}</dt>
+                    <dd>{number(s.value, precision)}</dd>
+                  </div>
+                ))}
+            </dl>
+            {!equity && hover.trades.length > 0 && (
+              <div className="tooltip-trades">
+                <b>{hover.trades.length} execution event(s)</b>
+                {hover.trades.slice(0, 6).map((e: any) => (
+                  <p key={e.event_seq}>
+                    {e.type === "position_opened"
+                      ? `${e.side} entry`
+                      : `${e.side} exit · ${e.exit_reason || "Exit"}`}{" "}
+                    @{" "}
+                    {number(
+                      e.type === "position_opened"
+                        ? e.entry_price
+                        : e.exit_price,
+                      precision,
+                    )}
+                    <small>
+                      {e.position_id?.slice(0, 8)}
+                      {e.reason ? ` · ${e.reason}` : ""}
+                    </small>
+                  </p>
+                ))}
+                {hover.trades.length > 6 && (
+                  <small>
+                    All events are available in the bar inspector below.
+                  </small>
+                )}
+              </div>
+            )}
+            {!equity &&
+              hover.signals.map((m: any) => (
+                <p key={m.id} style={{ color: m.color }}>
+                  {m.text || "Strategy marker"}
+                </p>
+              ))}
+          </div>
+        )}
+      </div>
+      {equity && (
+        <div className="replay-options">
+          <label title="Uses the maximum-drawdown period recorded by the engine. Available after replay reaches that period.">
+            <input
+              type="checkbox"
+              checked={showDrawdown}
+              disabled={!drawdownVisible}
+              onChange={(e) => setShowDrawdown(e.target.checked)}
+            />{" "}
+            Maximum drawdown
+          </label>
+          <button
+            disabled={!drawdownVisible}
+            onClick={() => {
+              setShowDrawdown(true);
+              chartRef.current
+                .timeScale()
+                .setVisibleRange({
+                  from: drawdownStart,
+                  to: Math.max(drawdownEnd!, drawdownStart! + 1),
+                });
+            }}
+          >
+            Inspect drawdown
+          </button>
+          <button onClick={() => chartRef.current.timeScale().fitContent()}>
+            Fit account chart
+          </button>
+        </div>
+      )}
       {!equity && annotations && (
         <div className="indicator-legend" aria-label="Strategy indicators">
           {legend.series.map((s: any) => (
-            <span key={s.id} style={{ color: s.color }}>
+            <span
+              key={s.id}
+              tabIndex={0}
+              title={`${s.label} · ${s.pane === "separate" ? "Separate pane" : "Price overlay"}. Hover the chart for recorded values at each bar. Missing samples are unavailable, never interpolated.`}
+              style={{ color: s.color }}
+            >
               {s.label} · {s.points} points
             </span>
           ))}
@@ -646,6 +894,7 @@ export default function Research({
                 <Chart
                   bars={payload.bars}
                   events={payload.events}
+                  report={payload.metrics}
                   cursor={payload.bars.length - 1}
                   equity
                   selected={selected}
@@ -678,22 +927,20 @@ export default function Research({
               <>
                 <div className="section-heading">
                   <h3>Price replay</h3>
-                  <a
-                    href={`/legacy/${job.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Original replay & drawings <ExternalLink size={13} />
-                  </a>
                 </div>
                 {payload.bars.length > 0 ? (
                   <>
                     <Chart
                       bars={payload.bars}
                       events={payload.events}
+                      report={payload.metrics}
                       cursor={cursor}
                       selected={selected}
                       select={seek}
+                      precision={payload.run?.price_decimals ?? 5}
+                      instrument={[payload.run?.symbol, payload.run?.interval]
+                        .filter(Boolean)
+                        .join(" · ")}
                       drawings={payload.drawings || []}
                       annotations={annotations}
                       markers={markers}
@@ -828,6 +1075,7 @@ export default function Research({
                     <Chart
                       bars={payload.bars}
                       events={payload.events}
+                      report={payload.metrics}
                       cursor={cursor}
                       equity
                       selected={selected}
@@ -883,14 +1131,6 @@ export default function Research({
                   <summary>Order rejections ({rejections.length})</summary>
                   <pre>{JSON.stringify(rejections, null, 2)}</pre>
                 </details>
-                <a
-                  className="wide-action"
-                  href={`/legacy/${job.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open original replay <ExternalLink size={15} />
-                </a>
               </>
             )}
           </>

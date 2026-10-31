@@ -95,3 +95,21 @@ No additional agent harness, paid dependency, release or publication.
 
 Verification and remaining boundaries are recorded in
 `docs/engineering/OBS-STUDIO-01.md` and `docs/STUDIO.md`.
+
+## Follow-up: integrated chart polish (2026-10-31)
+
+User review requested candle-relative markers, indicator/chart tooltips and
+removal of the external original-replay links. Replaced the oversized marker
+plugin with a small chart primitive using candle spacing (2–8 CSS pixels), no
+persistent marker text, and grouped overlapping glyphs. Selected positions use
+color without increasing size. Tooltips retain the underlying execution detail.
+
+Added hovered OHLCV/time, exact recorded indicator samples (gaps unavailable),
+account equity/balance, legend help, selected-trade connectors, instrument price
+precision and engine-recorded maximum-drawdown inspection inside Studio. Removed
+both legacy links from the research UI; compatibility routes and standalone
+replay remain functional. Existing speed, drawing toggles, trade focus and
+fullscreen controls remain integrated. No financial semantics changed.
+
+Validated using unit tests, production build and Chromium against a real isolated
+engine backtest; evidence and exact results are in the engineering report.

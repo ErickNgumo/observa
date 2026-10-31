@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { executionMarkers, tradeRange, replayDelays } from '../src/replay.ts';
+import { executionMarkers, tradeRange, replayDelays, markerPixels, indicatorSamples } from '../src/replay.ts';
 
 test('canonical markers preserve sides, cursor visibility and selected position identity', () => {
   const bars = [0, 1, 2].map(i => ({ time: new Date(1700000000000 + i * 900000).toISOString() }));
@@ -28,4 +28,25 @@ test('trade focus includes entry and only the known portion of an exit', () => {
   assert.deepEqual(tradeRange({ opened_bar: 30 }, 40), { from: 22, to: 48 });
   assert.ok(replayDelays['0.5×'] > replayDelays['1×']);
   assert.ok(replayDelays['1×'] > replayDelays['10×']);
+});
+
+
+test('compact marker dimensions follow spacing without growing on selection', () => {
+  assert.equal(markerPixels(1), 2);
+  assert.ok(markerPixels(6) < markerPixels(12));
+  assert.equal(markerPixels(100), 8);
+  const event = { type: 'position_opened', bar_index: 0, position_id: 'p', side: 'Buy' };
+  const bar = { time: '2024-01-01T00:00:00Z' };
+  const normal = executionMarkers([event], [bar], 0, null)[0];
+  const selected = executionMarkers([event], [bar], 0, 'p')[0];
+  assert.equal(selected.selected, true);
+  assert.equal(normal.size, selected.size);
+});
+
+test('indicator tooltips use exact samples and leave gaps unavailable', () => {
+  const state = { series: { sma: { id: 'sma', options: { label: 'SMA', pane: 'price' }, points: [{ time: 1, value: 123 }, { time: 3, value: 456 }] } } };
+  assert.equal(indicatorSamples(state, 1)[0].value, 123);
+  assert.equal(indicatorSamples(state, 2)[0].value, undefined);
+  assert.equal(indicatorSamples(state, 0)[0].value, undefined);
+  assert.equal(indicatorSamples(state, 3)[0].label, 'SMA');
 });

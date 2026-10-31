@@ -1506,3 +1506,66 @@ td.negative {
   overflow-wrap: anywhere;
   font-size: 11px;
 }
+
+.chart-surface {
+  position: relative;
+}
+.chart-tooltip {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  width: 270px;
+  max-width: calc(100% - 8px);
+  max-height: 270px;
+  overflow: hidden;
+  padding: 12px;
+  border: 1px solid #dce4db;
+  border-radius: 10px;
+  background: #fffffff5;
+  box-shadow: 0 4px 18px #18372918;
+  font-size: 12px;
+  color: #344b3d;
+}
+.chart-tooltip > strong,
+.chart-tooltip small {
+  display: block;
+}
+.chart-tooltip small {
+  color: #73806e;
+  font-size: 10px;
+}
+.chart-tooltip dl {
+  margin: 8px 0 0;
+}
+.chart-tooltip dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.chart-tooltip dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.chart-tooltip p {
+  margin: 5px 0 0;
+}
+.tooltip-trades {
+  margin-top: 8px;
+  border-top: 1px solid #edf0eb;
+  padding-top: 6px;
+}
+.chart-readout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.balance-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #737f99;
+}
+.indicator-legend > span[tabindex] {
+  cursor: help;
+}

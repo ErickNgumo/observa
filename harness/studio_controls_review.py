@@ -56,6 +56,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--real-codex', action='store_true')
+    parser.add_argument('--chart-only', action='store_true', help='Check chart behavior without launching Codex')
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     checks, errors = [], []
@@ -113,6 +114,25 @@ def main():
                 expect(page.get_by_label('Strategy indicators')).to_contain_text('SMA 3')
                 expect(page.get_by_label('Strategy indicators')).to_contain_text('Bar range')
                 check('recorded price indicator and separate histogram pane render')
+                expect(page.locator('a[href^="/legacy/"]')).to_have_count(0)
+                replay = page.request.get(base + '/api/experiments/' + job['id'] + '/replay').json()
+                surface = page.locator('.chart-surface').first
+                box = surface.bounding_box()
+                tooltip = page.get_by_role('tooltip', name='Chart values')
+                for ratio in [0.4, 0.45, 0.5, 0.55]:
+                    page.mouse.move(box['x'] + box['width'] * ratio, box['y'] + 90)
+                    if tooltip.is_visible(): break
+                expect(tooltip).to_be_visible()
+                bar_index = int(tooltip.locator(':scope > small').inner_text().split()[1]) - 1
+                close = tooltip.locator('dl > div').filter(has=page.get_by_text('Close', exact=True)).locator('dd').inner_text()
+                check('chart tooltip displays the hovered canonical candle', abs(float(close.replace(',', '')) - replay['bars'][bar_index]['close']) < 0.00001)
+                sma = tooltip.locator('dl > div').filter(has=page.get_by_text('SMA 3', exact=True)).locator('dd').inner_text()
+                recorded = next(d['value'] for d in replay['drawings'][bar_index] if d['id'] == 'sma')
+                check('indicator tooltip displays the recorded sample at the same bar', (sma == '—' if recorded is None else abs(float(sma.replace(',', '')) - recorded) < 0.00001))
+                page.screenshot(path=str(args.out / 'chart-tooltip.png'))
+                page.mouse.move(5, 5)
+                expect(tooltip).not_to_be_visible()
+                check('tooltip clears when leaving the chart')
                 page.screenshot(path=str(args.out / 'trade-highlight.png'))
                 for label in ['Indicators & drawings', 'Trade markers', 'Entry / SL / TP']:
                     page.get_by_label(label, exact=True).uncheck()
@@ -137,6 +157,19 @@ def main():
                 check('backward replay does not display future indicator samples')
                 page.get_by_role('button', name='Last bar', exact=True).click()
                 page.get_by_role('button', name='Fit chart', exact=True).click()
+                account = page.locator('.chart-wrap').last
+                account.scroll_into_view_if_needed()
+                expect(account.get_by_label('Balance', exact=True)).to_be_checked()
+                account.get_by_label('Balance', exact=True).uncheck()
+                account.get_by_label('Balance', exact=True).check()
+                if replay['metrics'].get('max_drawdown_start') and replay['metrics'].get('max_drawdown_end'):
+                    account.get_by_role('button', name='Inspect drawdown', exact=True).click()
+                    account.get_by_role('button', name='Fit account chart', exact=True).click()
+                box = account.locator('.chart-surface').bounding_box()
+                page.mouse.move(box['x'] + box['width'] * 0.5, box['y'] + 70)
+                expect(page.get_by_role('tooltip', name='Account values')).to_contain_text('Balance')
+                check('balance and maximum-drawdown inspection are integrated in the account chart')
+                page.mouse.move(5, 5)
                 page.get_by_title('Expand trade explorer', exact=True).click()
                 check('trade explorer retains fullscreen', page.locator('.trade-overlay').count() == 1)
                 page.get_by_title('Exit full-screen trades', exact=True).click()
@@ -149,6 +182,11 @@ def main():
                 check('legacy replay still renders shared drawing primitives and indicators')
                 legacy.close()
                 page.get_by_title('Close research canvas', exact=True).click()
+                if args.chart_only:
+                    check('chart browser reports no JavaScript errors', not errors)
+                    (args.out / 'verification.json').write_text(json.dumps({'checks': checks, 'errors': errors, 'real_codex': False}, indent=2))
+                    browser.close()
+                    return
                 composer = page.get_by_label('Message Codex')
                 composer.fill('/model')
                 page.get_by_role('button', name='/model Choose model and reasoning effort', exact=True).click()

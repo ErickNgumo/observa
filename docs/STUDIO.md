@@ -103,7 +103,17 @@ execution markers and open-position entry/SL/TP levels independently. Indicators
 use the strategy's recorded `drawings` series, including a separate indicator
 pane. They are revealed only through the replay cursor. A historical run that
 did not record indicator values cannot display them retrospectively; ask Codex
-to emit the series and prepare a new backtest. The original replay stays linked.
+to emit the series and prepare a new backtest.
+
+Trade glyphs scale with candle spacing, remain small when selected, and group
+overlapping executions on the same candle. Hover a candle to see UTC time,
+OHLCV, exact recorded indicator values and execution details; hover an indicator
+legend entry for its pane/help description. Missing indicator samples display
+as unavailable rather than interpolated values. Selected trades have a dashed
+entry-to-exit connector. The account chart includes a balance overlay, hover
+values, and maximum-drawdown inspection from the engine's recorded period once
+replay reaches it. These features are built into Studio; there is no separate
+original-replay link in the research canvas.
 
 Type `/` in chat to see Studio commands, or click the settings beneath the
 composer. These are client controls backed by native Codex App Server APIs:
@@ -223,8 +233,9 @@ artifacts are not accepted. Limits: 2 MiB per artifact, 10,000 points/rows.
 ## Compatibility and current limits
 
 - Existing Python, CLI, read-only MCP and `observa replay` workflows are intact.
-  The research canvas reuses the original annotation renderer and also links
-  to the original replay.
+  The research canvas reuses the original annotation renderer and provides
+  replay, drawings, markers, trade focus and account inspection directly.
+  Standalone replay and existing replay URLs remain backward-compatible.
 - Linux and Codex only. Other providers can implement the adapter boundary later;
   provider thread IDs are intentionally not portable between agents.
 - One active agent turn per project. No simultaneous editing agents in a project.
@@ -260,6 +271,8 @@ python harness/studio_stop_review.py --out /tmp/observa-studio-stop-live --real-
 # Annotated real-engine replay, slash settings from the installed Codex, and
 # optional live turns exercising mode/permission changes and native resume.
 python harness/studio_controls_review.py --out /tmp/observa-controls --real-codex
+# Chart-only real-engine/browser check without any Codex connection:
+python harness/studio_controls_review.py --out /tmp/observa-chart --chart-only
 ```
 
 The real-browser harness checks project creation, native permissions, snapshot

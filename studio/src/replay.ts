@@ -34,7 +34,7 @@ export function executionMarkers(
               : "#c35449",
         shape: entry ? (buy ? "arrowUp" : "arrowDown") : "circle",
         text: `${entry ? (buy ? "Buy" : "Sell") : e.exit_reason || "Exit"}${e.position_id === selected ? " · selected" : ""}`,
-        size: e.position_id === selected ? 1.5 : 1,
+        selected: e.position_id === selected,
       };
     })
     .sort((a, b) => a.time - b.time);
@@ -44,4 +44,19 @@ export function tradeRange(position: any, cursor: number) {
     to = Math.min(position.closed_bar ?? cursor, cursor);
   const padding = Math.max(8, (to - from) * 0.2);
   return { from: from - padding, to: to + padding };
+}
+
+export function markerPixels(spacing: number): number {
+  return Math.max(2, Math.min(8, spacing * 0.65));
+}
+
+// Exact recorded samples only: missing/warm-up values stay unavailable.
+export function indicatorSamples(state: any, time: number) {
+  return Object.values(state.series).map((entry: any) => ({
+    id: entry.id,
+    label: entry.options.label || entry.id,
+    color: entry.options.color,
+    pane: entry.options.pane,
+    value: entry.points.find((point: any) => point.time === time)?.value,
+  }));
 }

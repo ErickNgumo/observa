@@ -306,3 +306,39 @@ Evidence: [live controls verification](obs-studio-01/controls-verification.json)
 No Rust/Python financial semantics changed; the full Rust workspace and financial
 ledger suites were not rerun for this presentation/provider-control follow-up.
 Restart Studio and open its new launch link to load the rebuilt local assets.
+
+## Follow-up — compact markers and integrated inspection, 2026-10-31
+
+The built-in chart markers imposed a minimum shape size, which became especially
+intrusive with enlarged selected markers and persistent text. Studio now uses a
+small chart primitive that reads the current time-scale spacing on each draw.
+Glyphs range from 2 to 8 CSS pixels, stay the same size on selection, and group
+same-candle/same-shape overlaps. Selection uses color and the existing shaded
+trade window; a thin dashed connector joins the recorded entry and exit. Marker
+text moves into the candle tooltip, with all events retained in the bar inspector.
+
+Candle hover displays UTC timestamp, OHLCV, exact samples from the folded drawing
+series, strategy markers and canonical executions at that bar. Indicator gaps
+are never filled or interpolated. Legend entries provide pane/help tooltips.
+Account hover displays canonical equity and balance; balance can be toggled, and
+the engine's recorded maximum-drawdown interval can be highlighted/focused after
+replay reaches its end. Symbol, interval and price precision use persisted run
+metadata. No economics are computed by this work.
+
+Both original-replay links are removed from Studio. Drawing, replay navigation,
+trade focus/fullscreen, balance/equity and drawdown inspection live in the current
+chart. The standalone replay and compatibility route remain available to existing
+callers; the browser regression still checks them directly.
+
+Verification: 9 frontend tests passed (including marker rendering/grouping across
+zoom and exact indicator samples), TypeScript and Vite production build passed,
+legacy replay (17 groups), drawing renderer (13 groups), metrics (7 groups), and
+workspace checks passed. Chromium passed 13 checks against an actual isolated
+engine run with recorded SMA/histogram/annotation data. Tooltip values were
+compared to the run's replay payload, and no browser exceptions were reported.
+No provider/backend or engine change; no model calls or full engine-suite rerun
+were needed for this chart-only follow-up.
+
+Evidence: [chart verification](obs-studio-01/chart-polish-verification.json),
+[hover details and compact markers](obs-studio-01/chart-tooltip.png).
+Reproduce with `harness/studio_controls_review.py --chart-only --out <directory>`.

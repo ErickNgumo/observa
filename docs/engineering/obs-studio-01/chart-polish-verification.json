@@ -1,0 +1,19 @@
+{
+  "checks": [
+    "real isolated engine produced the annotated trade fixture",
+    "clicking a trade opens replay at its canonical exit and focuses the trade",
+    "recorded price indicator and separate histogram pane render",
+    "chart tooltip displays the hovered canonical candle",
+    "indicator tooltip displays the recorded sample at the same bar",
+    "tooltip clears when leaving the chart",
+    "trade entry jump preserves canonical bar identity",
+    "speed selection changes actual playback rate",
+    "backward replay does not display future indicator samples",
+    "balance and maximum-drawdown inspection are integrated in the account chart",
+    "trade explorer retains fullscreen",
+    "legacy replay still renders shared drawing primitives and indicators",
+    "chart browser reports no JavaScript errors"
+  ],
+  "errors": [],
+  "real_codex": false
+}
