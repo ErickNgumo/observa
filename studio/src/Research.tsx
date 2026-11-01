@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useId } from "react";
 import {
   createChart,
   CandlestickSeries,
@@ -23,6 +23,8 @@ import {
   replayDelays,
   tradeRange,
   indicatorSamples,
+  tradeConnections,
+  lineExplanation,
 } from "./replay";
 import { CompactMarkers } from "./CompactMarkers";
 import { api, number, type RecordData } from "./api";
@@ -43,6 +45,39 @@ const timestamp = (value: string) =>
 
 const EMPTY: any[] = [];
 
+function LineHelp({
+  label,
+  description,
+  color,
+}: {
+  label: string;
+  description: string;
+  color?: string;
+}) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  return (
+    <span className={`line-help ${open ? "open" : ""}`}>
+      <button
+        type="button"
+        style={{ color }}
+        aria-label={`About ${label}`}
+        aria-describedby={id}
+        onClick={() => setOpen(!open)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+        }}
+      >
+        {label} <span aria-hidden="true">ⓘ</span>
+      </button>
+      <span id={id} role="tooltip" className="line-help-text">
+        {description}
+      </span>
+    </span>
+  );
+}
+
 function Chart({
   bars,
   events,
@@ -62,6 +97,7 @@ function Chart({
   precision = 5,
   instrument = "",
   report,
+  selectPosition,
 }: {
   bars: any[];
   events: any[];
@@ -81,13 +117,17 @@ function Chart({
   precision?: number;
   instrument?: string;
   report?: any;
+  selectPosition?: (id: string) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<any>(null);
   const [showBalance, setShowBalance] = useState(true);
   const [showDrawdown, setShowDrawdown] = useState(true);
-  const balanceRef = useRef<any>(null),
-    connectorRef = useRef<any>(null);
+  const balanceRef = useRef<any>(null);
+  const [arrowScale, setArrowScale] = useState(1);
+  const [pathMode, setPathMode] = useState("all");
+  const positionSelectRef = useRef(selectPosition);
+  positionSelectRef.current = selectPosition;
   const hoverContext = useRef<any>(null);
   const chartRef = useRef<any>(null),
     seriesRef = useRef<any>(null),
@@ -106,7 +146,6 @@ function Chart({
     () => window.ObservaDrawings.fold(drawings, cursor, times),
     [drawings, cursor, times],
   );
-  const legend = window.ObservaDrawings.summary(drawingState);
   const drawdownStart = report?.max_drawdown_start
     ? timestamp(report.max_drawdown_start)
     : null;
@@ -137,25 +176,30 @@ function Chart({
     const snapshot = context.events.find(
       (e: any) => e.type === "portfolio_snapshot" && e.bar_index === barIndex,
     );
+    const indicatorId = layerRef.current?.seriesId(param.hoveredSeries);
+    const indicator = indicatorId && context.drawingState.series[indicatorId];
+    let explanation = indicator
+      ? lineExplanation(indicator.options.label || indicatorId)
+      : null;
+    if (
+      typeof param.hoveredObjectId === "string" &&
+      param.hoveredObjectId.startsWith("trade:")
+    )
+      explanation =
+        "Trade execution: arrows point to recorded fill prices. The dashed connector links the entry and exit of the same position, not its price path. Click to inspect the trade.";
+    if (equity && param.hoveredSeries === seriesRef.current)
+      explanation =
+        "Equity includes the balance and unrealised P&L at the end of each bar, as recorded by the engine.";
+    if (equity && param.hoveredSeries === balanceRef.current)
+      explanation =
+        "Balance reflects realised cash movements. Open-position unrealised P&L is included in equity instead.";
     setHover({
+      explanation,
       barIndex,
       bar: bars[barIndex],
-      x: param.point.x,
-      y: param.point.y,
-      width: container.current?.clientWidth || 300,
       snapshot,
       indicators: context.annotations
         ? indicatorSamples(context.drawingState, param.time)
-        : [],
-      trades: context.markers
-        ? context.events.filter(
-            (e: any) =>
-              e.bar_index === barIndex &&
-              ["position_opened", "position_closed"].includes(e.type),
-          )
-        : [],
-      signals: context.annotations
-        ? context.drawingState.markers.filter((m: any) => m.time === param.time)
         : [],
     });
   };
@@ -210,6 +254,14 @@ function Chart({
       series.attachPrimitive(markerRef.current);
     }
     chart.subscribeClick((param) => {
+      if (
+        typeof param.hoveredObjectId === "string" &&
+        param.hoveredObjectId.startsWith("trade:") &&
+        positionSelectRef.current
+      ) {
+        positionSelectRef.current(param.hoveredObjectId.slice(6));
+        return;
+      }
       if (typeof param.time === "number") {
         const i = times.indexOf(param.time as UTCTimestamp);
         if (i >= 0) selectRef.current(i);
@@ -229,7 +281,6 @@ function Chart({
       layerRef.current = null;
       highlightRef.current = null;
       priceLines.current = [];
-      connectorRef.current = null;
       balanceRef.current = null;
     };
   }, [bars, equity, precision]);
@@ -287,21 +338,14 @@ function Chart({
         ? executionMarkers(events, bars, cursor, selected)
         : [];
       const strategy = layer.drawingMarkersFor(drawingState, annotations);
-      markerRef.current.setData([...canonical, ...strategy], candles);
-      if (connectorRef.current) layer.removePrimitive(connectorRef.current);
-      connectorRef.current =
-        position && position.closed_bar != null && position.closed_bar <= cursor
-          ? layer.createPrimitive({
-              type: "line",
-              x1: bars[position.opened_bar].time,
-              y1: position.entry_price,
-              x2: bars[position.closed_bar].time,
-              y2: position.exit_price,
-              color: "#9953c4",
-              line_style: "dashed",
-              width: 1,
-            })
-          : null;
+      markerRef.current.setData(
+        [...canonical, ...strategy],
+        candles,
+        markers
+          ? tradeConnections(events, bars, cursor, selected, pathMode)
+          : [],
+        arrowScale,
+      );
       for (const line of priceLines.current) series.removePriceLine(line);
       priceLines.current = [];
       for (const p of levels)
@@ -372,13 +416,30 @@ function Chart({
     showDrawdown,
     drawdownVisible,
     report,
+    arrowScale,
+    pathMode,
   ]);
+  const shown = hover || {
+    barIndex: cursor,
+    bar: bars[cursor],
+    snapshot: events.find(
+      (e) => e.type === "portfolio_snapshot" && e.bar_index === cursor,
+    ),
+    indicators: indicatorSamples(drawingState, times[cursor]),
+  };
+  const dateLabel = shown.bar
+    ? new Date(shown.bar.time)
+        .toISOString()
+        .replace("T", " ")
+        .replace(".000Z", " UTC")
+    : "No bar";
   return (
     <div className="chart-wrap">
       <div className="chart-readout">
-        {equity
-          ? "Canonical end-of-bar equity"
-          : `${instrument || "Price"} · hover to inspect · click to select a bar`}
+        <b>{equity ? "Account" : instrument || "Price"}</b>
+        <span>
+          {dateLabel} · Bar {shown.barIndex + 1}
+        </span>
         {equity && (
           <label className="balance-toggle">
             <input
@@ -390,103 +451,137 @@ function Chart({
           </label>
         )}
       </div>
+      <div
+        className="chart-values"
+        aria-label={equity ? "Account values" : "Chart values"}
+        data-bar-index={shown.barIndex}
+      >
+        {(equity
+          ? [
+              ["Equity", shown.snapshot?.equity],
+              ...(showBalance ? [["Balance", shown.snapshot?.balance]] : []),
+            ]
+          : [
+              ["Open", shown.bar?.open],
+              ["High", shown.bar?.high],
+              ["Low", shown.bar?.low],
+              ["Close", shown.bar?.close],
+              ["Volume", shown.bar?.volume],
+            ]
+        ).map(([label, value]) => (
+          <span key={label}>
+            <small>{label}</small>{" "}
+            <b data-value={label}>
+              {number(value, equity || label === "Volume" ? 2 : precision)}
+            </b>
+          </span>
+        ))}
+      </div>
+      <div
+        className="indicator-legend chart-line-legend"
+        aria-label={equity ? "Account lines" : "Strategy indicators"}
+      >
+        {equity ? (
+          <>
+            <LineHelp
+              label="Equity"
+              color="#178363"
+              description="Balance plus unrealised P&L on open positions, recorded by the engine at the end of each bar."
+            />
+            {showBalance && (
+              <LineHelp
+                label="Balance"
+                color="#808aa4"
+                description="Realised account cash balance. Open-position unrealised P&L is reflected in equity."
+              />
+            )}
+            {showDrawdown && drawdownVisible && (
+              <LineHelp
+                label="Drawdown region"
+                color="#c35449"
+                description="The shaded interval is the engine's recorded maximum peak-to-trough equity decline for this run."
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {annotations &&
+              shown.indicators.map((v: any) => (
+                <span className="indicator-value" key={v.id}>
+                  <LineHelp
+                    label={v.label}
+                    color={v.color}
+                    description={lineExplanation(v.label)}
+                  />
+                  <b data-indicator={v.id}>{number(v.value, precision)}</b>
+                </span>
+              ))}
+            {annotations &&
+              Object.values(drawingState.primitives).map((p: any) => (
+                <LineHelp
+                  key={p.id || p.spec.id}
+                  label={p.spec.label || p.spec.text || p.spec.id}
+                  color={p.spec.color}
+                  description={lineExplanation(
+                    p.spec.label || p.spec.id,
+                    p.spec.type,
+                  )}
+                />
+              ))}
+            {annotations && !shown.indicators.length && (
+              <span>No recorded indicator series.</span>
+            )}
+            {markers && (
+              <LineHelp
+                label="Trade arrows & paths"
+                description="Blue up arrows are buys; red down arrows are sells. Closing a long is a sell, closing a short is a buy. Arrow tips mark fill prices; dashed paths join a position's entry and exit. Click an arrow or path to inspect. Purple highlights the selected trade."
+              />
+            )}
+            {levels.length > 0 && (
+              <LineHelp
+                label="Entry / SL / TP"
+                description="Entry is the recorded opening fill. SL is the stop-loss level and TP is the take-profit level on an open position. These are levels, not guaranteed future fill prices."
+              />
+            )}
+          </>
+        )}
+      </div>
       <div className="chart-surface" onMouseLeave={clearHover}>
         <div ref={container} style={{ height: 300, width: "100%" }} />
-        {hover && (
-          <div
-            className="chart-tooltip"
-            role="tooltip"
-            aria-label={equity ? "Account values" : "Chart values"}
-            style={{
-              left: Math.max(
-                4,
-                Math.min(
-                  hover.x + 16,
-                  hover.width - Math.min(270, hover.width - 8),
-                ),
-              ),
-              top: hover.y > 150 ? 12 : undefined,
-              bottom: hover.y <= 150 ? 12 : undefined,
-            }}
-          >
-            <strong>
-              {new Date(hover.bar.time)
-                .toISOString()
-                .replace("T", " ")
-                .replace(".000Z", " UTC")}
-            </strong>
-            <small>Bar {hover.barIndex + 1}</small>
-            <dl>
-              {(equity
-                ? [
-                    ["Equity", hover.snapshot?.equity],
-                    ...(showBalance
-                      ? [["Balance", hover.snapshot?.balance]]
-                      : []),
-                  ]
-                : [
-                    ["Open", hover.bar.open],
-                    ["High", hover.bar.high],
-                    ["Low", hover.bar.low],
-                    ["Close", hover.bar.close],
-                    ["Volume", hover.bar.volume],
-                  ]
-              ).map(([label, value]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd>
-                    {number(
-                      value,
-                      equity ? 2 : label === "Volume" ? 2 : precision,
-                    )}
-                  </dd>
-                </div>
-              ))}
-              {!equity &&
-                hover.indicators.map((s: any) => (
-                  <div key={s.id}>
-                    <dt style={{ color: s.color }}>{s.label}</dt>
-                    <dd>{number(s.value, precision)}</dd>
-                  </div>
-                ))}
-            </dl>
-            {!equity && hover.trades.length > 0 && (
-              <div className="tooltip-trades">
-                <b>{hover.trades.length} execution event(s)</b>
-                {hover.trades.slice(0, 6).map((e: any) => (
-                  <p key={e.event_seq}>
-                    {e.type === "position_opened"
-                      ? `${e.side} entry`
-                      : `${e.side} exit · ${e.exit_reason || "Exit"}`}{" "}
-                    @{" "}
-                    {number(
-                      e.type === "position_opened"
-                        ? e.entry_price
-                        : e.exit_price,
-                      precision,
-                    )}
-                    <small>
-                      {e.position_id?.slice(0, 8)}
-                      {e.reason ? ` · ${e.reason}` : ""}
-                    </small>
-                  </p>
-                ))}
-                {hover.trades.length > 6 && (
-                  <small>
-                    All events are available in the bar inspector below.
-                  </small>
-                )}
-              </div>
-            )}
-            {!equity &&
-              hover.signals.map((m: any) => (
-                <p key={m.id} style={{ color: m.color }}>
-                  {m.text || "Strategy marker"}
-                </p>
-              ))}
+        {hover?.explanation && (
+          <div className="chart-line-explanation" role="tooltip">
+            {hover.explanation}
           </div>
         )}
       </div>
+      {!equity && (
+        <div className="trade-display-controls">
+          <label>
+            Arrow size{" "}
+            <select
+              aria-label="Trade arrow size"
+              value={arrowScale}
+              onChange={(e) => setArrowScale(Number(e.target.value))}
+            >
+              <option value={0.8}>Compact</option>
+              <option value={1}>Standard</option>
+              <option value={1.3}>Large</option>
+            </select>
+          </label>
+          <label>
+            Trade paths{" "}
+            <select
+              aria-label="Trade paths"
+              value={pathMode}
+              onChange={(e) => setPathMode(e.target.value)}
+            >
+              <option value="all">All closed trades</option>
+              <option value="selected">Selected trade</option>
+              <option value="hidden">Hidden</option>
+            </select>
+          </label>
+        </div>
+      )}
       {equity && (
         <div className="replay-options">
           <label title="Uses the maximum-drawdown period recorded by the engine. Available after replay reaches that period.">
@@ -502,12 +597,10 @@ function Chart({
             disabled={!drawdownVisible}
             onClick={() => {
               setShowDrawdown(true);
-              chartRef.current
-                .timeScale()
-                .setVisibleRange({
-                  from: drawdownStart,
-                  to: Math.max(drawdownEnd!, drawdownStart! + 1),
-                });
+              chartRef.current.timeScale().setVisibleRange({
+                from: drawdownStart,
+                to: Math.max(drawdownEnd!, drawdownStart! + 1),
+              });
             }}
           >
             Inspect drawdown
@@ -515,26 +608,6 @@ function Chart({
           <button onClick={() => chartRef.current.timeScale().fitContent()}>
             Fit account chart
           </button>
-        </div>
-      )}
-      {!equity && annotations && (
-        <div className="indicator-legend" aria-label="Strategy indicators">
-          {legend.series.map((s: any) => (
-            <span
-              key={s.id}
-              tabIndex={0}
-              title={`${s.label} · ${s.pane === "separate" ? "Separate pane" : "Price overlay"}. Hover the chart for recorded values at each bar. Missing samples are unavailable, never interpolated.`}
-              style={{ color: s.color }}
-            >
-              {s.label} · {s.points} points
-            </span>
-          ))}
-          {!legend.series.length && (
-            <span>No indicator series recorded through this bar.</span>
-          )}
-          {legend.primitiveCount > 0 && (
-            <span>{legend.primitiveCount} drawings</span>
-          )}
         </div>
       )}
     </div>
@@ -597,6 +670,12 @@ export default function Research({
   const [rejections, setRejections] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [tab, setTab] = useState("overview");
+  const contentRef = useRef<HTMLDivElement>(null);
+  const openReplay = (expand = false) => {
+    setTab("replay");
+    if (expand) setFull(true);
+    contentRef.current?.scrollTo({ top: 0 });
+  };
   const [full, setFull] = useState(false);
   const [tradesFull, setTradesFull] = useState(false);
   const [cursor, setCursor] = useState(0);
@@ -867,13 +946,16 @@ export default function Research({
           <button
             className={tab === t ? "active" : ""}
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => {
+              setTab(t);
+              contentRef.current?.scrollTo({ top: 0 });
+            }}
           >
             {t[0].toUpperCase() + t.slice(1)}
           </button>
         ))}
       </nav>
-      <div className="canvas-content">
+      <div className="canvas-content" ref={contentRef}>
         {error && <div className="error">{error}</div>}
         {!payload && !error && (
           <div className="empty-small">Loading canonical result…</div>
@@ -951,6 +1033,10 @@ export default function Research({
                             )
                           : []
                       }
+                      selectPosition={(id) => {
+                        const p = positions.find((p) => p.position_id === id);
+                        if (p) selectTrade(p);
+                      }}
                       position={position}
                       following={following}
                       unfollow={() => setFollowing(false)}
@@ -1135,7 +1221,20 @@ export default function Research({
             )}
           </>
         )}
-      </div>
+      </div>{" "}
+      {payload && (
+        <footer className="research-dock" aria-label="Replay shortcuts">
+          <button onClick={() => openReplay()}>
+            <Play size={14} /> View replay
+          </button>
+          <span>
+            Bar {cursor + 1} / {payload.bars.length}
+          </span>
+          <button onClick={() => openReplay(true)}>
+            <Maximize2 size={14} /> Expand replay
+          </button>
+        </footer>
+      )}
     </aside>
   );
 }

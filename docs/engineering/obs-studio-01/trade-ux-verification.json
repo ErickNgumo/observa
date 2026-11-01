@@ -1,0 +1,24 @@
+{
+  "checks": [
+    "real isolated engine produced the annotated trade fixture",
+    "clicking a trade opens replay at its canonical exit and focuses the trade",
+    "recorded price indicator and separate histogram pane render",
+    "chart header displays hovered canonical OHLC without a floating price panel",
+    "indicator values remain in the header and match the same recorded bar",
+    "line help explains the indicator and header restores replay values on mouse leave",
+    "hovering a trade connector explains its meaning",
+    "clicking a connector selects its exact trade instead of seeking an unrelated candle",
+    "arrow sizing and all/selected/hidden connector controls work",
+    "trade entry jump preserves canonical bar identity",
+    "speed selection changes actual playback rate",
+    "backward replay does not display future indicator samples",
+    "balance and maximum-drawdown inspection are integrated in the account chart",
+    "trade explorer retains fullscreen",
+    "persistent replay shortcut opens and expands price replay from the bottom of the results",
+    "replay dock remains usable on mobile without horizontal overflow",
+    "legacy replay still renders shared drawing primitives and indicators",
+    "chart browser reports no JavaScript errors"
+  ],
+  "errors": [],
+  "real_codex": false
+}

@@ -1510,50 +1510,6 @@ td.negative {
 .chart-surface {
   position: relative;
 }
-.chart-tooltip {
-  position: absolute;
-  z-index: 4;
-  pointer-events: none;
-  width: 270px;
-  max-width: calc(100% - 8px);
-  max-height: 270px;
-  overflow: hidden;
-  padding: 12px;
-  border: 1px solid #dce4db;
-  border-radius: 10px;
-  background: #fffffff5;
-  box-shadow: 0 4px 18px #18372918;
-  font-size: 12px;
-  color: #344b3d;
-}
-.chart-tooltip > strong,
-.chart-tooltip small {
-  display: block;
-}
-.chart-tooltip small {
-  color: #73806e;
-  font-size: 10px;
-}
-.chart-tooltip dl {
-  margin: 8px 0 0;
-}
-.chart-tooltip dl > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-.chart-tooltip dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-.chart-tooltip p {
-  margin: 5px 0 0;
-}
-.tooltip-trades {
-  margin-top: 8px;
-  border-top: 1px solid #edf0eb;
-  padding-top: 6px;
-}
 .chart-readout {
   display: flex;
   align-items: center;
@@ -1568,4 +1524,149 @@ td.negative {
 }
 .indicator-legend > span[tabindex] {
   cursor: help;
+}
+
+/* Keep inspection values out of the plot; help explains a line on demand. */
+.chart-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 2px 12px 8px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-values small {
+  color: #758172;
+}
+.chart-values b {
+  font-weight: 500;
+  color: #314d40;
+}
+.chart-readout {
+  flex-wrap: wrap;
+}
+.chart-line-legend {
+  gap: 5px 14px;
+  padding: 6px 12px;
+  border-top: 1px solid #edf0eb;
+}
+.indicator-value {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+.indicator-value > b {
+  font-weight: 500;
+}
+.line-help {
+  position: relative;
+  display: inline-flex;
+}
+.line-help > button {
+  padding: 0;
+  border: 0;
+  font-size: 11px;
+  background: transparent;
+  cursor: help;
+}
+.line-help > button > span {
+  color: #98a391;
+  font-size: 10px;
+}
+.line-help-text {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 240px;
+  max-width: 70vw;
+  z-index: 8;
+  padding: 10px;
+  border: 1px solid #dce4db;
+  border-radius: 8px;
+  color: #344b3d;
+  background: #fffffff5;
+  box-shadow: 0 4px 16px #18372918;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+.line-help:hover .line-help-text,
+.line-help:focus-within .line-help-text,
+.line-help.open .line-help-text {
+  display: block;
+}
+.chart-line-explanation {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  max-width: min(300px, calc(100% - 20px));
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #fffffff2;
+  border: 1px solid #dce4db;
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: none;
+  box-shadow: 0 3px 12px #18372912;
+}
+.trade-display-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 8px 12px;
+  border-top: 1px solid #edf0eb;
+  color: #758172;
+  font-size: 11px;
+}
+.trade-display-controls label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.trade-display-controls select {
+  padding: 4px 6px;
+  font-size: 11px;
+}
+.research,
+.canvas-slot,
+.canvas-content {
+  min-height: 0;
+}
+.canvas-header,
+.research > .tabs {
+  flex-shrink: 0;
+}
+.research-dock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  background: #fbfcf9;
+  border-top: 1px solid #dfe7da;
+  padding: 10px 16px;
+}
+.research-dock > span {
+  color: #829077;
+  font-size: 11px;
+}
+.research-dock button {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: #2c634f;
+}
+.chart-line-legend {
+  position: relative;
+}
+.chart-line-legend .line-help {
+  position: static;
+}
+.chart-line-legend .line-help-text {
+  left: 8px;
+  width: 280px;
+  max-width: calc(100% - 16px);
 }

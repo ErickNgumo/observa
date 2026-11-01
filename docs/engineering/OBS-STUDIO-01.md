@@ -341,4 +341,54 @@ were needed for this chart-only follow-up.
 
 Evidence: [chart verification](obs-studio-01/chart-polish-verification.json),
 [hover details and compact markers](obs-studio-01/chart-tooltip.png).
+
+## Follow-up — readable trade arrows and quiet chart values, 2026-11-01
+
+The previous 2–8 pixel glyphs were too small in ordinary use. Trade executions
+now use shaft-and-head arrows with tips at canonical fill prices, scaling from
+10–16 CSS pixels at Standard size. Compact and Large settings allow adjustment
+without enlarging selected trades. Buys point up in blue and sells down in red;
+closing deals reverse the position's entry direction. Selected trades use purple.
+Overlapping identical glyphs share one visual while the trade table retains all
+positions. Dashed connectors pair exact position IDs and appear only after the
+recorded close is visible to replay. Users can show all, selected, or no paths;
+native chart hit testing makes arrows and paths select their originating trade.
+
+This follows the directional deal arrows and entry/exit links described in
+[MT5 trading history](https://www.metatrader5.com/en/terminal/help/trading/performing_deals).
+The compact OHLCV and indicator status line follows
+[TradingView's chart values](https://www.tradingview.com/support/solutions/43000502564-i-can-t-see-ohlc-indicator-values-and-the-crosshair-cursor/).
+Values update for the hovered candle and return to the replay cursor on leave;
+missing indicator samples stay unavailable. Floating price panels are removed.
+Line hover and accessible legend help explain meaning instead. Known indicator
+names get a general explanation, while custom calculations remain attributed to
+the strategy source. Connectors explicitly explain that they are not price paths.
+
+A persistent canvas footer exposes View replay and Expand replay outside the
+scrolling results on desktop and mobile. Existing speed, stepping, drawing
+visibility, account inspection and fullscreen trades remain integrated. The
+shared drawing renderer adds only a series-to-ID lookup for indicator hover;
+standalone replay remains compatible. No execution or financial logic changed.
+
+Verification of the final production build:
+
+- TypeScript and Vite production build passed.
+- All **13 Studio frontend tests** passed, covering arrow sizing/direction,
+  exact-ticket connectors, future-exit suppression, path filters and native hit
+  target geometry alongside existing regressions.
+- Legacy replay **17 groups**, drawings **13 groups**, metrics **7 groups** and
+  workspace checks passed.
+- Chromium **18 checks** passed against a real isolated-engine backtest, including
+  exact header values, warm-up gaps, explanatory hover, connector selection,
+  playback speeds, drawing toggles, persistent replay access, desktop/mobile
+  layout and standalone replay. No browser JavaScript errors were reported.
+- This chart-only pass makes no model calls; Codex behavior and engine semantics
+  are unchanged. Helper/renderer tests cover ticket pairing and overlapping
+  glyphs; a large, dense visual benchmark was not run. Arrow/path display
+  preferences currently reset when the chart is remounted.
+
+Evidence: [browser checks](obs-studio-01/trade-ux-verification.json),
+[trade arrows and header values](obs-studio-01/trade-ux.png),
+[indicator explanation](obs-studio-01/trade-line-help.png), and
+[mobile replay access](obs-studio-01/trade-mobile.png).
 Reproduce with `harness/studio_controls_review.py --chart-only --out <directory>`.

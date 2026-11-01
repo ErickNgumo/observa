@@ -105,15 +105,27 @@ pane. They are revealed only through the replay cursor. A historical run that
 did not record indicator values cannot display them retrospectively; ask Codex
 to emit the series and prepare a new backtest.
 
-Trade glyphs scale with candle spacing, remain small when selected, and group
-overlapping executions on the same candle. Hover a candle to see UTC time,
-OHLCV, exact recorded indicator values and execution details; hover an indicator
-legend entry for its pane/help description. Missing indicator samples display
-as unavailable rather than interpolated values. Selected trades have a dashed
-entry-to-exit connector. The account chart includes a balance overlay, hover
-values, and maximum-drawdown inspection from the engine's recorded period once
-replay reaches it. These features are built into Studio; there is no separate
-original-replay link in the research canvas.
+Trade arrows point to canonical fill prices: blue up arrows represent buys and
+red down arrows represent sells (including the opposing deal that closes a
+position). Purple identifies the selected trade. Arrows scale with candle
+spacing within a legible 10–16 CSS pixel range at Standard size; choose Compact
+or Large below the chart. Identical overlapping glyphs are grouped. Dashed paths
+connect each position's recorded entry and exit; they do not represent the price
+path or inferred fills. Choose all closed trades, only the selected trade, or
+hidden paths. Click an arrow or path to inspect that trade.
+
+UTC time, OHLCV and exact recorded indicator samples stay above the chart and
+follow the hovered candle, returning to the replay bar when the pointer leaves.
+Missing samples remain unavailable. Hover a line or hover/focus its name above
+the chart for an explanation of its meaning. Custom indicator calculations
+remain defined by the strategy source. The account chart includes a balance
+overlay and maximum-drawdown inspection from the engine's recorded period once
+replay reaches it.
+
+The **View replay** and **Expand replay** buttons remain visible at the bottom
+of the research canvas, including on mobile, so you can return to the price
+chart from scrolled results. These features are built into Studio; there is no
+separate original-replay link in the research canvas.
 
 Type `/` in chat to see Studio commands, or click the settings beneath the
 composer. These are client controls backed by native Codex App Server APIs:

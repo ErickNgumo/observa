@@ -459,6 +459,10 @@ function removeStrategyDrawing(primitive) {
 
 return {
   setCandles: function (bars) { candleData = bars; },
+  seriesId: function (series) {
+    for (var id in drawingSeriesById) if (drawingSeriesById[id].series === series) return id;
+    return null;
+  },
   apply: applyDrawingState, clear: clearDrawingLayer,
   createPrimitive: createStrategyDrawing, removePrimitive: removeStrategyDrawing,
   StrategyDrawingPrimitive: StrategyDrawingPrimitive,

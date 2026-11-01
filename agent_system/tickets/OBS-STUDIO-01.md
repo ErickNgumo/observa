@@ -113,3 +113,18 @@ fullscreen controls remain integrated. No financial semantics changed.
 
 Validated using unit tests, production build and Chromium against a real isolated
 engine backtest; evidence and exact results are in the engineering report.
+
+## Follow-up: trade arrows, line meaning and replay access (2026-11-01)
+
+User found the compact markers too small and floating price panel distracting.
+Replaced trade glyphs with adjustable, legible directional arrows at canonical
+fill prices and exact-ticket entry/exit connectors. Paths can show all, selected,
+or no trades; clicking arrows/paths selects the position. Moved OHLCV/indicator
+values to the chart header and added explanatory line/legend help. Added a
+persistent View replay / Expand replay footer for scrolled results and mobile.
+
+Final production build, 13 frontend tests, legacy JS regressions and 18 Chromium
+checks using a real isolated-engine fixture pass. Evidence, design references
+and limitations are recorded in `docs/engineering/OBS-STUDIO-01.md`; usage is
+updated in `docs/STUDIO.md`. This follow-up changes presentation only. User
+authorized committing and pushing the development branch; no release requested.
