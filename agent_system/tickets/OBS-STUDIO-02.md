@@ -1,7 +1,7 @@
 # OBS-STUDIO-02 — multi-agent Studio and local delivery architecture
 
 Date: 2026-11-09.
-Status: architecture documented; implementation milestones not started.
+Status: implementation in progress; see milestone tickets below.
 
 ## Request
 
@@ -29,7 +29,7 @@ unchanged. Proposed internal interfaces are explicitly not current public APIs.
 
 ## Milestones
 
-- [ ] 0: Integrate verified Studio baseline and Studio CI checks.
+- [x] 0: Integrate Studio baseline and CI checks; [verification and live-account limitation](OBS-STUDIO-02-00.md).
 - [ ] 1: Provider-aware adapter boundary, controls and persistence migration.
 - [ ] 2: Local launcher and single-instance lifecycle.
 - [ ] 3: Claude Code adapter and real lifecycle verification.

@@ -12,7 +12,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22.18.0"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -26,6 +26,11 @@ jobs:
           node python/tests/drawings.test.js
           node python/tests/metrics_panel.test.js
           node python/tests/workspace.test.js
+      - name: Studio frontend tests and production assets
+        run: |
+          npm ci --prefix studio
+          npm test --prefix studio
+          npm run build --prefix studio
       - name: Build wheel
         run: |
           python -m pip install maturin
@@ -95,3 +100,30 @@ jobs:
           python -m venv .mcp-alias-venv
           .mcp-alias-venv/bin/pip install "${WHEEL}[mcp]"
           .mcp-alias-venv/bin/python -c "import mcp; print('legacy [mcp] alias OK')"
+      - name: Studio sandbox prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          # Ubuntu's runner may restrict unprivileged user namespaces. This
+          # disposable CI VM needs them to test the real isolated worker.
+          if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --ro-bind / / --unshare-net -- /bin/true
+      - name: Installed Studio service and worker regressions
+        run: |
+          WHEEL=$(ls python/target/wheels/*.whl | head -1)
+          .ci-venv/bin/pip install "${WHEEL}[studio]" httpx playwright
+          .ci-venv/bin/python -m unittest discover -s python/tests -p 'test_studio*.py' -v
+      - name: Studio browser regressions with real engine data
+        run: |
+          .ci-venv/bin/python -m playwright install --with-deps chromium
+          .ci-venv/bin/python harness/studio_controls_review.py --chart-only --out .ci-studio-charts
+          .ci-venv/bin/python harness/studio_stop_review.py --out .ci-studio-charts/stop
+      - name: Retain Studio chart verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-chart-verification
+          path: .ci-studio-charts
+          if-no-files-found: ignore
