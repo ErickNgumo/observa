@@ -309,3 +309,12 @@ This is an implementation constraint, not a general architectural principle that
 ## 10. Architecture review rule
 
 An old architectural decision may be changed when there is a documented reason. The architecture document describes current approved invariants; historical rationale belongs in `DECISIONS.md`.
+
+## 11. Studio delivery design (2026-11-09)
+
+[Studio agents, local launch and distribution](STUDIO_ARCHITECTURE.md) describes
+the next application-layer implementation plan and its acceptance gates. It
+preserves the canonical runtime above and distinguishes the existing Studio
+development branch from planned multi-agent and installer work. Track progress
+in [OBS-STUDIO-02](../agent_system/tickets/OBS-STUDIO-02.md); the design document
+is not a claim that those future capabilities are implemented or released.
