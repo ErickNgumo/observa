@@ -30,7 +30,7 @@ unchanged. Proposed internal interfaces are explicitly not current public APIs.
 ## Milestones
 
 - [x] 0: Integrate Studio baseline and CI checks; [verification and live-account limitation](OBS-STUDIO-02-00.md).
-- [ ] 1: Provider-aware adapter boundary, controls and persistence migration.
+- [x] 1: [Provider-aware adapter boundary, controls and persistence migration](OBS-STUDIO-02-01.md).
 - [ ] 2: Local launcher and single-instance lifecycle.
 - [ ] 3: Claude Code adapter and real lifecycle verification.
 - [ ] 4: Private Linux installer and clean-machine acceptance.

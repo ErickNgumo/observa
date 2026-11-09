@@ -14,6 +14,15 @@ See [Studio](STUDIO.md) and [the task](../agent_system/tickets/OBS-STUDIO-01.md)
 
 ## 1. Purpose
 
+### Approved local-delivery follow-up (2026-11-09)
+
+The user authorized implementation of [OBS-STUDIO-02](../agent_system/tickets/OBS-STUDIO-02.md):
+provider-aware Studio, a local launcher, additional native agent adapters, private
+Linux packaging and website launch integration. This supersedes the prototype's
+deferral of those application-layer items. Each milestone must meet the gates in
+[the delivery architecture](STUDIO_ARCHITECTURE.md). Public release/deployment,
+paid services and financial-semantic changes remain outside that authorization.
+
 The MVP should prove one complete product loop:
 
 > A trader can install Observa, provide a supported dataset and Python strategy, run a deterministic backtest with realistic execution assumptions, visually replay what happened, and inspect trustworthy core statistics.

@@ -100,10 +100,12 @@ function Approval({
   approval,
   item,
   act,
+  providerLabel,
 }: {
   approval: RecordData;
   item?: RecordData;
   act: (path: string, body: any) => Promise<void>;
+  providerLabel: string;
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -133,7 +135,8 @@ function Approval({
     return (
       <div className="resolved-approval">
         <ShieldCheck size={13} />{" "}
-        {question ? "Input request" : "Codex permission"} · {approval.status}
+        {question ? "Input request" : `${providerLabel} permission`} ·{" "}
+        {approval.status}
       </div>
     );
   return (
@@ -143,7 +146,7 @@ function Approval({
         <div>
           <h3>
             {question
-              ? "Codex needs your input"
+              ? `${providerLabel} needs your input`
               : mcp
                 ? "Research tool permission"
                 : "Permission requested"}
@@ -151,7 +154,7 @@ function Approval({
           <p>
             {approval.params.message ||
               approval.params.reason ||
-              "Review this action before allowing Codex to continue."}
+              `Review this action before allowing ${providerLabel} to continue.`}
           </p>
         </div>
       </div>
@@ -408,6 +411,8 @@ function PlayIcon() {
 }
 
 export default function App() {
+  const [providers, setProviders] = useState<any[]>([]);
+  const [newProvider, setNewProvider] = useState("codex");
   const [projects, setProjects] = useState<RecordData[]>([]);
   const [conversations, setConversations] = useState<RecordData[]>([]);
   const [projectId, setProjectId] = useState(
@@ -441,13 +446,21 @@ export default function App() {
   const project = projects.find((p) => p.id === projectId);
   const running = active(snapshot?.conversation.status || "");
   const stoppable = canStop(snapshot);
+  const selectedProvider =
+    snapshot?.provider || providers.find((p) => p.id === newProvider);
+  const providerLabel = selectedProvider?.label || "Agent";
+  const supports = (capability: string) =>
+    Boolean(selectedProvider?.capabilities.includes(capability));
 
   const refresh = async (search = query) => {
     const state = await api("/state?q=" + encodeURIComponent(search));
     setProjects(state.projects);
     setConversations(state.conversations);
-    if (!state.codex_available)
-      setNotice("Install Codex CLI and run codex login to start research.");
+    setProviders(state.providers || []);
+    if (!(state.providers || []).some((p: any) => p.installed))
+      setNotice(
+        "Install a supported coding agent to start research. Saved results remain available.",
+      );
     else if (!state.sandbox_available)
       setNotice("Install bubblewrap to enable isolated backtests.");
     if (!state.projects.some((p: RecordData) => p.id === projectId))
@@ -568,7 +581,10 @@ export default function App() {
       return null;
     }
     setInput("");
-    const value = await api("/conversations", { project: pid });
+    const value = await api("/conversations", {
+      project: pid,
+      provider: newProvider,
+    });
     setConversations((list) => [...list, value]);
     setConversationId(value.id);
     return value.id;
@@ -591,8 +607,14 @@ export default function App() {
     }
   };
   const openSettings = async (section: string) => {
+    if (!supports(section)) {
+      setNotice(
+        `${providerLabel} does not expose ${section} controls in this installation.`,
+      );
+      return;
+    }
     if (stoppable) {
-      setNotice("Stop active research before changing Codex settings.");
+      setNotice("Stop active research before changing agent settings.");
       return;
     }
     try {
@@ -617,7 +639,7 @@ export default function App() {
       const c = snapshot?.conversation,
         s = c?.settings || {};
       setNotice(
-        `Codex · ${s.model || c?.model || "Configured default model"} · ${s.effort || "default"} reasoning · ${s.mode || "default"} mode · ${permissionLabels[s.permissions || "cautious"]} · ${c?.status || "New conversation"}${c?.thread_id ? " · Thread " + c.thread_id : ""}`,
+        `${providerLabel} · ${s.model || c?.model || "Configured default model"} · ${s.effort || "default"} reasoning · ${s.mode || "default"} mode · ${permissionLabels[s.permissions || "cautious"] || s.permissions} · ${c?.status || "New conversation"}${c?.thread_id ? " · Thread " + c.thread_id : ""}`,
       );
     } else
       setNotice(
@@ -735,6 +757,21 @@ export default function App() {
               </button>
             )}
           </label>
+          <label className="provider-choice">
+            Agent for new conversations
+            <select
+              aria-label="Agent for new conversations"
+              value={newProvider}
+              onChange={(e) => setNewProvider(e.target.value)}
+            >
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                  {p.installed ? "" : " (not installed)"}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="sidebar-section">
             <span>PROJECTS</span>
             <button
@@ -833,7 +870,7 @@ export default function App() {
                 onClick={stop}
                 disabled={!stoppable || stopping}
                 aria-label="Stop agent"
-                title="Stop Codex and active backtests"
+                title={`Stop ${providerLabel} and active backtests`}
               >
                 {stopping ? (
                   <LoaderCircle className="spin" size={14} />
@@ -845,7 +882,7 @@ export default function App() {
             )}
             <span className="provider">
               <span className={`provider-dot ${!connected ? "offline" : ""}`} />
-              Codex{" "}
+              {providerLabel}{" "}
               <span className="provider-mode">
                 {connected ? "Local session" : "Disconnected"}
               </span>
@@ -931,7 +968,8 @@ export default function App() {
                   <p>
                     A workspace for thoughtful strategy research.
                     <br />
-                    Build with Codex. Test with Observa. Follow the evidence.
+                    Build with your agent. Test with Observa. Follow the
+                    evidence.
                   </p>
                   <div className="starter-grid">
                     <button
@@ -981,7 +1019,7 @@ export default function App() {
                               <span className="mini-brand">
                                 <Activity size={15} />
                               </span>
-                              Codex
+                              {providerLabel}
                             </div>
                             <Markdown text={value.text || ""} />
                           </div>
@@ -990,6 +1028,7 @@ export default function App() {
                         ))}
                       {type === "approval" && (
                         <Approval
+                          providerLabel={providerLabel}
                           approval={value}
                           item={snapshot?.items.find(
                             (i) => i.provider_id === value.params.itemId,
@@ -1027,10 +1066,10 @@ export default function App() {
                     <div className="agent-working">
                       <span className="breathing-dot" />
                       {stopping || snapshot?.conversation.status === "stopping"
-                        ? "Stopping Codex…"
+                        ? `Stopping ${providerLabel}…`
                         : snapshot?.conversation.status === "connecting"
-                          ? "Connecting to Codex…"
-                          : "Codex is working"}
+                          ? `Connecting to ${providerLabel}…`
+                          : `${providerLabel} is working`}
                       {snapshot?.conversation.model && (
                         <small>{snapshot.conversation.model}</small>
                       )}
@@ -1044,6 +1083,11 @@ export default function App() {
                 {input.startsWith("/") && (
                   <div className="slash-menu" aria-label="Studio commands">
                     {commands
+                      .filter(
+                        ([command]) =>
+                          !["model", "mode", "permissions"].includes(command) ||
+                          supports(command),
+                      )
                       .filter(([command]) =>
                         command.startsWith(input.slice(1).toLowerCase()),
                       )
@@ -1065,8 +1109,8 @@ export default function App() {
                 )}
                 <textarea
                   ref={composer}
-                  placeholder="Ask Codex, or type / for model, mode and permissions…"
-                  aria-label="Message Codex"
+                  placeholder={`Ask ${providerLabel}, or type / for settings…`}
+                  aria-label={`Message ${providerLabel}`}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -1087,7 +1131,9 @@ export default function App() {
                     type="button"
                     className="composer-setting"
                     onClick={() => openSettings("permissions")}
-                    disabled={stoppable || !connected}
+                    disabled={
+                      stoppable || !connected || !supports("permissions")
+                    }
                     title="Permissions (/permissions)"
                   >
                     <ShieldCheck size={14} />{" "}
@@ -1103,7 +1149,7 @@ export default function App() {
                       type="button"
                       className="composer-setting"
                       title="Mode (/mode)"
-                      disabled={stoppable || !connected}
+                      disabled={stoppable || !connected || !supports("mode")}
                       onClick={() => openSettings("mode")}
                     >
                       {snapshot?.conversation.settings?.mode === "plan"
@@ -1114,18 +1160,18 @@ export default function App() {
                       type="button"
                       className="composer-setting"
                       title="Model and reasoning (/model)"
-                      disabled={stoppable || !connected}
+                      disabled={stoppable || !connected || !supports("model")}
                       onClick={() => openSettings("model")}
                     >
                       {snapshot?.conversation.settings?.model ||
                         snapshot?.conversation.model ||
-                        "Codex"}
+                        providerLabel}
                     </button>
                     {stoppable ? (
                       <button
                         type="button"
                         className="send-button stop"
-                        title="Stop Codex and active backtests"
+                        title={`Stop ${providerLabel} and active backtests`}
                         aria-label="Stop research"
                         disabled={stopping}
                         onClick={stop}
@@ -1155,8 +1201,8 @@ export default function App() {
                 </div>
               </form>
               <p className="composer-footnote">
-                Local files & history · Codex uses your configured account ·
-                Verify results before drawing conclusions
+                Local files & history · {providerLabel} uses your configured
+                account and may send context to its model service
               </p>
             </div>
           </main>
@@ -1209,6 +1255,7 @@ export default function App() {
       </div>
       {settingsSection && snapshot && (
         <AgentSettings
+          provider={selectedProvider}
           key={snapshot.conversation.id}
           conversation={snapshot.conversation}
           section={settingsSection}
@@ -1274,8 +1321,8 @@ export default function App() {
             </label>
             <p className="note">
               <Folder size={15} /> Leave empty to create a dedicated folder.
-              Codex can read and edit files in the selected project; command
-              permissions appear in chat.
+              Your chosen agent can read and edit files in the selected project;
+              command permissions appear in chat.
             </p>
             <button className="primary" disabled={submitting || !name.trim()}>
               {submitting ? "Creating…" : "Create project"}

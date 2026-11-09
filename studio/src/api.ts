@@ -37,6 +37,12 @@ export type RecordData = {
 };
 export type Snapshot = {
   conversation: RecordData;
+  provider?: {
+    id: string;
+    label: string;
+    capabilities: string[];
+    installed: boolean;
+  };
   items: RecordData[];
   experiments: RecordData[];
   approvals: RecordData[];

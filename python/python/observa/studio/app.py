@@ -15,8 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Streamin
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .codex import Codex
-from .controls import validate_settings
+from .providers import Agent, PROVIDERS, provider, create_agent
 from .experiments import Experiments, TERMINAL, scoped_file
 from .store import Store, encoded, new_id
 
@@ -29,6 +28,7 @@ class ProjectInput(BaseModel):
 class ConversationInput(BaseModel):
     project: str
     title: str = Field(default="New research", max_length=200)
+    provider: str = "codex"
 
 
 class MessageInput(BaseModel):
@@ -100,7 +100,7 @@ class Studio:
         self.url = url.rstrip("/")
         self.token = token or secrets.token_urlsafe(32)
         self.experiments = Experiments(self.store)
-        self.agents: dict[str, Codex] = {}
+        self.agents: dict[str, Agent] = {}
         self.turn_tasks: dict[str, asyncio.Task] = {}
         self.stop_locks: dict[str, asyncio.Lock] = {}
         self.shutting_down = False
@@ -108,7 +108,7 @@ class Studio:
         for conv in self.store.list("conversation"):
             if conv.get("status") in ("running", "connecting", "stopping") or conv.get("turn_id"):
                 self.store.put("conversation", {**conv, "status": "interrupted", "turn_id": None,
-                    "error": "Studio restarted. Send a message to resume your Codex thread."}, conv["project"])
+                    "error": "Studio restarted. Send a message to resume your agent session."}, conv["project"])
             self.store.interrupt_activity(conv["id"])
         for job in self.store.list("experiment"):
             if job["status"] not in TERMINAL:
@@ -122,6 +122,8 @@ class Studio:
         conv = self.store.require("conversation", identifier)
         return {
             "conversation": conv,
+            "provider": provider(conv.get("provider")).describe() if conv.get("provider", "codex") in PROVIDERS else
+                        {"id": conv.get("provider"), "label": conv.get("provider"), "capabilities": [], "installed": False},
             "items": self.store.list("item", identifier),
             "experiments": self.store.list("experiment", identifier),
             "approvals": self.store.list("approval", identifier),
@@ -132,11 +134,10 @@ class Studio:
     async def execute_turn(self, identifier: str, text: str):
         agent = self.agents.get(identifier)
         try:
-            if (not agent or agent.closing or not agent.process or agent.process.returncode is not None
-                    or (agent.reader and agent.reader.done())):
+            if not agent or not agent.usable:
                 if agent:
                     await agent.close()
-                agent = Codex(self.store, identifier, self.url)
+                agent = create_agent(self.store, identifier, self.url)
                 self.agents[identifier] = agent
                 await agent.start()
             await agent.turn(text)
@@ -152,11 +153,12 @@ class Studio:
 
     def submit(self, identifier: str, text: str):
         conv = self.store.require("conversation", identifier)
+        selected = provider(conv.get("provider"))
         if any(c["project"] == conv["project"] and (
                c.get("status") in ("connecting", "running", "stopping") or
                (c["id"] in self.stop_locks and self.stop_locks[c["id"]].locked()))
                for c in self.store.list("conversation")):
-            raise ValueError("This project already has an active Codex turn. Stop it or wait for it to finish.")
+            raise ValueError(f"This project already has an active {selected.label} turn or another agent turn. Stop it or wait for it to finish.")
         item = self.store.put("item", {"id": new_id(), "type": "user", "text": text}, identifier)
         self.store.emit(identifier, "item", item)
         if conv["title"] == "New research":
@@ -203,12 +205,23 @@ class Studio:
         self.store.close()
 
     async def options(self, identifier):
-        self.store.require("conversation", identifier)
-        catalog = Codex(self.store, identifier, self.url, metadata_only=True)
+        conv = self.store.require("conversation", identifier)
+        catalog = create_agent(self.store, identifier, self.url, metadata_only=True)
         try:
-            return await catalog.options()
+            return {**await catalog.options(), "provider": provider(conv.get("provider")).describe()}
         finally:
             await catalog.close()
+
+    async def probe(self, identifier):
+        adapter = create_agent(self.store, identifier, self.url, metadata_only=True)
+        try:
+            return await asyncio.wait_for(adapter.probe(), 15)
+        except asyncio.TimeoutError:
+            return {"status": "unknown", "message": "The agent did not respond in time. Check its installation and retry."}
+        except (RuntimeError, OSError):
+            return {"status": "unknown", "message": "Could not connect to the native agent. Check its installation and authentication."}
+        finally:
+            await adapter.close()
 
     def require_idle(self, identifier):
         conv = self.store.require("conversation", identifier)
@@ -216,12 +229,12 @@ class Studio:
                c.get("status") in ("connecting", "running", "stopping") or
                (c["id"] in self.stop_locks and self.stop_locks[c["id"]].locked()))
                for c in self.store.list("conversation")):
-            raise ValueError("Stop the active project turn before changing Codex settings.")
+            raise ValueError("Stop the active project turn before changing agent settings.")
         return conv
 
     async def configure(self, identifier, value):
-        self.require_idle(identifier)
-        settings = validate_settings(value, await self.options(identifier))
+        initial = self.require_idle(identifier)
+        settings = provider(initial.get("provider")).validate(value, await self.options(identifier))
         conv = self.require_idle(identifier)
         agent = self.agents.get(identifier)
         if agent:
@@ -310,7 +323,8 @@ def create_app(root: Path, url: str, token: str | None = None) -> FastAPI:
             matched = set(studio.store.search(q))
             conversations = [c for c in conversations if c["id"] in matched or q.lower() in c["title"].lower()]
         return {"projects": studio.store.list("project"), "conversations": conversations,
-                "codex_available": bool(shutil.which("codex")), "sandbox_available": bool(shutil.which("bwrap"))}
+                "providers": [p.describe() for p in PROVIDERS.values()],
+                "codex_available": bool(PROVIDERS["codex"].executable()), "sandbox_available": bool(shutil.which("bwrap"))}
 
     @app.post("/api/projects")
     async def project(value: ProjectInput):
@@ -335,9 +349,10 @@ def create_app(root: Path, url: str, token: str | None = None) -> FastAPI:
     @app.post("/api/conversations")
     async def conversation(value: ConversationInput):
         studio.store.require("project", value.project)
+        selected = provider(value.provider)
         return studio.store.put("conversation", {
             "id": new_id(), "project": value.project, "title": value.title,
-            "provider": "codex", "status": "idle", "thread_id": None,
+            "provider": selected.id, "status": "idle", "thread_id": None,
         }, value.project)
 
     @app.get("/api/conversations/{identifier}")
@@ -360,6 +375,10 @@ def create_app(root: Path, url: str, token: str | None = None) -> FastAPI:
             return await studio.options(identifier)
         except RuntimeError as exc:
             raise HTTPException(502, str(exc)) from exc
+
+    @app.post("/api/conversations/{identifier}/probe")
+    async def probe(identifier: str):
+        return await studio.probe(identifier)
 
     @app.post("/api/conversations/{identifier}/settings")
     async def settings(identifier: str, value: dict):
@@ -392,7 +411,7 @@ def create_app(root: Path, url: str, token: str | None = None) -> FastAPI:
         approval = studio.store.require("approval", identifier)
         agent = studio.agents.get(approval["conversation"])
         if not agent:
-            raise ValueError("Codex is disconnected; this request has expired.")
+            raise ValueError("The agent is disconnected; this request has expired.")
         await agent.decide(identifier, value.approved, value.answers, decision=value.decision, scope=value.scope)
         return {"ok": True}
 

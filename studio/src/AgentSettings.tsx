@@ -4,9 +4,9 @@ import { api, type RecordData } from "./api";
 
 export const commands = [
   ["model", "Choose model and reasoning effort"],
-  ["mode", "Switch between Default and Plan"],
-  ["permissions", "Choose how Codex approves actions"],
-  ["status", "Show this conversation's Codex settings"],
+  ["mode", "Choose an available agent mode"],
+  ["permissions", "Choose how your agent approves actions"],
+  ["status", "Show this conversation's agent settings"],
   ["stop", "Stop the agent and active backtests"],
   ["new", "Start a new conversation"],
   ["help", "Show available Studio commands"],
@@ -21,21 +21,26 @@ export const permissionLabels: Record<string, string> = {
 };
 
 export default function AgentSettings({
+  provider,
   conversation,
   section,
   close,
   saved,
 }: {
+  provider: any;
   conversation: RecordData;
   section: string;
   close: () => void;
   saved: (conversation: RecordData) => void;
 }) {
+  const label = provider?.label || "Agent";
   const [options, setOptions] = useState<any>(null);
   const [value, setValue] = useState<any>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [probe, setProbe] = useState<any>(null);
+  const [checking, setChecking] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
     let disposed = false;
@@ -49,7 +54,7 @@ export default function AgentSettings({
           ) ||
           o.models.find((m: any) => m.isDefault) ||
           o.models[0];
-        if (!model) throw new Error("Codex returned no available models.");
+        if (!model) throw new Error(`${label} returned no available models.`);
         setOptions(o);
         setValue({
           model: model.model,
@@ -110,7 +115,7 @@ export default function AgentSettings({
         }}
       >
         <div className="section-heading">
-          <h2 id="settings-title">Codex settings</h2>
+          <h2 id="settings-title">{label} settings</h2>
           <button
             className="icon-button"
             type="button"
@@ -122,6 +127,25 @@ export default function AgentSettings({
           </button>
         </div>
         <p>Saved for this conversation. Changes apply to the next message.</p>
+        <button
+          type="button"
+          disabled={checking}
+          onClick={async () => {
+            setChecking(true);
+            try {
+              setProbe(
+                await api(`/conversations/${conversation.id}/probe`, {}),
+              );
+            } catch (e: any) {
+              setProbe({ status: "unknown", message: e.message });
+            } finally {
+              setChecking(false);
+            }
+          }}
+        >
+          {checking ? "Checking connection…" : "Check agent connection"}
+        </button>
+        {probe && <p role="status">{probe.message}</p>}
         {error && (
           <p className="error" role="alert">
             {error}
@@ -130,7 +154,7 @@ export default function AgentSettings({
         {!options && !error && (
           <p>
             <LoaderCircle size={16} className="spin" /> Reading your installed
-            Codex…
+            {label}…
           </p>
         )}
         {options && value && (
@@ -190,8 +214,8 @@ export default function AgentSettings({
             </label>
             <p className="note">
               {value.mode === "plan"
-                ? "Plan with Codex before implementation. Switch to Default when ready to execute."
-                : "Codex can investigate, edit files and execute approved work."}
+                ? `Plan with ${label} before implementation. Switch to an execution mode when ready.`
+                : `${label} uses its native tools and permissions for research.`}
             </p>
             <label>
               Permissions
@@ -226,8 +250,8 @@ export default function AgentSettings({
                   checked={confirmed}
                   onChange={(e) => setConfirmed(e.target.checked)}
                 />
-                I allow Codex unrestricted filesystem and network access without
-                command approvals for this conversation.
+                I allow {label} unrestricted filesystem and network access
+                without command approvals for this conversation.
               </label>
             )}
             <p className="note">

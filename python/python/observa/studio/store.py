@@ -7,6 +7,8 @@ import time
 import uuid
 from pathlib import Path
 
+from .migrations import migrate
+
 
 def new_id() -> str:
     return uuid.uuid4().hex
@@ -21,25 +23,15 @@ class Store:
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.db = sqlite3.connect(self.root / "studio.sqlite3", check_same_thread=False)
-        self.db.row_factory = sqlite3.Row
-        self.db.executescript("""
-            PRAGMA journal_mode=WAL;
-            PRAGMA foreign_keys=ON;
-            PRAGMA busy_timeout=5000;
-            CREATE TABLE IF NOT EXISTS records (
-              kind TEXT NOT NULL, id TEXT NOT NULL, parent TEXT,
-              data TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL,
-              PRIMARY KEY(kind,id));
-            CREATE INDEX IF NOT EXISTS record_parent ON records(kind,parent);
-            CREATE TABLE IF NOT EXISTS events (
-              seq INTEGER PRIMARY KEY AUTOINCREMENT, conversation TEXT NOT NULL,
-              type TEXT NOT NULL, data TEXT NOT NULL);
-            CREATE INDEX IF NOT EXISTS event_conversation ON events(conversation,seq);
-            CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(
-              conversation UNINDEXED, item UNINDEXED, text);
-            PRAGMA user_version=1;
-        """)
-        self.db.commit()
+        try:
+            self.db.row_factory = sqlite3.Row
+            self.db.execute("PRAGMA busy_timeout=5000")
+            migrate(self.db, self.root)
+            self.db.execute("PRAGMA journal_mode=WAL")
+            self.db.execute("PRAGMA foreign_keys=ON")
+        except BaseException:
+            self.db.close()
+            raise
 
     def put(self, kind: str, value: dict, parent: str | None = None) -> dict:
         now = time.time()

@@ -52,6 +52,16 @@ resulting wheel with its `[studio]` extra. No release or upload is needed.
 
 ## First research session
 
+The sidebar's **Agent for new conversations** selector sets the provider for new
+research. Currently only Codex is enabled. Existing conversations retain their
+provider and native session. In agent settings, **Check agent connection** reads
+the native account state without making an inference request; readiness does not
+guarantee remaining model quota. Models and permissions still come from Codex.
+
+On first open after this upgrade, Studio backs up the version-1 SQLite database
+under `backups/` before migrating to version 2. History, native threads and settings
+are preserved. A newer, unsupported database schema is refused rather than reset.
+
 1. Create a project. Leave the directory field blank for a dedicated folder, or
    select an existing directory containing trusted strategy source and CSV data.
 2. Start a conversation. For example:

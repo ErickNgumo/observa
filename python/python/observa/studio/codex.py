@@ -38,6 +38,18 @@ When asked to inspect a previous result, use get_experiment.
 
 
 class Codex:
+    @staticmethod
+    def executable():
+        configured = os.environ.get("OBSERVA_CODEX_BIN")
+        if configured:
+            return shutil.which(configured)
+        return shutil.which("codex") or shutil.which(str(Path.home() / ".local/bin/codex"))
+
+    @property
+    def usable(self):
+        return bool(not self.closing and self.process and self.process.returncode is None
+                    and self.reader and not self.reader.done())
+
     def __init__(self, store: Store, conversation: str, base_url: str, on_exit=None, *, metadata_only=False):
         self.store = store
         self.conversation = conversation
@@ -58,7 +70,7 @@ class Codex:
         self.metadata_only = metadata_only
 
     async def connect(self):
-        binary = shutil.which(os.environ.get("OBSERVA_CODEX_BIN", "codex"))
+        binary = self.executable()
         if not binary:
             raise RuntimeError("Codex CLI is not installed. Install Codex, then run `codex login`.")
         project = self.store.require("project", self.conv()["project"])
@@ -76,6 +88,15 @@ class Codex:
             "capabilities": {"experimentalApi": True},
         })
         await self.send({"method": "initialized", "params": {}})
+
+    async def probe(self):
+        if not self.executable():
+            return {"status": "missing", "message": "Install Codex to start a research conversation."}
+        await self.connect()
+        account = await self.request("account/read", {}, timeout=10)
+        if account.get("requiresOpenaiAuth") and not account.get("account"):
+            return {"status": "sign_in_required", "message": "Sign in to Codex, then check again."}
+        return {"status": "ready", "message": "Codex is connected. Model usage limits are checked when a turn starts."}
 
     async def options(self):
         await self.connect()

@@ -1659,6 +1659,17 @@ td.negative {
   font-size: 12px;
   color: #2c634f;
 }
+.provider-choice {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 18px;
+  color: #758172;
+  font-size: 11px;
+}
+.provider-choice select {
+  width: 100%;
+  padding: 8px;
+}
 .chart-line-legend {
   position: relative;
 }
