@@ -84,7 +84,7 @@ def main():
                 browser = p.chromium.launch(headless=True, executable_path=os.environ.get("OBSERVA_CHROMIUM"))
                 page = browser.new_page(viewport={"width": 1440, "height": 1000})
                 page.on("pageerror", lambda e: errors.append(str(e)))
-                page.goto(url + "/#token=" + studio.token)
+                page.goto(url + "/#token=" + studio.issue_launch_token())
                 page.locator(".conversation-list button").first.click()
                 stop = page.get_by_role("button", name="Stop agent", exact=True)
                 expect(stop).to_be_enabled()

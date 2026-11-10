@@ -9,6 +9,7 @@ import math
 from pathlib import Path
 import secrets
 import shutil
+import time
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
@@ -98,7 +99,9 @@ class Studio:
     def __init__(self, root: Path, url: str, token: str | None = None):
         self.store = Store(root)
         self.url = url.rstrip("/")
-        self.token = token or secrets.token_urlsafe(32)
+        self.token = secrets.token_urlsafe(32)
+        self.launch_tokens = {token or secrets.token_urlsafe(32): time.monotonic() + 300}
+        self.request_shutdown = None
         self.experiments = Experiments(self.store)
         self.agents: dict[str, Agent] = {}
         self.turn_tasks: dict[str, asyncio.Task] = {}
@@ -117,6 +120,19 @@ class Studio:
         for approval in self.store.list("approval"):
             if approval["status"] == "pending":
                 self.store.put("approval", {**approval, "status": "expired"}, approval["conversation"])
+
+    def issue_launch_token(self):
+        now = time.monotonic()
+        self.launch_tokens = {key: expiry for key, expiry in self.launch_tokens.items() if expiry > now}
+        while len(self.launch_tokens) >= 32:
+            self.launch_tokens.pop(next(iter(self.launch_tokens)))
+        token = secrets.token_urlsafe(32)
+        self.launch_tokens[token] = now + 300
+        return token
+
+    def consume_launch_token(self, token):
+        expiry = self.launch_tokens.pop(token, 0)
+        return expiry > time.monotonic()
 
     def snapshot(self, identifier: str):
         conv = self.store.require("conversation", identifier)
@@ -254,8 +270,10 @@ def create_app(root: Path, url: str, token: str | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app):
-        yield
-        await studio.close()
+        try:
+            yield
+        finally:
+            await studio.close()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.studio = studio
@@ -310,11 +328,18 @@ def create_app(root: Path, url: str, token: str | None = None) -> FastAPI:
     @app.post("/api/auth")
     async def auth(request: Request):
         bearer = request.headers.get("authorization", "").removeprefix("Bearer ")
-        if not hmac.compare_digest(bearer, studio.token):
+        if not studio.consume_launch_token(bearer):
             raise HTTPException(401, "Invalid launch token")
         response = JSONResponse({"ok": True})
         response.set_cookie("observa_session", studio.token, httponly=True, samesite="strict", path="/")
         return response
+
+    @app.post("/api/quit")
+    async def quit_studio():
+        if studio.request_shutdown is None:
+            raise HTTPException(503, "This Studio instance is managed externally.")
+        studio.request_shutdown()
+        return {"ok": True}
 
     @app.get("/api/state")
     async def state(q: str = ""):

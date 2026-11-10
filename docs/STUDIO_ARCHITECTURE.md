@@ -245,7 +245,8 @@ launcher prototype may require an existing agent; the public nontechnical
 acceptance gate requires completing setup without terminal commands.
 
 The static website supplies information, download links, versions and a button
-for exactly `observa://open`. The installed handler validates the complete URI
+for `observa://open` (also accepting the equivalent root slash added by GIO).
+The installed handler validates the complete URI
 and rejects other actions, parameters, paths and commands. The browser may ask
 permission to open the app. When launch cannot be confirmed, show Install/Open
 help instead of claiming reliable installed-app detection. The website neither

@@ -429,6 +429,8 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [connected, setConnected] = useState(true);
   const [stopping, setStopping] = useState(false);
+  const [quitting, setQuitting] = useState(false);
+  const [quit, setQuit] = useState(false);
   const [sidebar, setSidebar] = useState(window.innerWidth > 700);
   const [projectModal, setProjectModal] = useState(false);
   const [settingsSection, setSettingsSection] = useState("");
@@ -478,13 +480,13 @@ export default function App() {
       .catch((e) => setError(e.message));
   }, []);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || quit) return;
     const timer = setTimeout(
       () => refresh(query).catch((e) => setError(e.message)),
       180,
     );
     return () => clearTimeout(timer);
-  }, [query, ready]);
+  }, [query, ready, quit]);
   useEffect(() => {
     localStorage.setItem("observa-project", projectId);
   }, [projectId]);
@@ -493,7 +495,7 @@ export default function App() {
     setSelected(null);
     setSnapshot(null);
     pinned.current = true;
-    if (!conversationId || !ready) return;
+    if (!conversationId || !ready || quit) return;
     let disposed = false,
       events: EventSource | undefined;
     api(`/conversations/${conversationId}`)
@@ -543,7 +545,7 @@ export default function App() {
       disposed = true;
       events?.close();
     };
-  }, [conversationId, ready]);
+  }, [conversationId, ready, quit]);
   useEffect(() => {
     if (pinned.current && scroller.current)
       scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -572,6 +574,23 @@ export default function App() {
       );
     } finally {
       setStopping(false);
+    }
+  };
+  const quitStudio = async () => {
+    if (
+      !window.confirm(
+        "Quit Observa Studio? Active agents and backtests will stop. Your saved research stays on this computer.",
+      )
+    )
+      return;
+    setQuitting(true);
+    try {
+      await api("/quit", {});
+      setQuit(true);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setQuitting(false);
     }
   };
   const newConversation = async (pid = projectId) => {
@@ -714,6 +733,20 @@ export default function App() {
     target.addEventListener("pointermove", move);
     target.addEventListener("pointerup", stop);
   };
+  if (quit)
+    return (
+      <main className="welcome" role="status">
+        <Activity size={32} />
+        <h1>Studio is closing</h1>
+        <p>
+          Your saved research stays on this computer. You can close this tab.
+        </p>
+        <p>
+          Open Observa Studio from your application menu to return after
+          shutdown finishes.
+        </p>
+      </main>
+    );
   return (
     <div className={`app ${sidebar ? "" : "sidebar-hidden"}`}>
       {sidebar && (
@@ -757,6 +790,14 @@ export default function App() {
               </button>
             )}
           </label>
+          <button
+            className="composer-setting"
+            type="button"
+            onClick={quitStudio}
+            disabled={!ready || quitting}
+          >
+            {quitting ? "Closing Studio…" : "Quit Studio"}
+          </button>
           <label className="provider-choice">
             Agent for new conversations
             <select

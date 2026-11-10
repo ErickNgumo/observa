@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import asynccontextmanager
 import fcntl
 import os
 from pathlib import Path
@@ -9,13 +10,15 @@ import socket
 import sys
 import webbrowser
 
+from .local_control import data_root, serve
+
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="observa studio", description="Local Observa Studio (Linux + Codex)")
+    parser = argparse.ArgumentParser(prog="observa studio", description="Local Observa Studio")
     parser.add_argument("--port", type=int, default=0, help="Loopback port; default chooses an available port")
-    parser.add_argument("--data-dir", type=Path, default=Path(os.environ.get(
-        "XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "observa/studio")
+    parser.add_argument("--data-dir", type=Path, default=data_root())
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--quiet-launch", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if sys.platform != "linux":
         parser.error("Studio currently supports Linux only.")
@@ -33,6 +36,7 @@ def main(argv=None) -> int:
         sock.bind(("127.0.0.1", args.port))
     except OSError as exc:
         print(f"Cannot bind Studio: {exc}", file=sys.stderr)
+        sock.close()
         return 2
     token = secrets.token_urlsafe(32)
     url = f"http://127.0.0.1:{sock.getsockname()[1]}"
@@ -48,9 +52,6 @@ def main(argv=None) -> int:
         return 2
     app = create_app(args.data_dir, url, token)
     launch = url + "/#token=" + token
-    print(f"Observa Studio\nLocal data: {args.data_dir}\nOpen: {launch}", flush=True)
-    if not args.no_browser:
-        webbrowser.open(launch)
 
     class LocalServer(uvicorn.Server):
         def handle_exit(self, sig, frame):
@@ -59,9 +60,35 @@ def main(argv=None) -> int:
             app.state.studio.shutting_down = True
             super().handle_exit(sig, frame)
 
+    server = LocalServer(uvicorn.Config(app, log_level="warning", access_log=False,
+                                       timeout_graceful_shutdown=10))
+
+    def shutdown():
+        app.state.studio.shutting_down = True
+        server.should_exit = True
+
+    app.state.studio.request_shutdown = shutdown
+    lifecycle = app.router.lifespan_context
+
+    @asynccontextmanager
+    async def managed(app):
+        async with lifecycle(app):
+            control, path = await serve(args.data_dir.resolve(), app.state.studio, shutdown)
+            try:
+                if not args.quiet_launch:
+                    print(f"Observa Studio\nLocal data: {args.data_dir}\nOpen: {launch}", flush=True)
+                if not args.no_browser:
+                    webbrowser.open(launch)
+                yield
+            finally:
+                control.close()
+                await control.wait_closed()
+                path.unlink(missing_ok=True)
+
+    app.router.lifespan_context = managed
+
     try:
-        LocalServer(uvicorn.Config(app, log_level="warning", access_log=False,
-                                  timeout_graceful_shutdown=10)).run(sockets=[sock])
+        server.run(sockets=[sock])
     except KeyboardInterrupt:
         # Uvicorn re-raises SIGINT after lifespan shutdown. Ctrl-C is a normal
         # local-app exit, not a failed research session with a traceback.
@@ -70,3 +97,7 @@ def main(argv=None) -> int:
         sock.close()
         lock.close()
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

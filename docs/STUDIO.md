@@ -1,8 +1,8 @@
 # Observa Studio — local prototype
 
-Studio is the conversation-first research interface on the `obs-studio-mvp`
-development branch. It uses your installed Codex CLI and the existing Observa
-engine. It is not published or hosted.
+Studio is the conversation-first research interface included on the repository's
+`master` branch. It uses your installed Codex CLI and the existing Observa engine.
+It is not published or hosted.
 
 ## Setup on Linux
 
@@ -30,10 +30,34 @@ maturin develop --release --extras studio --manifest-path python/Cargo.toml
 observa studio
 ```
 
-`observa studio` opens a browser and prints a local launch link. If needed, use
+After building, install the application-menu shortcut once:
+
+```bash
+python -m observa.studio.launcher --install-desktop
+```
+
+Then search for **Observa Studio** in your Linux application menu and click it.
+No terminal is needed for subsequent launches. Repeated clicks reopen the same
+local service. Closing the browser leaves research running; **Quit Studio** in
+the sidebar stops owned agents and backtests and shuts down the service. Reopen
+the icon to return to saved conversations. Only `observa://open` (including the
+equivalent trailing slash added by Linux) is supported; links cannot supply
+commands, parameters or project paths.
+
+This development shortcut depends on the Python environment and checkout used
+to install it; keep them in place. It does not install Codex or provision a new
+computer. A self-contained installer and guided agent setup are later milestones.
+Linux desktop utilities (`gio`, `xdg-mime`, `update-desktop-database`) provide the
+desktop integration; Zenity provides a Retry/Close dialog for launch errors when
+available. Startup diagnostics are local in `studio-startup.log` under the data
+directory and do not contain the launch token.
+
+For terminal workflows, `observa studio` opens a browser and prints a local launch link. If needed, use
 `observa studio --no-browser` and open that link yourself. It contains a local
-session token in the URL fragment; the application exchanges it for an HttpOnly
-cookie and removes it from the address bar. Do not share the launch link.
+single-use bootstrap token in the URL fragment, valid for five minutes; the
+application exchanges it for a separate HttpOnly session cookie and removes it
+from the address bar. Do not share the launch link. The application icon always
+requests a fresh link, including when the service is already running.
 
 Optional arguments:
 
@@ -93,11 +117,14 @@ cleanup finishes. Backtests also have their own cancel button. Interrupted work
 is never automatically rerun after a restart; request a new experiment explicitly.
 
 If the browser says **Connection lost**, it cannot confirm whether the agent is
-running or stop an unreachable service. Press Ctrl+C in Studio's terminal if it
-is still running, launch `observa studio` again, and open the **new launch link**
-printed there. Refreshing an old address is insufficient if the port or session
-token changed. Saved conversations remain available. Restart recovery marks
-stale tool activity as interrupted rather than leaving a spinner running.
+running or stop an unreachable service. Reopen Observa Studio from the application
+menu to reconnect. A launch failure offers retry when Zenity is available and
+points to local diagnostics. For a service started in a terminal, Ctrl+C stops it
+before relaunch. Refreshing an old address is insufficient if the port or session
+changed. Saved conversations remain available. Restart recovery marks stale tool
+activity as interrupted rather than leaving a spinner running. When upgrading
+from a version without launcher support, stop that old service once before using
+the new icon; the launcher never kills an unidentified existing process.
 
 `@sample` selects the bundled 200-bar sample. `@demo` selects the longer bundled
 dataset. Both are historical fixtures, not live market feeds. For your own data,
@@ -277,7 +304,7 @@ artifacts are not accepted. Limits: 2 MiB per artifact, 10,000 points/rows.
 ```bash
 python -m pip install httpx playwright hypothesis  # development-only checks
 python -m playwright install chromium
-python -m unittest discover -s python/tests -p test_studio.py -v
+python -m unittest discover -s python/tests -p 'test_studio*.py' -v
 npm test --prefix studio
 npm run build --prefix studio
 
@@ -287,6 +314,8 @@ python harness/studio_review.py --real-codex --out /tmp/observa-studio-review
 
 # Stop/refresh/disconnect browser regression with disposable subprocesses.
 python harness/studio_stop_review.py --out /tmp/observa-studio-stop
+# Actual desktop entry, isolated application data, browser Quit and reopen:
+python harness/studio_launcher_review.py --out /tmp/observa-studio-launcher
 # Optionally also start and interrupt one real Codex turn:
 python harness/studio_stop_review.py --out /tmp/observa-studio-stop-live --real-codex
 

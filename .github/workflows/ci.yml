@@ -103,7 +103,7 @@ jobs:
       - name: Studio sandbox prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y bubblewrap
+          sudo apt-get install -y bubblewrap desktop-file-utils libglib2.0-bin xdg-utils
           # Ubuntu's runner may restrict unprivileged user namespaces. This
           # disposable CI VM needs them to test the real isolated worker.
           if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
@@ -120,10 +120,13 @@ jobs:
           .ci-venv/bin/python -m playwright install --with-deps chromium
           .ci-venv/bin/python harness/studio_controls_review.py --chart-only --out .ci-studio-charts
           .ci-venv/bin/python harness/studio_stop_review.py --out .ci-studio-charts/stop
+          .ci-venv/bin/python harness/studio_launcher_review.py --out .ci-studio-charts/launcher
       - name: Retain Studio chart verification
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: studio-chart-verification
-          path: .ci-studio-charts
+          path: |
+            .ci-studio-charts/**/*.png
+            .ci-studio-charts/**/verification.json
           if-no-files-found: ignore

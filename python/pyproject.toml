@@ -36,3 +36,4 @@ exclude = ["**/__pycache__/**", "**/*.pyc"]
 
 [project.scripts]
 observa = "observa.cli:main"
+observa-studio = "observa.studio.launcher:main"

@@ -557,7 +557,9 @@ class HttpTests(unittest.TestCase):
         self.temp.cleanup()
 
     def login(self):
-        self.assertEqual(self.client.post("/api/auth", headers={"Authorization": "Bearer test-secret"}).status_code, 200)
+        response = self.client.post("/api/auth", headers={"Authorization": "Bearer test-secret"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("HttpOnly", response.headers["set-cookie"])
 
     def test_host_origin_auth_and_csrf(self):
         self.assertEqual(self.client.get("/api/state").status_code, 401)
@@ -570,7 +572,7 @@ class HttpTests(unittest.TestCase):
         response = self.client.post("/api/projects", json={"name": "Research"}, headers={"X-Observa-Request": "1"})
         self.assertEqual(response.status_code, 200)
         self.assertTrue(Path(response.json()["path"]).is_dir())
-        self.assertIn("HttpOnly", self.client.post("/api/auth", headers={"Authorization": "Bearer test-secret"}).headers["set-cookie"])
+        self.assertEqual(self.client.post("/api/auth", headers={"Authorization": "Bearer test-secret"}).status_code, 401)
 
     def test_restart_marks_unfinished_work_interrupted(self):
         store = self.app.state.studio.store
