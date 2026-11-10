@@ -32,7 +32,7 @@ unchanged. Proposed internal interfaces are explicitly not current public APIs.
 - [x] 0: Integrate Studio baseline and CI checks; [verification and live-account limitation](OBS-STUDIO-02-00.md).
 - [x] 1: [Provider-aware adapter boundary, controls and persistence migration](OBS-STUDIO-02-01.md).
 - [x] 2: [Local launcher and single-instance lifecycle](OBS-STUDIO-02-02.md).
-- [ ] 3: Claude Code adapter and real lifecycle verification.
+- [ ] 3: [Claude native adapter and real lifecycle verification](OBS-STUDIO-02-03.md).
 - [ ] 4: Private Linux installer and clean-machine acceptance.
 - [ ] 5: Website/deep-link implementation; deployment separately authorized.
 - [ ] 6: Cursor Agent and DeepSeek Harness compatibility and integrations.
