@@ -63,6 +63,16 @@ Installed and validated the shortcut at
 `x-scheme-handler/observa`. An older service still holds the user's default data
 lock; it was left untouched. Close that old instance once before using the icon.
 
+Follow-up, 2026-11-10: the user authorized restarting the idle installation after
+seeing the startup-error dialog. Its log contained only data-directory ownership
+conflicts. Shut down the identified service through its private control socket,
+waited for process exit, and restarted through the installed launcher's runtime.
+Authenticated `/api/state` confirmed the saved project and five conversations;
+another launcher invocation opened the browser and reused the same service.
+Dismissed the identified stale error dialog. No research records were deleted or
+resubmitted. Hosted CI passed for launcher commit `ff88cbc5` and documentation
+commit `5027cf66`.
+
 ## Limits and next milestone
 
 The prototype shortcut depends on this checkout's `.venv-dev` runtime and built
